@@ -13,6 +13,8 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
     "astro": "^6.1.1"
   }
 }

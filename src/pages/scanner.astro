@@ -1,0 +1,249 @@
+---
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Barcode Scanner</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        padding: 1rem;
+        max-width: 600px;
+        margin-inline: auto;
+      }
+
+      nav {
+        margin-bottom: 1.5rem;
+      }
+
+      #scanner-container {
+        width: 100%;
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+        aspect-ratio: 4 / 3;
+        display: none;
+      }
+
+      #scanner-container.active {
+        display: block;
+      }
+
+      #preview {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      #controls {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1rem;
+      }
+
+      #controls button {
+        flex: 1;
+        padding: 0.75rem;
+        font-size: 1rem;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      #start-btn {
+        background: #2563eb;
+        color: #fff;
+      }
+
+      #start-btn:disabled {
+        background: #93c5fd;
+        cursor: not-allowed;
+      }
+
+      #stop-btn {
+        background: #dc2626;
+        color: #fff;
+      }
+
+      #stop-btn:disabled {
+        background: #fca5a5;
+        cursor: not-allowed;
+      }
+
+      #status-area {
+        margin-top: 1rem;
+        min-height: 2rem;
+        color: #555;
+        font-size: 0.9rem;
+      }
+
+      #result-area {
+        margin-top: 1.5rem;
+        padding: 1rem;
+        border: 2px solid #16a34a;
+        border-radius: 8px;
+        background: #f0fdf4;
+      }
+
+      #result-area h2 {
+        margin: 0 0 0.5rem;
+        font-size: 1rem;
+        color: #15803d;
+      }
+
+      #result-value {
+        font-size: 1.25rem;
+        font-weight: bold;
+        word-break: break-all;
+        margin: 0 0 0.75rem;
+      }
+
+      #copy-btn {
+        padding: 0.5rem 1rem;
+        background: #16a34a;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="/superior-series/">Home</a> |
+      <a href="/superior-series/about/">About</a> |
+      <a href="/superior-series/blog/">Blog</a> |
+      <a href="/superior-series/scanner/">Scanner</a>
+    </nav>
+
+    <main>
+      <h1>Barcode Scanner</h1>
+
+      <div id="scanner-container">
+        <video id="preview" playsinline muted></video>
+      </div>
+
+      <div id="controls">
+        <button id="start-btn">Start Scanner</button>
+        <button id="stop-btn" disabled>Stop Scanner</button>
+      </div>
+
+      <div id="status-area">
+        <p id="status-message">Press "Start Scanner" to begin.</p>
+      </div>
+
+      <div id="result-area" hidden>
+        <h2>Scanned Result</h2>
+        <p id="result-value"></p>
+        <button id="copy-btn">Copy to Clipboard</button>
+      </div>
+    </main>
+
+    <script>
+      import { BrowserMultiFormatReader, BarcodeFormat } from "@zxing/browser";
+      import { DecodeHintType } from "@zxing/library";
+
+      const video       = document.getElementById("preview") as HTMLVideoElement;
+      const startBtn    = document.getElementById("start-btn") as HTMLButtonElement;
+      const stopBtn     = document.getElementById("stop-btn") as HTMLButtonElement;
+      const statusMsg   = document.getElementById("status-message") as HTMLParagraphElement;
+      const resultArea  = document.getElementById("result-area") as HTMLDivElement;
+      const resultValue = document.getElementById("result-value") as HTMLParagraphElement;
+      const copyBtn     = document.getElementById("copy-btn") as HTMLButtonElement;
+      const container   = document.getElementById("scanner-container") as HTMLDivElement;
+
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128]);
+      const codeReader = new BrowserMultiFormatReader(hints);
+
+      let stopScanFn: { stop: () => void } | null = null;
+
+      function setStatus(msg: string, isError = false) {
+        statusMsg.textContent = msg;
+        statusMsg.style.color = isError ? "#dc2626" : "#555";
+      }
+
+      function showResult(text: string) {
+        resultValue.textContent = text;
+        resultArea.hidden = false;
+      }
+
+      async function startScanner() {
+        startBtn.disabled = true;
+        setStatus("Requesting camera access...");
+        container.classList.add("active");
+
+        try {
+          const controls = await codeReader.decodeFromConstraints(
+            { video: { facingMode: { ideal: "environment" } } },
+            video,
+            (result, _err, controls) => {
+              if (result) {
+                showResult(result.getText());
+                setStatus("Barcode detected!");
+                controls.stop();
+                stopScanFn = null;
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                container.classList.remove("active");
+              }
+            }
+          );
+
+          stopScanFn = controls;
+          stopBtn.disabled = false;
+          setStatus("Scanning... Point camera at a CODE-128 barcode.");
+        } catch (err: any) {
+          container.classList.remove("active");
+          startBtn.disabled = false;
+
+          if (err.name === "NotAllowedError") {
+            setStatus("Camera permission denied. Please allow camera access and try again.", true);
+          } else if (err.name === "NotFoundError") {
+            setStatus("No camera found on this device.", true);
+          } else if (err.name === "NotReadableError") {
+            setStatus("Camera is in use by another application.", true);
+          } else {
+            setStatus(`Camera error: ${err.message}`, true);
+          }
+        }
+      }
+
+      function stopScanner() {
+        if (stopScanFn) {
+          stopScanFn.stop();
+          stopScanFn = null;
+        }
+        container.classList.remove("active");
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        setStatus("Scanner stopped.");
+      }
+
+      async function copyResult() {
+        const text = resultValue.textContent ?? "";
+        try {
+          await navigator.clipboard.writeText(text);
+          copyBtn.textContent = "Copied!";
+        } catch {
+          copyBtn.textContent = "Copy failed";
+        }
+        setTimeout(() => { copyBtn.textContent = "Copy to Clipboard"; }, 2000);
+      }
+
+      startBtn.addEventListener("click", startScanner);
+      stopBtn.addEventListener("click", stopScanner);
+      copyBtn.addEventListener("click", copyResult);
+    </script>
+  </body>
+</html>
