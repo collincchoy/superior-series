@@ -114,6 +114,7 @@
         text-align: center;
         text-shadow: 0 1px 3px rgba(0,0,0,0.6);
         letter-spacing: 0.01em;
+        transition: opacity 0.5s ease;
       }
 
       #controls {
@@ -224,6 +225,8 @@
         <p id="status-message">Press "Start Scanner" to begin.</p>
       </div>
 
+      <canvas id="analysis-canvas" hidden></canvas>
+
       <div id="result-area" hidden>
         <h2>Scanned Result</h2>
         <p id="result-value"></p>
@@ -235,21 +238,127 @@
       import { BrowserMultiFormatReader, BarcodeFormat } from "@zxing/browser";
       import { DecodeHintType } from "@zxing/library";
 
-      const video       = document.getElementById("preview") as HTMLVideoElement;
-      const startBtn    = document.getElementById("start-btn") as HTMLButtonElement;
-      const stopBtn     = document.getElementById("stop-btn") as HTMLButtonElement;
-      const statusMsg   = document.getElementById("status-message") as HTMLParagraphElement;
-      const resultArea  = document.getElementById("result-area") as HTMLDivElement;
-      const resultValue = document.getElementById("result-value") as HTMLParagraphElement;
-      const copyBtn     = document.getElementById("copy-btn") as HTMLButtonElement;
-      const container   = document.getElementById("scanner-container") as HTMLDivElement;
-      const targetBox   = document.getElementById("target-box") as HTMLDivElement;
+      const video          = document.getElementById("preview") as HTMLVideoElement;
+      const startBtn       = document.getElementById("start-btn") as HTMLButtonElement;
+      const stopBtn        = document.getElementById("stop-btn") as HTMLButtonElement;
+      const statusMsg      = document.getElementById("status-message") as HTMLParagraphElement;
+      const resultArea     = document.getElementById("result-area") as HTMLDivElement;
+      const resultValue    = document.getElementById("result-value") as HTMLParagraphElement;
+      const copyBtn        = document.getElementById("copy-btn") as HTMLButtonElement;
+      const container      = document.getElementById("scanner-container") as HTMLDivElement;
+      const targetBox      = document.getElementById("target-box") as HTMLDivElement;
+      const aimHint        = document.getElementById("aim-hint") as HTMLParagraphElement;
+      const analysisCanvas = document.getElementById("analysis-canvas") as HTMLCanvasElement;
+      const analysisCtx    = analysisCanvas.getContext("2d")!;
 
-      const hints = new Map();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128]);
-      const codeReader = new BrowserMultiFormatReader(hints);
+      const zxingHints = new Map();
+      zxingHints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128]);
+      const codeReader = new BrowserMultiFormatReader(zxingHints);
 
       let stopScanFn: { stop: () => void } | null = null;
+
+      // --- Hint system ---
+
+      // Shown in order after a few seconds with no scan, cycling through them.
+      const timeHints = [
+        "try moving a little closer",
+        "or a small step back might help",
+        "make sure the barcode lies flat",
+        "a slight angle change can make a difference",
+        "good lighting helps — find a bright spot",
+      ];
+
+      let hintInterval: ReturnType<typeof setInterval> | null = null;
+      let scanStartTime = 0;
+      let prevFrameData: Uint8ClampedArray | null = null;
+      let currentHint = "";
+
+      function fadeHint(text: string) {
+        if (currentHint === text) return;
+        currentHint = text;
+        aimHint.style.opacity = "0";
+        setTimeout(() => {
+          aimHint.textContent = text;
+          aimHint.style.opacity = "1";
+        }, 450);
+      }
+
+      function resetHint() {
+        currentHint = "";
+        aimHint.style.opacity = "1";
+        aimHint.textContent = "hold the barcode horizontally within the frame";
+      }
+
+      function analyzeAndHint() {
+        if (video.readyState < 2 || video.videoWidth === 0) return;
+
+        // Draw at 25% scale — enough for brightness/motion, much cheaper
+        const vw = Math.floor(video.videoWidth * 0.25);
+        const vh = Math.floor(video.videoHeight * 0.25);
+        if (analysisCanvas.width !== vw || analysisCanvas.height !== vh) {
+          analysisCanvas.width = vw;
+          analysisCanvas.height = vh;
+          prevFrameData = null;
+        }
+        analysisCtx.drawImage(video, 0, 0, vw, vh);
+
+        // Sample only the target zone (85% wide, 35% tall, centered)
+        const x = Math.floor(vw * 0.075);
+        const y = Math.floor(vh * 0.325);
+        const w = Math.max(1, Math.floor(vw * 0.85));
+        const h = Math.max(1, Math.floor(vh * 0.35));
+        const { data: pixels } = analysisCtx.getImageData(x, y, w, h);
+        const pixelCount = w * h;
+
+        // Perceptual luminance
+        let totalLuminance = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          totalLuminance += pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114;
+        }
+        const avgBrightness = totalLuminance / pixelCount; // 0–255
+
+        // Frame-to-frame motion in the target zone
+        let motion = 0;
+        if (prevFrameData && prevFrameData.length === pixels.length) {
+          let totalDiff = 0;
+          for (let i = 0; i < pixels.length; i += 4) {
+            totalDiff += Math.abs(pixels[i] - prevFrameData[i]);
+          }
+          motion = totalDiff / pixelCount; // avg per-pixel diff
+        }
+        prevFrameData = new Uint8ClampedArray(pixels);
+
+        const elapsed = (Date.now() - scanStartTime) / 1000;
+
+        if (avgBrightness < 45) {
+          fadeHint("a little more light would help");
+        } else if (avgBrightness > 210) {
+          fadeHint("try reducing any glare on the barcode");
+        } else if (motion > 14) {
+          fadeHint("try holding a little steadier");
+        } else if (elapsed > 4) {
+          // Rotate through positional / angle hints every 5s
+          const idx = Math.floor(elapsed / 5) % timeHints.length;
+          fadeHint(timeHints[idx]);
+        } else {
+          // Conditions look fine, no extra nudge needed yet
+          resetHint();
+        }
+      }
+
+      function startHintLoop() {
+        scanStartTime = Date.now();
+        prevFrameData = null;
+        resetHint();
+        hintInterval = setInterval(analyzeAndHint, 700);
+      }
+
+      function stopHintLoop() {
+        if (hintInterval) { clearInterval(hintInterval); hintInterval = null; }
+        prevFrameData = null;
+      }
+
+      // --- Scanner ---
 
       function setStatus(msg: string, isError = false) {
         statusMsg.textContent = msg;
@@ -274,6 +383,7 @@
               if (result) {
                 controls.stop();
                 stopScanFn = null;
+                stopHintLoop();
                 targetBox.classList.add("success");
                 setTimeout(() => {
                   showResult(result.getText());
@@ -289,7 +399,8 @@
 
           stopScanFn = controls;
           stopBtn.disabled = false;
-          setStatus("Hold the barcode horizontally within the frame.");
+          setStatus("Scanning...");
+          startHintLoop();
         } catch (err: any) {
           container.classList.remove("active");
           startBtn.disabled = false;
@@ -307,10 +418,8 @@
       }
 
       function stopScanner() {
-        if (stopScanFn) {
-          stopScanFn.stop();
-          stopScanFn = null;
-        }
+        if (stopScanFn) { stopScanFn.stop(); stopScanFn = null; }
+        stopHintLoop();
         container.classList.remove("active");
         startBtn.disabled = false;
         stopBtn.disabled = true;
