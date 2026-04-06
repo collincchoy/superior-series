@@ -60,18 +60,26 @@ export interface HarborSetup {
  * The 9 harbors defined by the hex they're adjacent to and which edge faces sea.
  * In the beginner layout these are at fixed positions.
  */
+// Pointy-top edge → direction mapping:
+//   edge 0 = SW face  (between bottom and lower-left vertices)
+//   edge 1 = W  face  (between lower-left and upper-left)
+//   edge 2 = NW face  (between upper-left and top)
+//   edge 3 = NE face  (between top and upper-right)
+//   edge 4 = E  face  (between upper-right and lower-right)
+//   edge 5 = SE face  (between lower-right and bottom)
+// All chosen edges face off-island (sea-facing).
 export const HARBOR_SETUPS: HarborSetup[] = [
   // Generic 3:1 harbors (4)
-  { type: 'generic',    hexCoord: { q: 0,  r: -2 }, edgeIndex: 1 }, // NE of top-left hex
-  { type: 'generic',    hexCoord: { q: 2,  r: -2 }, edgeIndex: 0 }, // E of top-right
-  { type: 'generic',    hexCoord: { q: -2, r: 1  }, edgeIndex: 3 }, // W of left middle
-  { type: 'generic',    hexCoord: { q: 0,  r: 2  }, edgeIndex: 5 }, // SE bottom
+  { type: 'generic', hexCoord: { q: 0,  r: -2 }, edgeIndex: 2 }, // NW: upper-left corner
+  { type: 'generic', hexCoord: { q: 2,  r: -2 }, edgeIndex: 3 }, // NE: upper-right corner
+  { type: 'generic', hexCoord: { q: -2, r: 1  }, edgeIndex: 1 }, // W:  left side
+  { type: 'generic', hexCoord: { q: 0,  r: 2  }, edgeIndex: 5 }, // SE: bottom
   // Specific 2:1 harbors (5)
-  { type: 'ore',        hexCoord: { q: 2,  r: -1 }, edgeIndex: 0 }, // E right side
-  { type: 'wool',       hexCoord: { q: 2,  r: 0  }, edgeIndex: 5 }, // SE right
-  { type: 'brick',      hexCoord: { q: 1,  r: 1  }, edgeIndex: 4 }, // SW bottom-right
-  { type: 'grain',      hexCoord: { q: -2, r: 2  }, edgeIndex: 4 }, // SW bottom-left
-  { type: 'lumber',     hexCoord: { q: -1, r: -1 }, edgeIndex: 2 }, // NW top-left
+  { type: 'ore',     hexCoord: { q: 2,  r: -1 }, edgeIndex: 4 }, // E:  right upper
+  { type: 'wool',    hexCoord: { q: 2,  r: 0  }, edgeIndex: 5 }, // SE: right lower
+  { type: 'brick',   hexCoord: { q: 1,  r: 1  }, edgeIndex: 5 }, // SE: lower-right
+  { type: 'grain',   hexCoord: { q: -2, r: 2  }, edgeIndex: 0 }, // SW: bottom-left
+  { type: 'lumber',  hexCoord: { q: -1, r: -1 }, edgeIndex: 2 }, // NW: upper-left
 ];
 
 // ─── Progress Card Decks ───────────────────────────────────────────────────────
