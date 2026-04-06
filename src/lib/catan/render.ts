@@ -61,7 +61,7 @@ function svgNS(tag: string): SVGElement {
 
 function hexPoints(cx: number, cy: number, size: number): string {
   return Array.from({ length: 6 }, (_, i) => {
-    const angle = (Math.PI / 180) * (120 - 60 * i);
+    const angle = (Math.PI / 180) * (90 + 60 * i);
     return `${cx + size * Math.cos(angle)},${cy + size * Math.sin(angle)}`;
   }).join(' ');
 }

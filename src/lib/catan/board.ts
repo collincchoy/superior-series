@@ -30,22 +30,24 @@ export function hexId(c: HexCoord): HexId {
   return `${c.q},${c.r}`;
 }
 
-// ─── Pixel Coordinates (flat-top hexes) ───────────────────────────────────────
+// ─── Pixel Coordinates (pointy-top hexes) ─────────────────────────────────────
 
 /**
- * Convert axial hex coordinate to pixel center (flat-top orientation).
+ * Convert axial hex coordinate to pixel center (pointy-top orientation).
+ * With this formula, same-r rows are horizontal — the standard Catan board layout.
  * @param size circumradius (distance from center to corner)
  */
 export function hexToPixel(coord: HexCoord, size: number): { x: number; y: number } {
   return {
-    x: size * (3 / 2) * coord.q,
-    y: size * (Math.sqrt(3) / 2 * coord.q + Math.sqrt(3) * coord.r),
+    x: size * (Math.sqrt(3) * coord.q + Math.sqrt(3) / 2 * coord.r),
+    y: size * (3 / 2) * coord.r,
   };
 }
 
 /**
  * Pixel position of a local vertex (0..5) on a hex.
- * Flat-top: vertex 0 = top-right (angle 30°), going clockwise by 60°.
+ * Pointy-top: v0 = bottom (90°), going clockwise by 60°.
+ * Consistent with hexesSharingVertex which uses dirs (v+4)%6 and (v+5)%6.
  */
 export function vertexPixel(
   coord: HexCoord,
@@ -53,7 +55,7 @@ export function vertexPixel(
   size: number,
 ): { x: number; y: number } {
   const center = hexToPixel(coord, size);
-  const angle = (Math.PI / 180) * (120 - 60 * localVertex); // flat-top: v0=120°, v1=60°, v2=0°…
+  const angle = (Math.PI / 180) * (90 + 60 * localVertex); // v0=90° (bottom), v3=270° (top)
   return {
     x: center.x + size * Math.cos(angle),
     y: center.y + size * Math.sin(angle),
@@ -156,11 +158,11 @@ function canonicalVertexId(hex: HexCoord, localV: number): VertexId {
 
 /**
  * Returns the two hexes sharing edge e of hex H.
- * Edge e of a flat-top hex (vertices at 120-60v°) connects vertex e and (e+1)%6.
- * With this convention, edge e's neighbor is at direction (e+5)%6.
+ * Edge e of a pointy-top hex (vertices at 90+60v°) connects vertex e and (e+1)%6.
+ * With this convention, edge e's neighbor is at direction (4-e+6)%6.
  */
 function hexesSharingEdge(hex: HexCoord, e: number): HexCoord[] {
-  const dir = (e + 5) % 6;
+  const dir = (4 - e + 6) % 6;
   const neighbor = {
     q: hex.q + HEX_DIRECTIONS[dir]!.q,
     r: hex.r + HEX_DIRECTIONS[dir]!.r,
