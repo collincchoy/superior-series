@@ -13,7 +13,7 @@ import { chooseBotAction } from './ai.js';
 // ─── Message Protocol ─────────────────────────────────────────────────────────
 
 export type NetMessage =
-  | { type: 'join';    name: string }
+  | { type: 'join';    name: string; pid?: PlayerId }  // pid present on reconnect
   | { type: 'welcome'; pid: PlayerId; state: GameState }
   | { type: 'action';  action: GameAction }
   | { type: 'state';   state: GameState }
@@ -25,6 +25,7 @@ export interface NetworkCallbacks {
   onStateUpdate(state: GameState): void;
   onError(msg: string): void;
   onPlayerJoined?(name: string, pid: PlayerId): void;
+  onPendingJoin?(name: string): void;
   onReady?(): void;
 }
 
@@ -37,6 +38,7 @@ export class CatanNetwork {
   private localPid: PlayerId | null = null;
   private state: GameState | null = null;
   private callbacks: NetworkCallbacks;
+  private pendingJoins: Array<{ conn: any; name: string }> = [];
 
   constructor(callbacks: NetworkCallbacks) {
     this.callbacks = callbacks;
@@ -70,14 +72,46 @@ export class CatanNetwork {
 
   initHostState(state: GameState) {
     this.state = state;
+    // Process any joins that arrived before the game state was ready
+    for (const { conn, name } of this.pendingJoins) {
+      const pid = this.findPendingSlot(name);
+      if (!pid) {
+        conn.send({ type: 'error', msg: 'No open slot' } satisfies NetMessage);
+        continue;
+      }
+      this.connections.set(pid, conn);
+      conn.send({ type: 'welcome', pid, state: this.state } satisfies NetMessage);
+      this.callbacks.onPlayerJoined?.(name, pid);
+    }
+    this.pendingJoins = [];
+    if (this.connections.size > 0) this.broadcastState();
     this.runBotTurns();
+  }
+
+  updateCallbacks(callbacks: Partial<NetworkCallbacks>) {
+    Object.assign(this.callbacks, callbacks);
   }
 
   private handleHostMessage(conn: any, msg: NetMessage) {
     if (msg.type === 'join') {
-      // Find a waiting human slot — slot with same name or first unconnected human
+      if (!this.state) {
+        // Game not started yet — queue until initHostState is called
+        this.pendingJoins.push({ conn, name: msg.name });
+        this.callbacks.onPendingJoin?.(msg.name);
+        return;
+      }
+
+      // Reconnect: client sends their previous pid
+      if (msg.pid && this.state.players[msg.pid] && !this.state.players[msg.pid]!.isBot) {
+        this.connections.set(msg.pid, conn);
+        conn.send({ type: 'welcome', pid: msg.pid, state: this.state } satisfies NetMessage);
+        this.callbacks.onPlayerJoined?.(msg.name, msg.pid);
+        return;
+      }
+
+      // New join: find a waiting human slot
       const pid = this.findPendingSlot(msg.name);
-      if (!pid || !this.state) {
+      if (!pid) {
         conn.send({ type: 'error', msg: 'No open slot' } satisfies NetMessage);
         return;
       }
@@ -152,7 +186,7 @@ export class CatanNetwork {
 
   // ─── Client ────────────────────────────────────────────────────────────────
 
-  async joinGame(roomCode: string, playerName: string): Promise<void> {
+  async joinGame(roomCode: string, playerName: string, existingPid?: PlayerId): Promise<void> {
     this.isHost = false;
     const Peer = await loadPeer();
     return new Promise((resolve, reject) => {
@@ -161,7 +195,10 @@ export class CatanNetwork {
       this.peer.on('open', () => {
         const conn = this.peer.connect(roomCode);
         conn.on('open', () => {
-          conn.send({ type: 'join', name: playerName } satisfies NetMessage);
+          const joinMsg: NetMessage = existingPid
+            ? { type: 'join', name: playerName, pid: existingPid }
+            : { type: 'join', name: playerName };
+          conn.send(joinMsg);
           conn.on('data', (msg: NetMessage) => {
             if (msg.type === 'welcome') {
               this.localPid = msg.pid;
@@ -173,6 +210,7 @@ export class CatanNetwork {
               this.callbacks.onStateUpdate(msg.state);
             } else if (msg.type === 'error') {
               this.callbacks.onError(msg.msg);
+              reject(new Error(msg.msg));
             }
           });
           this.connections.set('host', conn);

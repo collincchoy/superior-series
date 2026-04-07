@@ -418,6 +418,56 @@
       .toast.error { background: #7a1e1e; }
       .toast.hidden { display: none; }
 
+      /* ── Waiting Room ───────────────────────────────────────────── */
+
+      .room-code-display {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.4rem;
+      }
+
+      .room-code-value {
+        font-family: monospace;
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #f5c842;
+        letter-spacing: 0.05em;
+        background: rgba(255,255,255,0.08);
+        padding: 0.3rem 0.7rem;
+        border-radius: 6px;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .join-hint {
+        font-size: 0.8rem;
+        color: #a0b0a0;
+      }
+
+      .waiting-player-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .waiting-player-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.3rem 0;
+      }
+
+      .waiting-player-name {
+        flex: 1;
+        font-size: 0.9rem;
+      }
+
       /* ── Board SVG highlight ring ───────────────────────────────── */
 
       .valid-vertex { cursor: pointer; }

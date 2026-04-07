@@ -44,7 +44,9 @@ const graph = buildGraph();
 export function mountCatanApp(root: HTMLElement) {
   root.innerHTML = '';
   root.className = 'catan-app';
-  showLobby(root);
+  // Auto-fill room code from ?room= URL param
+  const urlRoom = new URLSearchParams(window.location.search).get('room');
+  showLobby(root, urlRoom ?? undefined);
 }
 
 // ─── Lobby ────────────────────────────────────────────────────────────────────
@@ -54,130 +56,72 @@ interface SlotConfig {
   name: string;
 }
 
-function showLobby(root: HTMLElement) {
-  const slots: SlotConfig[] = [
-    { type: 'human', name: 'You' },
-    { type: 'bot',   name: 'Bot 2' },
-    { type: 'bot',   name: 'Bot 3' },
-  ];
-
+function showLobby(root: HTMLElement, prefillCode?: string) {
   function setStatus(msg: string, kind: 'info' | 'error' = 'info') {
     const el = root.querySelector('#lobby-status');
     if (el) { el.textContent = msg; el.className = `lobby-status ${kind}`; }
   }
 
-  function renderLobby() {
-    root.innerHTML = `
-      <div class="lobby">
-        <h1>Catan: Cities &amp; Knights</h1>
-        <div class="lobby-section">
-          <h2>Players</h2>
-          <div class="slot-list" id="slot-list"></div>
-          <button id="add-player" class="btn-secondary">+ Add Player</button>
+  root.innerHTML = `
+    <div class="lobby">
+      <h1>Catan: Cities &amp; Knights</h1>
+      <div class="lobby-section">
+        <h2>Host a new game</h2>
+        <div class="join-row">
+          <input id="host-name" type="text" placeholder="Your name" maxlength="16" value="Player 1" />
+          <button id="btn-host" class="btn-primary">Host Game</button>
         </div>
-        <div class="lobby-section join-section">
-          <h2>Join existing game</h2>
-          <div class="join-row">
-            <input id="join-name" type="text" placeholder="Your name" maxlength="16" />
-            <input id="join-code" type="text" placeholder="Room code" maxlength="36" />
-            <button id="btn-join" class="btn-primary">Join</button>
-          </div>
-        </div>
-        <button id="btn-host" class="btn-primary btn-large">Host Game</button>
-        <div id="lobby-status" class="lobby-status"></div>
       </div>
-    `;
+      <div class="lobby-section">
+        <h2>Join existing game</h2>
+        <div class="join-row">
+          <input id="join-name" type="text" placeholder="Your name" maxlength="16" />
+          <input id="join-code" type="text" placeholder="Room code" maxlength="36" value="${prefillCode ?? ''}" />
+          <button id="btn-join" class="btn-primary">Join</button>
+        </div>
+      </div>
+      <div id="lobby-status" class="lobby-status"></div>
+    </div>
+  `;
 
-    const slotList = root.querySelector('#slot-list')!;
-    slots.forEach((slot, i) => {
-      const row = document.createElement('div');
-      row.className = 'slot-row';
-      row.innerHTML = `
-        <span class="slot-color" style="background:${PLAYER_COLORS[i] ?? '#999'}"></span>
-        <input class="slot-name" type="text" value="${slot.name}" maxlength="16" data-idx="${i}" />
-        <select class="slot-type" data-idx="${i}">
-          <option value="human" ${slot.type === 'human' ? 'selected' : ''}>Human</option>
-          <option value="bot"   ${slot.type === 'bot'   ? 'selected' : ''}>Bot</option>
-        </select>
-        ${slots.length > 2 ? `<button class="btn-remove" data-idx="${i}">✕</button>` : ''}
-      `;
-      slotList.appendChild(row);
-    });
-
-    slotList.querySelectorAll<HTMLInputElement>('.slot-name').forEach(el => {
-      el.addEventListener('input', e => {
-        const idx = parseInt((e.target as HTMLElement).dataset.idx!);
-        slots[idx]!.name = (e.target as HTMLInputElement).value;
-      });
-    });
-    slotList.querySelectorAll<HTMLSelectElement>('.slot-type').forEach(el => {
-      el.addEventListener('change', e => {
-        const idx = parseInt((e.target as HTMLElement).dataset.idx!);
-        slots[idx]!.type = (e.target as HTMLSelectElement).value as 'human' | 'bot';
-      });
-    });
-    slotList.querySelectorAll('.btn-remove').forEach(el => {
-      el.addEventListener('click', e => {
-        const idx = parseInt((e.target as HTMLElement).dataset.idx!);
-        slots.splice(idx, 1);
-        renderLobby();
-      });
-    });
-
-    const addBtn = root.querySelector<HTMLButtonElement>('#add-player')!;
-    addBtn.disabled = slots.length >= 4;
-    addBtn.addEventListener('click', () => {
-      if (slots.length < 4) {
-        slots.push({ type: 'bot', name: `Bot ${slots.length + 1}` });
-        renderLobby();
-      }
-    });
-
-    root.querySelector('#btn-host')!.addEventListener('click', async () => {
-      if (slots.filter(s => s.type === 'human').length === 0) {
-        setStatus('At least one human player is required.', 'error');
-        return;
-      }
-      setStatus('Creating room…', 'info');
-      await startHostGame(slots, root);
-    });
-
-    root.querySelector('#btn-join')!.addEventListener('click', async () => {
-      const name = (root.querySelector<HTMLInputElement>('#join-name')!).value.trim() || 'Guest';
-      const code = (root.querySelector<HTMLInputElement>('#join-code')!).value.trim();
-      if (!code) { setStatus('Enter a room code.', 'error'); return; }
-      setStatus('Connecting…', 'info');
-      await startJoinGame(name, code, root);
-    });
+  // Auto-join if room code was in URL
+  if (prefillCode) {
+    setStatus('Room code detected — enter your name and click Join', 'info');
   }
 
-  renderLobby();
+  root.querySelector('#btn-host')!.addEventListener('click', async () => {
+    const name = (root.querySelector<HTMLInputElement>('#host-name')!).value.trim() || 'Player 1';
+    setStatus('Creating room…', 'info');
+    await startHostGame(name, root);
+  });
+
+  root.querySelector('#btn-join')!.addEventListener('click', async () => {
+    const name = (root.querySelector<HTMLInputElement>('#join-name')!).value.trim() || 'Guest';
+    const code = (root.querySelector<HTMLInputElement>('#join-code')!).value.trim();
+    if (!code) { setStatus('Enter a room code.', 'error'); return; }
+    setStatus('Connecting…', 'info');
+    await startJoinGame(name, code, root);
+  });
 }
 
-// ─── Host Game ────────────────────────────────────────────────────────────────
+// ─── Host Game → Waiting Room ─────────────────────────────────────────────────
 
-async function startHostGame(slots: SlotConfig[], root: HTMLElement) {
-  const players = slots.map((s, i) => ({
-    id: `player${i + 1}`,
-    name: s.name,
-    color: PLAYER_COLORS[i] ?? '#999',
-    isBot: s.type === 'bot',
-  }));
-
-  const hostPid = players[0]!.id;
-  let renderer: BoardRenderer | null = null;
-  let currentState: GameState = createInitialState(players);
-  let pendingAction: PendingAction | null = null;
+async function startHostGame(hostName: string, root: HTMLElement) {
+  const hostPid = 'player1';
+  // Bots added by host (grows as host clicks "Add Bot")
+  const bots: Array<{ name: string }> = [];
+  // Humans who connected before game starts
+  const pendingHumans: string[] = [];
 
   const net = new CatanNetwork({
-    onStateUpdate(state) {
-      currentState = state;
-      if (renderer) {
-        updateGame(root, state, hostPid, net, renderer, pa => { pendingAction = pa; }, pendingAction);
-      }
-    },
+    onStateUpdate() {},
     onError(msg) { showToast(root, msg, 'error'); },
-    onPlayerJoined(name, pid) { showToast(root, `${name} joined`, 'info'); },
+    onPendingJoin(name) {
+      pendingHumans.push(name);
+      renderWaitingRoom();
+      showToast(root, `${name} is waiting to join`, 'info');
+    },
+    onPlayerJoined(name) { showToast(root, `${name} joined`, 'info'); },
   });
 
   let roomCode: string;
@@ -188,11 +132,122 @@ async function startHostGame(slots: SlotConfig[], root: HTMLElement) {
     return;
   }
 
-  net.initHostState(currentState);
+  function renderWaitingRoom() {
+    const totalSlots = 1 + pendingHumans.length + bots.length;
+    const canAddBot = totalSlots < 4;
+    const canStart = totalSlots >= 2;
 
-  showGameScreen(root, roomCode);
-  renderer = initBoardSVG(root.querySelector<SVGSVGElement>('.board-svg')!);
-  updateGame(root, currentState, hostPid, net, renderer, pa => { pendingAction = pa; }, null);
+    root.innerHTML = `
+      <div class="lobby">
+        <h1>Catan: Cities &amp; Knights</h1>
+        <div class="lobby-section">
+          <h2>Room Code</h2>
+          <div class="room-code-display">
+            <span class="room-code-value">${roomCode}</span>
+            <button id="copy-code" class="btn-secondary">Copy</button>
+            <button id="show-qr" class="btn-secondary">QR Code</button>
+          </div>
+          <p class="join-hint">Share this code so others can join</p>
+        </div>
+        <div class="lobby-section">
+          <h2>Players (${totalSlots}/4)</h2>
+          <div class="waiting-player-list">
+            <div class="waiting-player-row">
+              <span class="slot-color" style="background:${PLAYER_COLORS[0]}"></span>
+              <span class="waiting-player-name">${hostName} (You)</span>
+            </div>
+            ${pendingHumans.map((name, i) => `
+              <div class="waiting-player-row">
+                <span class="slot-color" style="background:${PLAYER_COLORS[1 + i] ?? '#999'}"></span>
+                <span class="waiting-player-name">${name} ⏳</span>
+              </div>
+            `).join('')}
+            ${bots.map((bot, i) => {
+              const colorIdx = 1 + pendingHumans.length + i;
+              return `
+              <div class="waiting-player-row">
+                <span class="slot-color" style="background:${PLAYER_COLORS[colorIdx] ?? '#999'}"></span>
+                <span class="waiting-player-name">${bot.name} (Bot)</span>
+                <button class="btn-remove" data-bot-idx="${i}">✕</button>
+              </div>`;
+            }).join('')}
+          </div>
+          ${canAddBot ? `<button id="add-bot" class="btn-secondary">+ Add Bot</button>` : ''}
+        </div>
+        <button id="btn-start" class="btn-primary btn-large"${canStart ? '' : ' disabled'}>Start Game</button>
+      </div>
+      <div id="toast" class="toast hidden"></div>
+    `;
+
+    root.querySelector('#copy-code')?.addEventListener('click', () => {
+      navigator.clipboard.writeText(roomCode).then(() => showToast(root, 'Copied!', 'info'));
+    });
+
+    root.querySelector('#show-qr')?.addEventListener('click', () => {
+      const joinUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+      showQRModal(root, joinUrl, roomCode);
+    });
+
+    root.querySelector('#add-bot')?.addEventListener('click', () => {
+      if (bots.length + pendingHumans.length + 1 < 4) {
+        bots.push({ name: `Bot ${bots.length + pendingHumans.length + 2}` });
+        renderWaitingRoom();
+      }
+    });
+
+    root.querySelectorAll<HTMLButtonElement>('.btn-remove[data-bot-idx]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.botIdx!);
+        bots.splice(idx, 1);
+        renderWaitingRoom();
+      });
+    });
+
+    root.querySelector('#btn-start')?.addEventListener('click', () => {
+      if (totalSlots < 2) return;
+      launchGame();
+    });
+  }
+
+  function launchGame() {
+    // Build ordered player list: host, then pending humans (in join order), then bots
+    const players = [
+      { id: 'player1', name: hostName, color: PLAYER_COLORS[0]!, isBot: false },
+      ...pendingHumans.map((name, i) => ({
+        id: `player${2 + i}`,
+        name,
+        color: PLAYER_COLORS[1 + i] ?? '#999',
+        isBot: false,
+      })),
+      ...bots.map((bot, i) => ({
+        id: `player${2 + pendingHumans.length + i}`,
+        name: bot.name,
+        color: PLAYER_COLORS[1 + pendingHumans.length + i] ?? '#999',
+        isBot: true,
+      })),
+    ];
+
+    let renderer: BoardRenderer | null = null;
+    let currentState: GameState = createInitialState(players);
+    let pendingAction: PendingAction | null = null;
+
+    net.updateCallbacks({
+      onStateUpdate(state) {
+        currentState = state;
+        if (renderer) {
+          updateGame(root, state, hostPid, net, renderer, pa => { pendingAction = pa; }, pendingAction);
+        }
+      },
+    });
+
+    net.initHostState(currentState);
+
+    showGameScreen(root, roomCode);
+    renderer = initBoardSVG(root.querySelector<SVGSVGElement>('.board-svg')!);
+    updateGame(root, currentState, hostPid, net, renderer, pa => { pendingAction = pa; }, null);
+  }
+
+  renderWaitingRoom();
 }
 
 // ─── Join Game ────────────────────────────────────────────────────────────────
@@ -202,9 +257,16 @@ async function startJoinGame(name: string, roomCode: string, root: HTMLElement) 
   let pendingAction: PendingAction | null = null;
   let localPid: PlayerId | null = null;
 
+  // Restore pid from a previous session for this room (enables reconnect)
+  const sessionKey = `catan-pid-${roomCode}`;
+  const savedPid = sessionStorage.getItem(sessionKey) as PlayerId | null;
+
   const net = new CatanNetwork({
     onStateUpdate(state) {
-      if (!localPid) localPid = net.myPid;
+      if (!localPid) {
+        localPid = net.myPid;
+        if (localPid) sessionStorage.setItem(sessionKey, localPid);
+      }
       if (!localPid) return;
       if (!renderer) {
         showGameScreen(root, null);
@@ -216,7 +278,7 @@ async function startJoinGame(name: string, roomCode: string, root: HTMLElement) 
   });
 
   try {
-    await net.joinGame(roomCode, name);
+    await net.joinGame(roomCode, name, savedPid ?? undefined);
   } catch (e: any) {
     root.querySelector('#lobby-status')?.textContent && (root.querySelector('#lobby-status')!.textContent = `Failed: ${e?.message}`);
     showToast(root, `Failed to join: ${e?.message}`, 'error');
@@ -243,6 +305,29 @@ function showGameScreen(root: HTMLElement, roomCode: string | null) {
     <div id="toast" class="toast hidden"></div>
     <div id="modal" class="modal hidden"></div>
   `;
+}
+
+// ─── QR Code Modal ────────────────────────────────────────────────────────────
+
+async function showQRModal(root: HTMLElement, url: string, roomCode: string) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal';
+  overlay.innerHTML = `
+    <div class="modal-box" style="text-align:center">
+      <h3>Scan to Join</h3>
+      <canvas id="qr-canvas" style="margin:1rem auto;display:block;border-radius:4px"></canvas>
+      <p style="font-size:0.8rem;color:#c8b47a;margin:0.8rem 0">Room code: <strong>${roomCode}</strong></p>
+      <button id="close-qr" class="btn-secondary">Close</button>
+    </div>
+  `;
+  root.appendChild(overlay);
+
+  const canvas = overlay.querySelector<HTMLCanvasElement>('#qr-canvas')!;
+  const QRCode = await import('qrcode');
+  await QRCode.toCanvas(canvas, url, { width: 220, color: { dark: '#1a3a1a', light: '#f0e8d0' } });
+
+  overlay.querySelector('#close-qr')!.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
 // ─── Pending Action ───────────────────────────────────────────────────────────
@@ -724,14 +809,13 @@ function showTradeBankModal(
   pid: PlayerId,
   sendAction: (a: GameAction) => void,
 ) {
-  let modal = root.querySelector<HTMLElement>('#modal');
+  const modal = root.querySelector<HTMLElement>('#modal');
   if (!modal) return;
 
   const me = state.players[pid]!;
   const r = me.resources;
   const allKeys: (keyof Resources)[] = ['brick','lumber','ore','grain','wool','cloth','coin','paper'];
 
-  // Compute trade ratios
   const ratios: Record<keyof Resources, number> = {
     brick:4, lumber:4, ore:4, grain:4, wool:4, cloth:4, coin:4, paper:4,
   };
@@ -745,51 +829,63 @@ function showTradeBankModal(
     }
   }
 
+  const canGive = allKeys.filter(k => r[k] >= ratios[k]);
   let giveKey: keyof Resources | null = null;
   let getKey: keyof Resources | null = null;
 
-  function renderModal() {
-    const canGive = allKeys.filter(k => r[k] >= ratios[k]);
-    modal!.innerHTML = `
-      <div class="modal-box">
-        <h3>Trade with Bank</h3>
-        <div class="trade-section">
-          <label>Give (×ratio):</label>
-          <div class="trade-options">
-            ${canGive.map(k => `<button class="trade-card${giveKey===k?' selected':''}" data-role="give" data-key="${k}">${CARD_EMOJI[k]} ${k}×${ratios[k]}</button>`).join('')}
-          </div>
-        </div>
-        <div class="trade-section">
-          <label>Receive:</label>
-          <div class="trade-options">
-            ${allKeys.map(k => `<button class="trade-card${getKey===k?' selected':''}" data-role="get" data-key="${k}">${CARD_EMOJI[k]} ${k}</button>`).join('')}
-          </div>
-        </div>
-        <div class="trade-actions">
-          <button id="confirm-trade" class="btn-primary"${!giveKey||!getKey||giveKey===getKey?' disabled':''}>Trade</button>
-          <button id="cancel-trade" class="btn-secondary">Cancel</button>
+  modal.innerHTML = `
+    <div class="modal-box">
+      <h3>Trade with Bank</h3>
+      <div class="trade-section">
+        <label>Give (×ratio):</label>
+        <div class="trade-options" id="trade-give">
+          ${canGive.map(k => `<button class="trade-card" data-role="give" data-key="${k}">${CARD_EMOJI[k]} ${k}×${ratios[k]}</button>`).join('')}
+          ${canGive.length === 0 ? '<span style="color:#a0b0a0;font-size:0.8rem">Not enough resources</span>' : ''}
         </div>
       </div>
-    `;
-    modal!.querySelectorAll<HTMLButtonElement>('.trade-card').forEach(b => {
-      b.addEventListener('click', () => {
-        if (b.dataset.role === 'give') giveKey = b.dataset.key as keyof Resources;
-        else getKey = b.dataset.key as keyof Resources;
-        renderModal();
-      });
-    });
-    modal!.querySelector('#confirm-trade')?.addEventListener('click', () => {
+      <div class="trade-section">
+        <label>Receive:</label>
+        <div class="trade-options" id="trade-get">
+          ${allKeys.map(k => `<button class="trade-card" data-role="get" data-key="${k}">${CARD_EMOJI[k]} ${k}</button>`).join('')}
+        </div>
+      </div>
+      <div class="trade-actions">
+        <button id="confirm-trade" class="btn-primary" disabled>Trade</button>
+        <button id="cancel-trade" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  function updateConfirm() {
+    const confirmBtn = modal!.querySelector<HTMLButtonElement>('#confirm-trade');
+    if (confirmBtn) confirmBtn.disabled = !giveKey || !getKey || giveKey === getKey;
+  }
+
+  // Event delegation — one listener handles all clicks inside the modal
+  modal.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('button');
+    if (!btn) return;
+
+    if (btn.dataset.role === 'give') {
+      modal!.querySelectorAll('[data-role="give"]').forEach(el => el.classList.remove('selected'));
+      btn.classList.add('selected');
+      giveKey = btn.dataset.key as keyof Resources;
+      updateConfirm();
+    } else if (btn.dataset.role === 'get') {
+      modal!.querySelectorAll('[data-role="get"]').forEach(el => el.classList.remove('selected'));
+      btn.classList.add('selected');
+      getKey = btn.dataset.key as keyof Resources;
+      updateConfirm();
+    } else if (btn.id === 'confirm-trade') {
       if (!giveKey || !getKey || giveKey === getKey) return;
       modal!.classList.add('hidden');
       sendAction({ type: 'TRADE_BANK', pid, give: { [giveKey]: ratios[giveKey] }, get: { [getKey]: 1 } });
-    });
-    modal!.querySelector('#cancel-trade')?.addEventListener('click', () => {
+    } else if (btn.id === 'cancel-trade') {
       modal!.classList.add('hidden');
-    });
-  }
+    }
+  });
 
   modal.classList.remove('hidden');
-  renderModal();
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
