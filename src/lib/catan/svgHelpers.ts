@@ -1,0 +1,97 @@
+/**
+ * svgHelpers.ts — Pure SVG math extracted from render.ts.
+ * No DOM, no side effects — just coordinate calculations and constants.
+ */
+
+import type { TerrainType, VertexId, EdgeId } from "./types.js";
+import {
+  buildGraph,
+  hexToPixel,
+  vertexPixel,
+  CATAN_HEX_COORDS,
+  hexId,
+} from "./board.js";
+
+export const HEX_SIZE = 70;
+
+const graph = buildGraph();
+
+export const TERRAIN_COLORS: Record<TerrainType, string> = {
+  hills: "#c8622a",
+  forest: "#2d7a2d",
+  mountains: "#7a7a7a",
+  fields: "#d4b800",
+  pasture: "#6dbf6d",
+  desert: "#c8b47a",
+};
+
+export const TERRAIN_ICONS: Record<TerrainType, string> = {
+  hills: "🧱",
+  forest: "🌲",
+  mountains: "⛰️",
+  fields: "🌾",
+  pasture: "🐑",
+  desert: "🏜️",
+};
+
+export const NUMBER_DOTS: Record<number, number> = {
+  2: 1,
+  12: 1,
+  3: 2,
+  11: 2,
+  4: 3,
+  10: 3,
+  5: 4,
+  9: 4,
+  6: 5,
+  8: 5,
+};
+
+export const HARBOR_ICONS: Record<string, string> = {
+  generic: "3:1",
+  brick: "🧱2:1",
+  lumber: "🌲2:1",
+  ore: "⛰️2:1",
+  grain: "🌾2:1",
+  wool: "🐑2:1",
+};
+
+/** Returns SVG polygon points string for a pointy-top hex centered at (cx, cy). */
+export function hexPoints(cx: number, cy: number, size: number): string {
+  return Array.from({ length: 6 }, (_, i) => {
+    const angle = (Math.PI / 180) * (90 + 60 * i);
+    return `${cx + size * Math.cos(angle)},${cy + size * Math.sin(angle)}`;
+  }).join(" ");
+}
+
+/** Returns pixel coords for a hex given its axial coord and the board HEX_SIZE. */
+export function hexCenter(coord: { q: number; r: number }): {
+  x: number;
+  y: number;
+} {
+  return hexToPixel(coord, HEX_SIZE);
+}
+
+/** Returns pixel coords for a vertex by its VertexId, or null if not found. */
+export function getVertexPixel(vid: VertexId): { x: number; y: number } | null {
+  const [hid, vStr] = vid.split(":");
+  if (!hid || vStr === undefined) return null;
+  const v = parseInt(vStr);
+  const coord = CATAN_HEX_COORDS.find((c) => hexId(c) === hid);
+  if (!coord) return null;
+  return vertexPixel(coord, v, HEX_SIZE);
+}
+
+/** Returns the two pixel endpoints for an edge by its EdgeId, or null if not found. */
+export function getEdgePoints(
+  eid: EdgeId,
+): [{ x: number; y: number }, { x: number; y: number }] | null {
+  const [vA, vB] = graph.verticesOfEdge[eid] ?? [];
+  if (!vA || !vB) return null;
+  const pA = getVertexPixel(vA);
+  const pB = getVertexPixel(vB);
+  if (!pA || !pB) return null;
+  return [pA, pB];
+}
+
+export { CATAN_HEX_COORDS, hexId };
