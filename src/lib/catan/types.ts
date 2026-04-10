@@ -273,6 +273,8 @@ export interface GameState {
   lastRoll: [number, number, EventDieFace] | null;
   /** Setup: remaining players in current setup round order */
   setupQueue: PlayerId[];
+  /** Setup: vertex where current player just placed their building (restricts road placement to adjacent edges) */
+  setupLastPlacedVertex: VertexId | null;
   pendingDisplace: PendingDisplace | null;
   pendingProgressDraw: PendingProgressDraw | null;
   pendingDiscard: PendingDiscard | null;

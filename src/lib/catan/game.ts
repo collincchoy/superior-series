@@ -144,6 +144,7 @@ export function createInitialState(
     metropolisOwner: { science: null, trade: null, politics: null },
     lastRoll: null,
     setupQueue: [...playerOrder],
+    setupLastPlacedVertex: null,
     pendingDisplace: null,
     pendingProgressDraw: null,
     pendingDiscard: null,
@@ -226,13 +227,13 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       }
 
       // Advance to road placement
-      s = { ...s, phase: s.phase === 'SETUP_R1_SETTLEMENT' ? 'SETUP_R1_ROAD' : 'SETUP_R2_ROAD' };
+      s = { ...s, phase: s.phase === 'SETUP_R1_SETTLEMENT' ? 'SETUP_R1_ROAD' : 'SETUP_R2_ROAD', setupLastPlacedVertex: vid };
       return s;
     }
 
     case 'PLACE_ROAD': {
       const { pid, eid } = action;
-      s = { ...s, board: { ...s.board, edges: { ...s.board.edges, [eid]: { playerId: pid } } } };
+      s = { ...s, board: { ...s.board, edges: { ...s.board.edges, [eid]: { playerId: pid } } }, setupLastPlacedVertex: null };
 
       // Advance setup queue
       const isR1 = s.phase === 'SETUP_R1_ROAD';
