@@ -29,6 +29,36 @@
   </div>
 </div>
 
+<style>
+  .game-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .room-code-banner {
+    background: #2c5f2e;
+    text-align: center;
+    padding: 0.3rem 1rem;
+    font-size: 0.8rem;
+    color: #c8f5c8;
+    flex-shrink: 0;
+  }
+
+  .board-and-panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  @media (min-width: 700px) {
+    .board-and-panel {
+      flex-direction: row;
+    }
+  }
+</style>
+
 <DiscardModal {gameState} {localPid} />
 {#if showTrade}
   <TradeBankModal {gameState} {localPid} bind:open={showTrade} />

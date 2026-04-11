@@ -257,3 +257,32 @@
     </g>
   </svg>
 </div>
+
+<style>
+  .board-area {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1a3a6e;
+    overflow: hidden;
+  }
+
+  .board-svg {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    max-width: 100%;
+  }
+
+  :global(.valid-hex) {
+    cursor: pointer;
+  }
+
+  @media (min-width: 700px) {
+    .board-area {
+      flex: 1;
+    }
+  }
+</style>

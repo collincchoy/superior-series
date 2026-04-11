@@ -56,3 +56,136 @@
 {#if store.roomCode && showQR}
   <QRModal roomCode={store.roomCode} bind:open={showQR} />
 {/if}
+
+<style>
+  .lobby {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .lobby h1 {
+    font-size: 1.6rem;
+    color: #f5c842;
+    text-align: center;
+  }
+
+  .lobby h2 {
+    font-size: 1rem;
+    color: #c8b47a;
+    margin-bottom: 0.5rem;
+  }
+
+  .lobby-section {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+  }
+
+  .btn-primary {
+    background: #8b6914;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.6rem 1.2rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .btn-primary:hover {
+    background: #a07a1a;
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #f0e8d0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+
+  .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .btn-large {
+    width: 100%;
+    padding: 0.9rem;
+    font-size: 1.1rem;
+  }
+
+  .btn-remove {
+    background: none;
+    border: none;
+    color: #e74c3c;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.2rem;
+  }
+
+  .room-code-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.4rem;
+  }
+
+  .room-code-value {
+    font-family: monospace;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #f5c842;
+    letter-spacing: 0.05em;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .join-hint {
+    font-size: 0.8rem;
+    color: #a0b0a0;
+  }
+
+  .waiting-player-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .waiting-player-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+  }
+
+  .waiting-player-name {
+    flex: 1;
+    font-size: 0.9rem;
+  }
+
+  .slot-color {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+</style>

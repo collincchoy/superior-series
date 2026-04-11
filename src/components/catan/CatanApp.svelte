@@ -17,3 +17,10 @@
 </div>
 
 <Toast />
+
+<style>
+  .catan-app {
+    height: 100%;
+    overflow: auto;
+  }
+</style>

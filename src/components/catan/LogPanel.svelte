@@ -17,3 +17,19 @@
     <div class="log-line">{line}</div>
   {/each}
 </div>
+
+<style>
+  .log-panel {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.7rem;
+    color: #a0b0a0;
+    max-height: 6rem;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .log-line {
+    padding: 0.1rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  }
+</style>

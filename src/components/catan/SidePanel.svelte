@@ -31,3 +31,28 @@
   {/if}
   <LogPanel log={gameState.log} />
 </div>
+
+<style>
+  .side-panel {
+    flex-shrink: 0;
+    max-height: 45vh;
+    overflow-y: scroll;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    background: #1a2a1a;
+    border-top: 2px solid #2c5f2e;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  @media (min-width: 700px) {
+    .side-panel {
+      width: 260px;
+      max-height: unset;
+      border-top: none;
+      border-left: 2px solid #2c5f2e;
+      overflow-y: auto;
+    }
+  }
+</style>
