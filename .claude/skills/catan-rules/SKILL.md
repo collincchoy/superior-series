@@ -5,7 +5,7 @@ description: Complete Catan Cities & Knights rules reference. Use when implement
 
 # Catan: Cities & Knights — Rules Reference
 
-Full rules are in `catan_ck_rules.txt` and `catan_base_rules.txt`. This skill summarizes what matters for the implementation.
+Full rules are in `./catan_ck_rules.txt` and `./catan_base_rules.txt` (in this same skill folder). This skill summarizes what matters for the implementation.
 
 ---
 
