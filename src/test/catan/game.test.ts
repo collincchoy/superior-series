@@ -323,6 +323,195 @@ describe("progress draw thresholds", () => {
   });
 });
 
+describe("progress card effects", () => {
+  it("Encouragement activates all of the current player's knights", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    const knightVertex = Object.keys(graph.vertices)[0] as VertexId;
+
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          progressCards: [
+            { name: "Encouragement", track: "politics", isVP: false },
+          ],
+        },
+      },
+      board: {
+        ...state.board,
+        knights: {
+          ...state.board.knights,
+          [knightVertex]: { playerId: pid, strength: 2, active: false },
+        },
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "Encouragement",
+    });
+
+    expect(next.board.knights[knightVertex]?.active).toBe(true);
+  });
+
+  it("ResourceMonopoly takes up to 2 named resources from each opponent", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    const opponents = state.playerOrder.filter((p) => p !== pid);
+    const before = state.players[pid]!.resources.ore;
+
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          progressCards: [
+            { name: "ResourceMonopoly", track: "trade", isVP: false },
+          ],
+        },
+        [opponents[0]!]: {
+          ...state.players[opponents[0]!]!,
+          resources: { ...state.players[opponents[0]!]!.resources, ore: 4 },
+        },
+        [opponents[1]!]: {
+          ...state.players[opponents[1]!]!,
+          resources: { ...state.players[opponents[1]!]!.resources, ore: 1 },
+        },
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "ResourceMonopoly",
+      params: { resource: "ore" },
+    });
+
+    expect(next.players[pid]!.resources.ore).toBe(before + 3);
+    expect(next.players[opponents[0]!]!.resources.ore).toBe(2);
+    expect(next.players[opponents[1]!]!.resources.ore).toBe(0);
+  });
+
+  it("TradeMonopoly takes one named commodity from each opponent", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    const opponents = state.playerOrder.filter((p) => p !== pid);
+    const before = state.players[pid]!.resources.cloth;
+
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          progressCards: [
+            { name: "TradeMonopoly", track: "trade", isVP: false },
+          ],
+        },
+        [opponents[0]!]: {
+          ...state.players[opponents[0]!]!,
+          resources: { ...state.players[opponents[0]!]!.resources, cloth: 2 },
+        },
+        [opponents[1]!]: {
+          ...state.players[opponents[1]!]!,
+          resources: { ...state.players[opponents[1]!]!.resources, cloth: 0 },
+        },
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "TradeMonopoly",
+      params: { commodity: "cloth" },
+    });
+
+    expect(next.players[pid]!.resources.cloth).toBe(before + 1);
+    expect(next.players[opponents[0]!]!.resources.cloth).toBe(1);
+    expect(next.players[opponents[1]!]!.resources.cloth).toBe(0);
+  });
+
+  it("Wedding collects two cards from each opponent with more VP", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    const opponents = state.playerOrder.filter((p) => p !== pid);
+    const donor = opponents[0]!;
+    const nonDonor = opponents[1]!;
+
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          vpTokens: 0,
+          progressCards: [{ name: "Wedding", track: "politics", isVP: false }],
+          resources: {
+            brick: 0,
+            lumber: 0,
+            ore: 0,
+            grain: 0,
+            wool: 0,
+            cloth: 0,
+            coin: 0,
+            paper: 0,
+          },
+        },
+        [donor]: {
+          ...state.players[donor]!,
+          vpTokens: 2,
+          resources: {
+            brick: 0,
+            lumber: 0,
+            ore: 0,
+            grain: 2,
+            wool: 2,
+            cloth: 0,
+            coin: 0,
+            paper: 0,
+          },
+        },
+        [nonDonor]: {
+          ...state.players[nonDonor]!,
+          vpTokens: 0,
+          resources: {
+            brick: 0,
+            lumber: 0,
+            ore: 0,
+            grain: 2,
+            wool: 2,
+            cloth: 0,
+            coin: 0,
+            paper: 0,
+          },
+        },
+      },
+    };
+
+    const before = Object.values(state.players[pid]!.resources).reduce(
+      (a, b) => a + b,
+      0,
+    );
+
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "Wedding",
+    });
+
+    const after = Object.values(next.players[pid]!.resources).reduce(
+      (a, b) => a + b,
+      0,
+    );
+    expect(after - before).toBe(2);
+  });
+});
+
 describe("displaced knight resolution", () => {
   it("keeps the displacer in place and relocates the displaced knight", () => {
     const state = createInitialState(makePlayers(2));

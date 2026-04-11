@@ -198,7 +198,7 @@ describe("barbarian attack - defenders win", () => {
     expect(rolled.players["p1"]!.vpTokens).toBe(before + 1);
   });
 
-  it("tied defenders get progress card opportunity (pendingProgressDraw set)", () => {
+  it("tied defenders each draw one progress card", () => {
     // p1 and p2 each have equal knight strength
     let state = stateWithCities({ p1: 1 });
     state = addActiveKnights(state, "p1", 2, 1); // p1: strength 2
@@ -209,14 +209,20 @@ describe("barbarian attack - defenders win", () => {
       barbarian: { position: 6, robberActive: false },
     };
 
+    const p1Before = state.players["p1"]!.progressCards.length;
+    const p2Before = state.players["p2"]!.progressCards.length;
+
     const rolled = applyAction(state, {
       type: "ROLL_DICE",
       pid: "p1",
       result: [2, 3, "ship"],
     });
-    // Neither gets VP token; both should draw progress cards
+
+    // Neither gets VP token; both should draw one progress card
     expect(rolled.players["p1"]!.vpTokens).toBe(0);
     expect(rolled.players["p2"]!.vpTokens).toBe(0);
+    expect(rolled.players["p1"]!.progressCards.length).toBe(p1Before + 1);
+    expect(rolled.players["p2"]!.progressCards.length).toBe(p2Before + 1);
   });
 
   it("all active knights become inactive after attack", () => {

@@ -10,6 +10,8 @@ import type {
   TurnPhase,
   ImprovementTrack,
   Resources,
+  ResourceType,
+  CommodityType,
   ProgressCard,
   KnightStrength,
   EventDieFace,
@@ -46,6 +48,32 @@ function shuffle<T>(arr: T[]): T[] {
     [a[i], a[j]] = [a[j]!, a[i]!];
   }
   return a;
+}
+
+function drawRandomProgressCard(state: GameState, pid: PlayerId): GameState {
+  const tracks: ImprovementTrack[] = ["science", "trade", "politics"];
+  const availableTracks = tracks.filter(
+    (track) => state.decks[track].length > 0,
+  );
+  if (availableTracks.length === 0) return state;
+
+  const track =
+    availableTracks[Math.floor(Math.random() * availableTracks.length)]!;
+  const deck = [...state.decks[track]];
+  const card = deck.shift();
+  if (!card) return state;
+
+  return {
+    ...state,
+    decks: { ...state.decks, [track]: deck },
+    players: {
+      ...state.players,
+      [pid]: {
+        ...state.players[pid]!,
+        progressCards: [...state.players[pid]!.progressCards, card],
+      },
+    },
+  };
 }
 
 function addResources(r: Resources, delta: Partial<Resources>): Resources {
@@ -1065,10 +1093,14 @@ function resolveBarbarianAttack(state: GameState): GameState {
         `${s.players[winnerId]?.name} gets 1 VP token for defending Catan!`,
       );
     } else if (winners.length > 1) {
-      // Tied defenders each draw a progress card (player choice)
-      // Set pending draw for each tied player (they each pick a track)
-      // For now, auto-draw from a random track; UI will allow choice
       s = log(s, "Tied defenders each draw a progress card!");
+      for (const winnerId of winners) {
+        const before = s.players[winnerId]!.progressCards.length;
+        s = drawRandomProgressCard(s, winnerId);
+        if (s.players[winnerId]!.progressCards.length > before) {
+          s = log(s, `${s.players[winnerId]?.name} draws a progress card.`);
+        }
+      }
     }
     s = checkWin(s);
   } else {
@@ -1422,6 +1454,102 @@ function applyProgressCard(
       }
       break;
     }
+    case "Encouragement": {
+      const knights = Object.fromEntries(
+        Object.entries(s.board.knights).map(([vid, knight]) => {
+          if (!knight || knight.playerId !== pid) return [vid, knight];
+          return [vid, { ...knight, active: true }];
+        }),
+      ) as typeof s.board.knights;
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          knights,
+        },
+      };
+      break;
+    }
+    case "ResourceMonopoly": {
+      const resource = (params as any)?.resource as ResourceType | undefined;
+      if (resource) {
+        let gained = 0;
+        for (const [oppId, opp] of Object.entries(s.players)) {
+          if (oppId === pid) continue;
+          const available = opp.resources[resource] ?? 0;
+          const taken = Math.min(2, available);
+          if (taken <= 0) continue;
+          gained += taken;
+          s = {
+            ...s,
+            players: {
+              ...s.players,
+              [oppId]: {
+                ...opp,
+                resources: subtractResources(opp.resources, {
+                  [resource]: taken,
+                }),
+              },
+            },
+          };
+        }
+        if (gained > 0) {
+          s = {
+            ...s,
+            players: {
+              ...s.players,
+              [pid]: {
+                ...s.players[pid]!,
+                resources: addResources(s.players[pid]!.resources, {
+                  [resource]: gained,
+                }),
+              },
+            },
+          };
+        }
+      }
+      break;
+    }
+    case "TradeMonopoly": {
+      const commodity = (params as any)?.commodity as CommodityType | undefined;
+      if (commodity) {
+        let gained = 0;
+        for (const [oppId, opp] of Object.entries(s.players)) {
+          if (oppId === pid) continue;
+          const available = opp.resources[commodity] ?? 0;
+          const taken = Math.min(1, available);
+          if (taken <= 0) continue;
+          gained += taken;
+          s = {
+            ...s,
+            players: {
+              ...s.players,
+              [oppId]: {
+                ...opp,
+                resources: subtractResources(opp.resources, {
+                  [commodity]: taken,
+                }),
+              },
+            },
+          };
+        }
+        if (gained > 0) {
+          s = {
+            ...s,
+            players: {
+              ...s.players,
+              [pid]: {
+                ...s.players[pid]!,
+                resources: addResources(s.players[pid]!.resources, {
+                  [commodity]: gained,
+                }),
+              },
+            },
+          };
+        }
+      }
+      break;
+    }
     case "Sabotage": {
       // Each player with >= current player's VP discards half
       const myVP = computeVP(s, pid);
@@ -1439,6 +1567,42 @@ function applyProgressCard(
             };
           }
         }
+      }
+      break;
+    }
+    case "Wedding": {
+      const myVP = computeVP(s, pid);
+      let gained = emptyResources();
+      for (const [oppId, opp] of Object.entries(s.players)) {
+        if (oppId === pid) continue;
+        if (computeVP(s, oppId) <= myVP) continue;
+        const moved = transferCardsByPriority(opp.resources, 2);
+        if (Object.values(moved.transferred).some((v) => (v ?? 0) > 0)) {
+          s = {
+            ...s,
+            players: {
+              ...s.players,
+              [oppId]: {
+                ...opp,
+                resources: moved.remaining,
+              },
+            },
+          };
+          gained = addResources(gained, moved.transferred);
+        }
+      }
+
+      if (Object.values(gained).some((v) => (v ?? 0) > 0)) {
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [pid]: {
+              ...s.players[pid]!,
+              resources: addResources(s.players[pid]!.resources, gained),
+            },
+          },
+        };
       }
       break;
     }
@@ -1470,4 +1634,34 @@ function autoDiscard(resources: Resources, amount: number): Resources {
     }
   }
   return result;
+}
+
+function transferCardsByPriority(
+  resources: Resources,
+  amount: number,
+): { remaining: Resources; transferred: Partial<Resources> } {
+  const remaining = { ...resources };
+  const transferred: Partial<Resources> = {};
+  const keys: (keyof Resources)[] = [
+    "cloth",
+    "coin",
+    "paper",
+    "brick",
+    "lumber",
+    "wool",
+    "grain",
+    "ore",
+  ];
+
+  let need = amount;
+  for (const key of keys) {
+    while (need > 0 && (remaining[key] ?? 0) > 0) {
+      remaining[key] = (remaining[key] ?? 0) - 1;
+      transferred[key] = (transferred[key] ?? 0) + 1;
+      need--;
+    }
+    if (need === 0) break;
+  }
+
+  return { remaining, transferred };
 }
