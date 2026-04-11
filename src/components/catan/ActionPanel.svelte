@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { GameState, PlayerId, GameAction, ImprovementTrack } from '../../lib/catan/types.js';
+  import type { GameState, PlayerId, GameAction, ImprovementTrack, VertexId } from '../../lib/catan/types.js';
   import type { PendingAction } from '../../lib/catan/validTargets.js';
   import { store } from '../../lib/catan/store.svelte.js';
   import {
     canBuildRoad, canBuildSettlement, canBuildCity, canBuildCityWall,
-    canRecruitKnight, canPromoteKnight, canActivateKnight, canImproveCity,
+    canRecruitKnight, canPromoteKnight, canActivateKnight, canImproveCity, canRelocateDisplacedKnight,
   } from '../../lib/catan/rules.js';
   import { buildGraph } from '../../lib/catan/board.js';
   let { gameState, localPid, pendingAction, showTrade = $bindable(false) }: {
@@ -18,6 +18,13 @@
 
   function send(action: GameAction) { store.sendAction(action); }
   function pending(pa: PendingAction | null) { store.setPendingAction(pa); }
+  function canPromoteAt(vid: VertexId) { return canPromoteKnight(board, me, vid); }
+  function canActivateAt(vid: VertexId) { return canActivateKnight(board, me, vid); }
+  function canRelocateDisplacedTo(vid: VertexId) {
+    if (gameState.phase !== 'KNIGHT_DISPLACE_RESPONSE') return false;
+    if (gameState.pendingDisplace?.displacedPlayerId !== pid) return false;
+    return canRelocateDisplacedKnight(board, graph, pid, gameState.pendingDisplace.displacedKnightVertex, vid);
+  }
 
   let board = $derived(gameState.board);
   let me = $derived(gameState.players[localPid]!);
@@ -28,8 +35,9 @@
   let canCity     = $derived(Object.entries(board.vertices).some(([vid, b]) => b?.type === 'settlement' && b.playerId === pid && canBuildCity(board, me, vid as any)));
   let canWall     = $derived(Object.entries(board.vertices).some(([vid, b]) => b?.type === 'city' && b.playerId === pid && !b.hasWall && canBuildCityWall(board, me, vid as any)));
   let canKnight   = $derived(Object.keys(graph.vertices).some(vid => canRecruitKnight(board, graph, me, vid as any)));
-  let canPromote  = $derived(Object.entries(board.knights).some(([vid, k]) => k?.playerId === pid && canPromoteKnight(board, me, vid as any, pid)));
-  let canActivate = $derived(Object.entries(board.knights).some(([vid, k]) => k?.playerId === pid && canActivateKnight(board, me, vid as any, pid)));
+  let canPromote  = $derived(Object.entries(board.knights).some(([vid, k]) => k?.playerId === pid && canPromoteAt(vid as VertexId)));
+  let canActivate = $derived(Object.entries(board.knights).some(([vid, k]) => k?.playerId === pid && canActivateAt(vid as VertexId)));
+  let canRelocateDisplaced = $derived.by(() => Object.keys(graph.vertices).some(vid => canRelocateDisplacedTo(vid as VertexId)));
 
   const tracks: ImprovementTrack[] = ['science', 'trade', 'politics'];
   const trackLabel: Record<ImprovementTrack, string> = { science: '🔬 Science', trade: '🤝 Trade', politics: '⚔️ Politics' };
@@ -48,6 +56,13 @@
     <button class="action-btn" onclick={() => send({ type: 'DRAW_PROGRESS', pid, track: gameState.pendingProgressDraw!.track })}>
       🃏 Draw Progress Card
     </button>
+  {:else if gameState.phase === 'KNIGHT_DISPLACE_RESPONSE' && gameState.pendingDisplace?.displacedPlayerId === pid}
+    <p class="action-instruction">👆 Click a yellow dot to move your displaced knight</p>
+    {#if !canRelocateDisplaced}
+      <button class="action-btn" onclick={() => send({ type: 'DISPLACED_MOVE', pid, from: gameState.pendingDisplace!.displacedKnightVertex, to: null })}>
+        Return Knight to Supply
+      </button>
+    {/if}
   {:else if gameState.phase === 'ROLL_DICE'}
     <button class="roll-dice-btn" onclick={() => send({ type: 'ROLL_DICE', pid })}>🎲 Roll Dice</button>
   {:else if gameState.phase === 'ROBBER_MOVE'}
