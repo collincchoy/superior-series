@@ -44,6 +44,10 @@
     <p class="action-instruction">👆 Click a yellow dot on the board to place your city</p>
   {:else if gameState.phase === 'SETUP_R2_ROAD'}
     <p class="action-instruction">👆 Click a yellow line on the board to place your road</p>
+  {:else if gameState.phase === 'RESOLVE_PROGRESS_DRAW' && (gameState.pendingProgressDraw?.remaining ?? []).includes(pid)}
+    <button class="action-btn" onclick={() => send({ type: 'DRAW_PROGRESS', pid, track: gameState.pendingProgressDraw!.track })}>
+      🃏 Draw Progress Card
+    </button>
   {:else if gameState.phase === 'ROLL_DICE'}
     <button class="action-btn" onclick={() => send({ type: 'ROLL_DICE', pid })}>🎲 Roll Dice</button>
   {:else if gameState.phase === 'ROBBER_MOVE'}

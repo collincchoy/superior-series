@@ -16,13 +16,17 @@
   } = $props();
 
   let me = $derived(gameState.players[localPid]!);
+  let needsProgressDraw = $derived(
+    gameState.phase === 'RESOLVE_PROGRESS_DRAW' &&
+    (gameState.pendingProgressDraw?.remaining ?? []).includes(localPid)
+  );
 </script>
 
 <div class="side-panel">
   <PhaseBanner {gameState} {localPid} />
   <PlayersPanel {gameState} {localPid} />
   <HandPanel {me} />
-  {#if isMyTurn}
+  {#if isMyTurn || needsProgressDraw}
     <ActionPanel {gameState} {localPid} {pendingAction} bind:showTrade />
   {:else}
     <div class="action-panel"></div>

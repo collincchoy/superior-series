@@ -1,27 +1,43 @@
 ---
-import CatanApp from '../components/catan/CatanApp.svelte';
+import CatanApp from "../components/catan/CatanApp.svelte";
 ---
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
     <meta name="theme-color" content="#8b6914" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
     <link rel="manifest" href="/superior-series/catan-manifest.json" />
-    <link rel="icon" type="image/svg+xml" href="/superior-series/catan-icons/icon-192.svg" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="/superior-series/catan-icons/icon-192.svg"
+    />
     <title>Catan: Cities &amp; Knights</title>
     <style>
-      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-      html, body {
+      html,
+      body {
         height: 100%;
         font-family: system-ui, sans-serif;
         background: #1a3a1a;
         color: #f0e8d0;
-        overflow: hidden;
       }
 
       #app {
@@ -59,7 +75,7 @@ import CatanApp from '../components/catan/CatanApp.svelte';
       }
 
       .lobby-section {
-        background: rgba(255,255,255,0.05);
+        background: rgba(255, 255, 255, 0.05);
         border-radius: 8px;
         padding: 1rem;
       }
@@ -86,8 +102,8 @@ import CatanApp from '../components/catan/CatanApp.svelte';
 
       .slot-name {
         flex: 1;
-        background: rgba(255,255,255,0.1);
-        border: 1px solid rgba(255,255,255,0.2);
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 4px;
         padding: 0.4rem 0.6rem;
         color: #f0e8d0;
@@ -95,8 +111,8 @@ import CatanApp from '../components/catan/CatanApp.svelte';
       }
 
       .slot-type {
-        background: rgba(255,255,255,0.1);
-        border: 1px solid rgba(255,255,255,0.2);
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 4px;
         padding: 0.4rem 0.4rem;
         color: #f0e8d0;
@@ -121,8 +137,8 @@ import CatanApp from '../components/catan/CatanApp.svelte';
       .join-row input {
         flex: 1;
         min-width: 100px;
-        background: rgba(255,255,255,0.1);
-        border: 1px solid rgba(255,255,255,0.2);
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 4px;
         padding: 0.5rem 0.6rem;
         color: #f0e8d0;
@@ -139,21 +155,32 @@ import CatanApp from '../components/catan/CatanApp.svelte';
         cursor: pointer;
         font-weight: 600;
       }
-      .btn-primary:hover { background: #a07a1a; }
-      .btn-primary:disabled { opacity: 0.4; cursor: default; }
+      .btn-primary:hover {
+        background: #a07a1a;
+      }
+      .btn-primary:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
 
       .btn-secondary {
-        background: rgba(255,255,255,0.1);
+        background: rgba(255, 255, 255, 0.1);
         color: #f0e8d0;
-        border: 1px solid rgba(255,255,255,0.2);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 6px;
         padding: 0.5rem 1rem;
         font-size: 0.9rem;
         cursor: pointer;
       }
-      .btn-secondary:hover { background: rgba(255,255,255,0.15); }
+      .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.15);
+      }
 
-      .btn-large { width: 100%; padding: 0.9rem; font-size: 1.1rem; }
+      .btn-large {
+        width: 100%;
+        padding: 0.9rem;
+        font-size: 1.1rem;
+      }
 
       .lobby-status {
         text-align: center;
@@ -161,7 +188,9 @@ import CatanApp from '../components/catan/CatanApp.svelte';
         color: #c8b47a;
         min-height: 1.2em;
       }
-      .lobby-status.error { color: #e74c3c; }
+      .lobby-status.error {
+        color: #e74c3c;
+      }
 
       /* ── Game Layout ────────────────────────────────────────────── */
 
@@ -256,10 +285,21 @@ import CatanApp from '../components/catan/CatanApp.svelte';
         font-size: 0.8rem;
         opacity: 0.6;
       }
-      .player-row.active { opacity: 1; background: rgba(255,255,255,0.05); }
-      .player-name { flex: 1; font-weight: 500; }
-      .player-vp { color: #f5c842; font-weight: 700; }
-      .player-cards { color: #a0b0a0; }
+      .player-row.active {
+        opacity: 1;
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .player-name {
+        flex: 1;
+        font-weight: 500;
+      }
+      .player-vp {
+        color: #f5c842;
+        font-weight: 700;
+      }
+      .player-cards {
+        color: #a0b0a0;
+      }
 
       /* ── Hand Panel ─────────────────────────────────────────────── */
 
@@ -268,24 +308,45 @@ import CatanApp from '../components/catan/CatanApp.svelte';
         border-bottom: 1px solid #2c5f2e;
         font-size: 0.8rem;
       }
-      .hand-title { font-size: 0.7rem; text-transform: uppercase; color: #c8b47a; margin-bottom: 0.3rem; }
-      .hand-cards { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.3rem; }
+      .hand-title {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        color: #c8b47a;
+        margin-bottom: 0.3rem;
+      }
+      .hand-cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+        margin-bottom: 0.3rem;
+      }
       .card {
-        background: rgba(255,255,255,0.1);
+        background: rgba(255, 255, 255, 0.1);
         border-radius: 4px;
         padding: 0.15rem 0.4rem;
         font-size: 0.75rem;
       }
-      .progress-cards { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.3rem; }
+      .progress-cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+        margin-bottom: 0.3rem;
+      }
       .prog-card {
-        background: rgba(100,60,160,0.4);
-        border: 1px solid rgba(180,120,255,0.3);
+        background: rgba(100, 60, 160, 0.4);
+        border: 1px solid rgba(180, 120, 255, 0.3);
         border-radius: 4px;
         padding: 0.15rem 0.4rem;
         font-size: 0.7rem;
       }
-      .vp-card { background: rgba(180,140,0,0.4); border-color: #f5c842; }
-      .improvements { color: #a0b0a0; font-size: 0.75rem; }
+      .vp-card {
+        background: rgba(180, 140, 0, 0.4);
+        border-color: #f5c842;
+      }
+      .improvements {
+        color: #a0b0a0;
+        font-size: 0.75rem;
+      }
 
       /* ── Action Panel ───────────────────────────────────────────── */
 
@@ -297,15 +358,17 @@ import CatanApp from '../components/catan/CatanApp.svelte';
       }
 
       .action-btn {
-        background: rgba(255,255,255,0.1);
+        background: rgba(255, 255, 255, 0.1);
         color: #f0e8d0;
-        border: 1px solid rgba(255,255,255,0.2);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 5px;
         padding: 0.4rem 0.7rem;
         font-size: 0.8rem;
         cursor: pointer;
       }
-      .action-btn:hover:not(.disabled) { background: rgba(255,255,255,0.18); }
+      .action-btn:hover:not(.disabled) {
+        background: rgba(255, 255, 255, 0.18);
+      }
       .action-btn.active {
         background: #3a5e1e;
         border-color: #6dbf6d;
@@ -333,8 +396,10 @@ import CatanApp from '../components/catan/CatanApp.svelte';
         overflow-y: auto;
         flex: 1;
       }
-      .log-line { padding: 0.1rem 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
-
+      .log-line {
+        padding: 0.1rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      }
 
       /* ── Toast ──────────────────────────────────────────────────── */
 
@@ -351,8 +416,12 @@ import CatanApp from '../components/catan/CatanApp.svelte';
         z-index: 200;
         pointer-events: none;
       }
-      .toast.error { background: #7a1e1e; }
-      .toast.hidden { display: none; }
+      .toast.error {
+        background: #7a1e1e;
+      }
+      .toast.hidden {
+        display: none;
+      }
 
       /* ── Waiting Room ───────────────────────────────────────────── */
 
@@ -370,7 +439,7 @@ import CatanApp from '../components/catan/CatanApp.svelte';
         font-weight: 700;
         color: #f5c842;
         letter-spacing: 0.05em;
-        background: rgba(255,255,255,0.08);
+        background: rgba(255, 255, 255, 0.08);
         padding: 0.3rem 0.7rem;
         border-radius: 6px;
         flex: 1;
@@ -406,16 +475,33 @@ import CatanApp from '../components/catan/CatanApp.svelte';
 
       /* ── Board SVG highlight ring ───────────────────────────────── */
 
-      .valid-vertex { cursor: pointer; }
-      .valid-edge   { cursor: pointer; }
-      .valid-hex    { cursor: pointer; }
+      .valid-vertex {
+        cursor: pointer;
+      }
+      .valid-edge {
+        cursor: pointer;
+      }
+      .valid-hex {
+        cursor: pointer;
+      }
 
       @keyframes pulse-ring {
-        0%   { opacity: 0.6; r: 10; }
-        50%  { opacity: 1;   r: 13; }
-        100% { opacity: 0.6; r: 10; }
+        0% {
+          opacity: 0.6;
+          r: 10;
+        }
+        50% {
+          opacity: 1;
+          r: 13;
+        }
+        100% {
+          opacity: 0.6;
+          r: 10;
+        }
       }
-      .valid-vertex circle { animation: pulse-ring 1.2s ease-in-out infinite; }
+      .valid-vertex circle {
+        animation: pulse-ring 1.2s ease-in-out infinite;
+      }
     </style>
   </head>
   <body>
@@ -423,8 +509,17 @@ import CatanApp from '../components/catan/CatanApp.svelte';
       <CatanApp client:only="svelte" />
     </div>
     <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/superior-series/catan-sw.js').catch(() => {});
+      if ("serviceWorker" in navigator) {
+        if (import.meta.env.DEV) {
+          // Unregister SW in dev to prevent stale cache issues (assets aren't hashed)
+          navigator.serviceWorker.getRegistrations().then(regs => {
+            regs.forEach(r => r.unregister());
+          });
+        } else {
+          navigator.serviceWorker
+            .register("/superior-series/catan-sw.js", { updateViaCache: 'none' })
+            .catch(() => {});
+        }
       }
     </script>
   </body>

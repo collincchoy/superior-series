@@ -1,8 +1,8 @@
 /**
  * catan-sw.js — Service Worker for Catan: Cities & Knights PWA
  *
- * Cache-first strategy for game assets.
- * Network-first for PeerJS CDN.
+ * Network-first for HTML navigation and PeerJS CDN.
+ * Cache-first for hashed assets (JS, CSS, images).
  */
 
 const CACHE_NAME = 'catan-v1';
@@ -50,8 +50,22 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Cache-first for own origin
+  // Own origin
   if (url.origin === self.location.origin) {
+    // Network-first for navigation (HTML pages) so Cmd+R always gets fresh content
+    if (event.request.mode === 'navigate') {
+      event.respondWith(
+        fetch(event.request)
+          .then(response => {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+            return response;
+          })
+          .catch(() => caches.match(event.request))
+      );
+      return;
+    }
+    // Cache-first for hashed assets (JS, CSS, images) — safe since Astro content-hashes filenames
     event.respondWith(
       caches.match(event.request).then(cached => {
         if (cached) return cached;
