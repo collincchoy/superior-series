@@ -295,27 +295,6 @@
 
     <!-- ── Roads ── -->
     <g id="roads">
-      {#each targets.validEdges as eid}
-        {@const pts = getEdgePoints(eid)}
-        {#if pts}
-          <line
-            x1={pts[0].x}
-            y1={pts[0].y}
-            x2={pts[1].x}
-            y2={pts[1].y}
-            stroke="#ffcc00"
-            stroke-width="12"
-            opacity="0.4"
-            stroke-linecap="round"
-            style="cursor:pointer"
-            role="button"
-            tabindex="0"
-            aria-label="Select road placement"
-            onclick={() => onEdgeClick(eid)}
-            onkeydown={(event) => onKeyActivate(event, () => onEdgeClick(eid))}
-          />
-        {/if}
-      {/each}
       {#each Object.entries(gameState.board.edges) as [eid, road]}
         {#if road}
           {@const pts = getEdgePoints(eid as EdgeId)}
@@ -337,25 +316,6 @@
 
     <!-- ── Buildings ── -->
     <g id="buildings">
-      {#each targets.validVertices as vid}
-        {@const p = getVertexPixel(vid)}
-        {#if p}
-          <circle
-            cx={p.x}
-            cy={p.y}
-            r="14"
-            fill="#ffcc00"
-            opacity="0.5"
-            style="cursor:pointer"
-            role="button"
-            tabindex="0"
-            aria-label="Select board position"
-            onclick={() => onVertexClick(vid)}
-            onkeydown={(event) =>
-              onKeyActivate(event, () => onVertexClick(vid))}
-          />
-        {/if}
-      {/each}
       {#each Object.entries(gameState.board.vertices) as [vid, building]}
         {#if building}
           {@const p = getVertexPixel(vid as VertexId)}
@@ -466,6 +426,50 @@
           <text x={x + 20} y={y - 20} font-size="18">🏪</text>
         {/if}
       {/if}
+    </g>
+
+    <!-- ── Valid Targets (rendered last so they appear on top of all pieces) ── -->
+    <g id="targets">
+      {#each targets.validEdges as eid}
+        {@const pts = getEdgePoints(eid)}
+        {#if pts}
+          <line
+            x1={pts[0].x}
+            y1={pts[0].y}
+            x2={pts[1].x}
+            y2={pts[1].y}
+            stroke="#ffcc00"
+            stroke-width="12"
+            opacity="0.4"
+            stroke-linecap="round"
+            style="cursor:pointer"
+            role="button"
+            tabindex="0"
+            aria-label="Select road placement"
+            onclick={() => onEdgeClick(eid)}
+            onkeydown={(event) => onKeyActivate(event, () => onEdgeClick(eid))}
+          />
+        {/if}
+      {/each}
+      {#each targets.validVertices as vid}
+        {@const p = getVertexPixel(vid)}
+        {#if p}
+          <circle
+            cx={p.x}
+            cy={p.y}
+            r="14"
+            fill="#ffcc00"
+            opacity="0.5"
+            style="cursor:pointer"
+            role="button"
+            tabindex="0"
+            aria-label="Select board position"
+            onclick={() => onVertexClick(vid)}
+            onkeydown={(event) =>
+              onKeyActivate(event, () => onVertexClick(vid))}
+          />
+        {/if}
+      {/each}
     </g>
   </svg>
 </div>

@@ -12,7 +12,7 @@ import {
   hexId,
 } from "./board.js";
 
-export const HEX_SIZE = 70;
+export const HEX_SIZE = 90;
 
 const graph = buildGraph();
 
