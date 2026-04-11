@@ -232,6 +232,97 @@ describe("resource production", () => {
   });
 });
 
+describe("progress draw thresholds", () => {
+  it("uses red die (not yellow die) to determine progress draw eligibility", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          improvements: {
+            ...state.players[pid]!.improvements,
+            science: 1,
+          },
+        },
+      },
+      phase: "ROLL_DICE",
+      pendingProgressDraw: null,
+    };
+
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid,
+      result: [1, 2, "science" as const],
+    });
+
+    expect(rolled.pendingProgressDraw).toBeNull();
+  });
+
+  it("creates pending progress draws when red die is within the DRAW_MAX range", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          improvements: {
+            ...state.players[pid]!.improvements,
+            science: 2,
+          },
+        },
+      },
+      phase: "ROLL_DICE",
+      pendingProgressDraw: null,
+    };
+
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid,
+      result: [6, 3, "science" as const],
+    });
+
+    expect(rolled.pendingProgressDraw?.track).toBe("science");
+    expect(rolled.pendingProgressDraw?.remaining).toContain(pid);
+    expect(rolled.phase).toBe("RESOLVE_PROGRESS_DRAW");
+  });
+
+  it("does not create progress draws on ship events", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          improvements: {
+            ...state.players[pid]!.improvements,
+            politics: 5,
+          },
+        },
+      },
+      phase: "ROLL_DICE",
+      pendingProgressDraw: null,
+    };
+
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid,
+      result: [2, 1, "ship" as const],
+    });
+
+    expect(rolled.pendingProgressDraw).toBeNull();
+  });
+});
+
 describe("displaced knight resolution", () => {
   it("keeps the displacer in place and relocates the displaced knight", () => {
     const state = createInitialState(makePlayers(2));

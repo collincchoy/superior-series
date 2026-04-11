@@ -111,10 +111,10 @@
   );
 
   const tracks: ImprovementTrack[] = ["science", "trade", "politics"];
-  const trackLabel: Record<ImprovementTrack, string> = {
-    science: "🔬 Science",
-    trade: "🤝 Trade",
-    politics: "⚔️ Politics",
+  const trackLabel: Record<ImprovementTrack, { label: string; color: string }> = {
+    science: { label: "🔬 Science", color: "#2f6fe4" },
+    trade: { label: "🤝 Trade", color: "#2e9e4f" },
+    politics: { label: "⚔️ Politics", color: "#f1c232" },
   };
 </script>
 
@@ -277,8 +277,9 @@
             class="action-btn"
             onclick={() => send({ type: "IMPROVE_CITY", pid, track })}
             disabled={!canImproveCity(board, me, track)}
+            style={`background:${trackLabel[track].color};color:${track === "politics" ? "#3f2d00" : "#ffffff"};border-color:rgba(0,0,0,0.35);`}
           >
-            {trackLabel[track]}
+            {trackLabel[track].label}
           </button>
         {/each}
       </div>

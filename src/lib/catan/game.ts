@@ -323,12 +323,14 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         rollProductionDie(),
         rollEventDie(),
       ];
-      const production = d1 + d2;
+      const yellowDie = d1;
+      const redDie = d2;
+      const production = yellowDie + redDie;
 
       s = { ...s, lastRoll: [d1, d2, event] };
       s = log(
         s,
-        `${s.players[pid]?.name} rolled ${d1}+${d2}=${production} (${event})`,
+        `${s.players[pid]?.name} rolled Y${yellowDie} R${redDie} = ${production} (${event})`,
       );
 
       // 1. Handle event die
@@ -349,7 +351,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         const drawPlayers = s.playerOrder.filter((p) => {
           const level = s.players[p]?.improvements[track] ?? 0;
           const maxRoll = DRAW_MAX[level] ?? 0;
-          return level > 0 && d2 <= maxRoll; // d2 = red die
+          return level > 0 && redDie <= maxRoll;
         });
         if (drawPlayers.length > 0) {
           s = { ...s, pendingProgressDraw: { remaining: drawPlayers, track } };
