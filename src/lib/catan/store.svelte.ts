@@ -7,13 +7,28 @@
  * be proxied (circular refs + internal event emitters break P2P).
  */
 
-import type { GameState, GameAction, PlayerId } from "./types.js";
+import type { GameState, GameAction, PlayerId, ProgressCard } from "./types.js";
 import { createInitialState } from "./game.js";
 import { CatanNetwork } from "./network.js";
 import { PLAYER_COLORS } from "./constants.js";
 import type { PendingAction } from "./validTargets.js";
 
 export type Screen = "lobby" | "waiting" | "game";
+
+export type InfoModalState =
+  | {
+      kind: "progress";
+      card: ProgressCard;
+      canPlayNow: boolean;
+      canAutoPlay: boolean;
+      helperText: string;
+    }
+  | {
+      kind: "build-costs";
+    }
+  | {
+      kind: "knight-levels";
+    };
 
 class CatanStore {
   // ── Screens & game ────────────────────────────────────────────────────────
@@ -32,6 +47,7 @@ class CatanStore {
 
   // ── Toast ─────────────────────────────────────────────────────────────────
   toast = $state<{ msg: string; kind: "info" | "error" } | null>(null);
+  infoModal = $state<InfoModalState | null>(null);
 
   // ── Non-reactive (must not be proxied) ────────────────────────────────────
   net: CatanNetwork | null = null;
@@ -50,6 +66,14 @@ class CatanStore {
     this.toastTimer = setTimeout(() => {
       this.toast = null;
     }, 3000);
+  }
+
+  openInfoModal(state: InfoModalState) {
+    this.infoModal = state;
+  }
+
+  closeInfoModal() {
+    this.infoModal = null;
   }
 
   applyStateUpdate(state: GameState) {

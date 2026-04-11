@@ -4,7 +4,9 @@ import type {
   HarborType,
   VertexId,
   ProgressCard,
+  ProgressCardName,
   ImprovementTrack,
+  KnightStrength,
   Resources,
 } from "./types.js";
 import { CATAN_HEX_COORDS, buildGraph, hexId } from "./board.js";
@@ -199,4 +201,204 @@ export const INITIAL_SUPPLY = {
     1 | 2 | 3,
     number
   >,
+};
+
+// ─── UI Hints / Card Metadata ───────────────────────────────────────────────
+
+export interface ProgressCardInfo {
+  title: string;
+  short: string;
+  effect: string;
+  requiresTarget: boolean;
+}
+
+export const PROGRESS_CARD_INFO: Record<ProgressCardName, ProgressCardInfo> = {
+  Alchemy: {
+    title: "Alchemy",
+    short: "Pick both production dice before you roll.",
+    effect: "Play at the start of your roll phase, choose both production dice values, then roll the event die normally.",
+    requiresTarget: false,
+  },
+  Crane: {
+    title: "Crane",
+    short: "Next city improvement costs one less commodity.",
+    effect: "Use this turn to buy exactly one city improvement with cost reduced by 1 (minimum 0).",
+    requiresTarget: false,
+  },
+  Engineering: {
+    title: "Engineering",
+    short: "Build one city wall for free.",
+    effect: "Choose one of your cities without a wall and place a wall at no resource cost.",
+    requiresTarget: true,
+  },
+  Invention: {
+    title: "Invention",
+    short: "Swap two eligible number tokens.",
+    effect: "Swap any two number tokens that are not 2, 6, 8, or 12.",
+    requiresTarget: true,
+  },
+  Irrigation: {
+    title: "Irrigation",
+    short: "Gain grain from your fields.",
+    effect: "Gain 2 grain for each fields hex adjacent to any of your buildings.",
+    requiresTarget: false,
+  },
+  Medicine: {
+    title: "Medicine",
+    short: "Cheaper city upgrade this turn.",
+    effect: "Upgrade one of your settlements to a city for 1 grain + 2 ore.",
+    requiresTarget: true,
+  },
+  Mining: {
+    title: "Mining",
+    short: "Gain ore from your mountains.",
+    effect: "Gain 2 ore for each mountains hex adjacent to any of your buildings.",
+    requiresTarget: false,
+  },
+  RoadBuilding: {
+    title: "Road Building",
+    short: "Build two roads for free.",
+    effect: "Place up to 2 roads at no resource cost, following normal road placement rules.",
+    requiresTarget: true,
+  },
+  Smithing: {
+    title: "Smithing",
+    short: "Promote up to two knights for free.",
+    effect: "Choose up to two of your knights and promote each once this turn at no cost.",
+    requiresTarget: true,
+  },
+  Printing: {
+    title: "Printing",
+    short: "Victory point card.",
+    effect: "Place face-up immediately. This card gives 1 victory point.",
+    requiresTarget: false,
+  },
+  CommercialHarbor: {
+    title: "Commercial Harbor",
+    short: "Offer resource-for-commodity trades to each player.",
+    effect: "Offer each opponent one resource type from your hand; they must return one commodity or decline if none.",
+    requiresTarget: true,
+  },
+  GuildDues: {
+    title: "Guild Dues",
+    short: "Take two chosen cards from one eligible player.",
+    effect: "Pick one player with VP at least as high as yours and take any 2 resource/commodity cards from their hand.",
+    requiresTarget: true,
+  },
+  Merchant: {
+    title: "Merchant",
+    short: "Place the merchant for ongoing 2:1 trade + 1 VP.",
+    effect: "Place the merchant on a land hex adjacent to one of your buildings. You gain 1 VP while you hold it and may trade that hex's resource at 2:1.",
+    requiresTarget: true,
+  },
+  MerchantFleet: {
+    title: "Merchant Fleet",
+    short: "Trade one chosen resource or commodity at 2:1 this turn.",
+    effect: "Choose one card type; for the rest of this turn, you may trade it at 2:1 with the bank.",
+    requiresTarget: true,
+  },
+  ResourceMonopoly: {
+    title: "Resource Monopoly",
+    short: "Claim resources from every opponent.",
+    effect: "Name one resource type; each opponent gives you up to 2 of that resource.",
+    requiresTarget: true,
+  },
+  TradeMonopoly: {
+    title: "Trade Monopoly",
+    short: "Claim one commodity from every opponent.",
+    effect: "Name one commodity type; each opponent gives you 1 of that commodity if possible.",
+    requiresTarget: true,
+  },
+  Constitution: {
+    title: "Constitution",
+    short: "Victory point card.",
+    effect: "Place face-up immediately. This card gives 1 victory point.",
+    requiresTarget: false,
+  },
+  Diplomacy: {
+    title: "Diplomacy",
+    short: "Remove an open road, then maybe place one free road.",
+    effect: "Choose an open road to remove. If it is your own road, immediately place one free road.",
+    requiresTarget: true,
+  },
+  Encouragement: {
+    title: "Encouragement",
+    short: "Activate all your knights for free.",
+    effect: "All of your knights become active at no grain cost.",
+    requiresTarget: false,
+  },
+  Espionage: {
+    title: "Espionage",
+    short: "Peek at an opponent's progress hand and optionally steal one.",
+    effect: "Choose one opponent, view their progress cards, and optionally take one non-VP card.",
+    requiresTarget: true,
+  },
+  Intrigue: {
+    title: "Intrigue",
+    short: "Displace one eligible enemy knight.",
+    effect: "Pick an opponent knight connected to one of your routes and force it to relocate/remove, without moving one of your own knights.",
+    requiresTarget: true,
+  },
+  Sabotage: {
+    title: "Sabotage",
+    short: "High-VP opponents discard half their cards.",
+    effect: "Each opponent with VP at least as high as yours discards half of their resource+commodity cards (rounded down).",
+    requiresTarget: false,
+  },
+  Taxation: {
+    title: "Taxation",
+    short: "Move robber and steal from all players on that hex.",
+    effect: "Move the robber to a new hex and steal one random card from each opponent with a building on that hex.",
+    requiresTarget: true,
+  },
+  Treason: {
+    title: "Treason",
+    short: "Replace an opponent knight with your own.",
+    effect: "Choose an opponent knight to remove, then optionally place one of your own equal-or-lower strength knights there.",
+    requiresTarget: true,
+  },
+  Wedding: {
+    title: "Wedding",
+    short: "Higher-VP opponents give you two cards each.",
+    effect: "Every opponent with more VP than you gives you 2 resource/commodity cards of their choice.",
+    requiresTarget: false,
+  },
+};
+
+export const PROGRESS_AUTO_PLAY_CARDS = new Set<ProgressCardName>([
+  "Irrigation",
+  "Mining",
+  "Sabotage",
+  "Encouragement",
+]);
+
+export const BUILD_COST_HINTS: Array<{
+  label: string;
+  cost: Partial<Resources>;
+}> = [
+  { label: "Road", cost: { brick: 1, lumber: 1 } },
+  { label: "Settlement", cost: { brick: 1, lumber: 1, wool: 1, grain: 1 } },
+  { label: "City", cost: { grain: 2, ore: 3 } },
+  { label: "City Wall", cost: { brick: 2 } },
+  { label: "Recruit Knight", cost: { ore: 1, wool: 1 } },
+  { label: "Promote Knight", cost: { ore: 1, grain: 1 } },
+  { label: "Activate Knight", cost: { grain: 1 } },
+];
+
+export const KNIGHT_LEVEL_HINTS: Record<
+  KnightStrength,
+  { name: string; text: string }
+> = {
+  1: {
+    name: "Basic Knight",
+    text: "Strength 1. Recruit with ore+wool. Can move/displace weaker active targets after activation.",
+  },
+  2: {
+    name: "Strong Knight",
+    text: "Strength 2. Promote from basic using ore+grain.",
+  },
+  3: {
+    name: "Mighty Knight",
+    text: "Strength 3. Requires politics level 3 before promotion from strong.",
+  },
 };

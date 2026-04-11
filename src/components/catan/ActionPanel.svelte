@@ -116,6 +116,14 @@
     trade: { label: "🤝 Trade", color: "#2e9e4f" },
     politics: { label: "⚔️ Politics", color: "#f1c232" },
   };
+
+  function showBuildInfo() {
+    store.openInfoModal({ kind: "build-costs" });
+  }
+
+  function showKnightInfo() {
+    store.openInfoModal({ kind: "knight-levels" });
+  }
 </script>
 
 <div class="action-panel">
@@ -176,7 +184,10 @@
     >
   {:else if gameState.phase === "ACTION"}
     <div class="action-group">
-      <span class="group-label">Build</span>
+      <div class="group-head">
+        <span class="group-label">Build</span>
+        <button class="info-btn" onclick={showBuildInfo} aria-label="Show build costs">i</button>
+      </div>
       <div class="group-btns">
         {#if pendingAction?.type === "build_road"}
           <button class="action-btn active" onclick={() => pending(null)}
@@ -229,7 +240,10 @@
     </div>
 
     <div class="action-group">
-      <span class="group-label">Knights</span>
+      <div class="group-head">
+        <span class="group-label">Knights</span>
+        <button class="info-btn" onclick={showKnightInfo} aria-label="Show knight levels">i</button>
+      </div>
       <div class="group-btns">
         {#if pendingAction?.type === "recruit_knight"}
           <button class="action-btn active" onclick={() => pending(null)}
@@ -314,6 +328,26 @@
     text-transform: uppercase;
     color: #a0b0a0;
     letter-spacing: 0.08em;
+  }
+  .group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .info-btn {
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.12);
+    color: #f0e8d0;
+    border-radius: 999px;
+    width: 1.35rem;
+    height: 1.35rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
   }
   .group-btns {
     display: flex;

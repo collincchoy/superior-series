@@ -1,8 +1,23 @@
 <script lang="ts">
-  import type { ImprovementTrack, Player } from "../../lib/catan/types.js";
+  import type {
+    ImprovementTrack,
+    Player,
+    ProgressCardName,
+  } from "../../lib/catan/types.js";
+  import { store } from "../../lib/catan/store.svelte.js";
+  import {
+    PROGRESS_AUTO_PLAY_CARDS,
+    PROGRESS_CARD_INFO,
+  } from "../../lib/catan/constants.js";
   import { CARD_EMOJI, RESOURCE_KEYS } from "./cardEmoji.js";
 
-  let { me }: { me: Player } = $props();
+  let {
+    me,
+    canPlayProgress = false,
+  }: {
+    me: Player;
+    canPlayProgress: boolean;
+  } = $props();
 
   const RESOURCE_COLORS: Record<keyof Player["resources"], string> = {
     brick: "#c8622a",
@@ -30,6 +45,43 @@
   function progressCardColor(track: ImprovementTrack): string {
     return TRACK_COLORS[track];
   }
+
+  function canPlayNow(cardName: ProgressCardName, isVP: boolean): boolean {
+    return canPlayProgress && !isVP;
+  }
+
+  function playCard(cardName: ProgressCardName) {
+    store.sendAction({
+      type: "PLAY_PROGRESS",
+      pid: me.id,
+      card: cardName,
+    });
+  }
+
+  function onCardTap(cardName: ProgressCardName, isVP: boolean, track: ImprovementTrack) {
+    const canPlay = canPlayNow(cardName, isVP);
+    const canAutoPlay = canPlay && PROGRESS_AUTO_PLAY_CARDS.has(cardName);
+    if (canAutoPlay) {
+      playCard(cardName);
+      return;
+    }
+    const info = PROGRESS_CARD_INFO[cardName];
+    const helperText = isVP
+      ? "Victory point cards are kept face-up and are not played manually."
+      : !canPlay
+        ? "You can play progress cards only during your action phase."
+        : info.requiresTarget
+          ? "This card needs a target/choice flow. Detailed use flow is being implemented next."
+          : "This card can be used when legal. Tap in your action phase.";
+
+    store.openInfoModal({
+      kind: "progress",
+      card: { name: cardName, track, isVP },
+      canPlayNow: canPlay,
+      canAutoPlay,
+      helperText,
+    });
+  }
 </script>
 
 <div class="hand-panel">
@@ -46,10 +98,13 @@
   {#if me.progressCards.length}
     <div class="progress-cards">
       {#each me.progressCards as c}
-        <span
+        <button
           class="prog-card{c.isVP ? ' vp-card' : ''}"
+          class:clickable={canPlayNow(c.name, c.isVP)}
           style={!c.isVP ? `background:${progressCardColor(c.track)}` : undefined}
-          >{c.name}</span
+          onclick={() => onCardTap(c.name, c.isVP, c.track)}
+          title={PROGRESS_CARD_INFO[c.name].short}
+        >{c.name}</button
         >
       {/each}
     </div>
@@ -111,12 +166,24 @@
     font-size: 0.7rem;
     font-weight: 700;
     color: #0f1216;
+    opacity: 0.75;
+  }
+
+  .prog-card.clickable {
+    cursor: pointer;
+    opacity: 1;
+  }
+
+  .prog-card.clickable:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
   }
 
   .vp-card {
     background: #d4af37;
     border-color: #f5da73;
     color: #2d2100;
+    opacity: 1;
   }
 
   .improvements {

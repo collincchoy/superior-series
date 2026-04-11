@@ -27,7 +27,7 @@
 
 <div class="side-panel">
   <PhaseBanner {gameState} {localPid} />
-  <HandPanel {me} />
+  <HandPanel {me} canPlayProgress={canAct && gameState.phase === "ACTION"} />
   {#if canAct}
     <ActionPanel {gameState} {localPid} {pendingAction} bind:showTrade />
   {:else}

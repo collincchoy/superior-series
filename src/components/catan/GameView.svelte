@@ -7,6 +7,7 @@
   import PlayersPanel from "./PlayersPanel.svelte";
   import DiscardModal from "./DiscardModal.svelte";
   import TradeBankModal from "./TradeBankModal.svelte";
+  import InfoModal from "./InfoModal.svelte";
 
   let {
     gameState,
@@ -45,6 +46,7 @@
 {#if showTrade}
   <TradeBankModal {gameState} {localPid} bind:open={showTrade} />
 {/if}
+<InfoModal />
 
 <style>
   .game-layout {
