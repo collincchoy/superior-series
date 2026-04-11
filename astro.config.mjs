@@ -7,4 +7,9 @@ export default defineConfig({
   site: "https://collincchoy.github.io/superior-series/",
   base: "/superior-series/",
   integrations: [svelte()],
+  vite: {
+    optimizeDeps: {
+      include: ["qrcode"],
+    },
+  },
 });
