@@ -4,6 +4,7 @@
   import BoardCanvas from './BoardCanvas.svelte';
   import SidePanel from './SidePanel.svelte';
   import DiscardModal from './DiscardModal.svelte';
+  import TradeBankModal from './TradeBankModal.svelte';
 
   let { gameState, localPid, pendingAction, roomCode }: {
     gameState: GameState;
@@ -13,6 +14,7 @@
   } = $props();
 
   let isMyTurn = $derived(gameState.currentPlayerId === localPid);
+  let showTrade = $state(false);
 </script>
 
 <div class="game-layout">
@@ -20,7 +22,10 @@
     <div class="room-code-banner">Room: <strong>{roomCode}</strong></div>
   {/if}
   <BoardCanvas {gameState} {localPid} {pendingAction} />
-  <SidePanel {gameState} {localPid} {pendingAction} {isMyTurn} />
+  <SidePanel {gameState} {localPid} {pendingAction} {isMyTurn} bind:showTrade />
 </div>
 
 <DiscardModal {gameState} {localPid} />
+{#if showTrade}
+  <TradeBankModal {gameState} {localPid} bind:open={showTrade} />
+{/if}

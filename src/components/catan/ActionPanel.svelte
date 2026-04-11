@@ -7,16 +7,14 @@
     canRecruitKnight, canPromoteKnight, canActivateKnight, canImproveCity,
   } from '../../lib/catan/rules.js';
   import { buildGraph } from '../../lib/catan/board.js';
-  import TradeBankModal from './TradeBankModal.svelte';
-
-  let { gameState, localPid, pendingAction }: {
+  let { gameState, localPid, pendingAction, showTrade = $bindable(false) }: {
     gameState: GameState;
     localPid: PlayerId;
     pendingAction: PendingAction | null;
+    showTrade: boolean;
   } = $props();
 
   const graph = buildGraph();
-  let showTrade = $state(false);
 
   function send(action: GameAction) { store.sendAction(action); }
   function pending(pa: PendingAction | null) { store.setPendingAction(pa); }
@@ -104,6 +102,3 @@
   {/if}
 </div>
 
-{#if showTrade}
-  <TradeBankModal {gameState} {localPid} bind:open={showTrade} />
-{/if}

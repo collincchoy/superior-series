@@ -7,11 +7,12 @@
   import ActionPanel from './ActionPanel.svelte';
   import LogPanel from './LogPanel.svelte';
 
-  let { gameState, localPid, pendingAction, isMyTurn }: {
+  let { gameState, localPid, pendingAction, isMyTurn, showTrade = $bindable(false) }: {
     gameState: GameState;
     localPid: PlayerId;
     pendingAction: PendingAction | null;
     isMyTurn: boolean;
+    showTrade: boolean;
   } = $props();
 
   let me = $derived(gameState.players[localPid]!);
@@ -22,7 +23,7 @@
   <PlayersPanel {gameState} {localPid} />
   <HandPanel {me} />
   {#if isMyTurn}
-    <ActionPanel {gameState} {localPid} {pendingAction} />
+    <ActionPanel {gameState} {localPid} {pendingAction} bind:showTrade />
   {:else}
     <div class="action-panel"></div>
   {/if}
