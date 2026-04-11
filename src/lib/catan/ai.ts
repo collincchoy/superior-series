@@ -22,6 +22,7 @@ import {
   canPromoteKnight,
   canActivateKnight,
   canMoveKnight,
+  canRelocateDisplacedKnight,
   canImproveCity,
   hasResources,
   BUILD_COSTS,
@@ -510,7 +511,7 @@ function chooseDisplacedMove(
 
   // Find a safe spot to move the displaced knight
   for (const to of allVertices) {
-    if (canMoveKnight(state.board, graph, pid, from, to)) {
+    if (canRelocateDisplacedKnight(state.board, graph, pid, from, to)) {
       return { type: 'DISPLACED_MOVE', pid, from, to };
     }
   }
