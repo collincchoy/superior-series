@@ -535,8 +535,9 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     }
 
     case 'DISPLACED_MOVE': {
-      const { pid, from, to } = action;
+      const { pid, to } = action;
       const pending = s.pendingDisplace!;
+      const from = pending.displacedKnightVertex;
 
       if (to === null) {
         // Can't move — knight returned to supply
@@ -558,7 +559,6 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             ...s.board,
             knights: {
               ...s.board.knights,
-              [from]: null,
               [to]: { playerId: pid, strength: pending.displacedKnightStrength, active: false },
             },
           },

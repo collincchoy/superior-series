@@ -308,6 +308,19 @@ export function canMoveKnight(
   return canReachVertex(board, graph, playerId, from, to);
 }
 
+export function canRelocateDisplacedKnight(
+  board: BoardState,
+  graph: CatanGraph,
+  playerId: PlayerId,
+  from: VertexId,
+  to: VertexId,
+): boolean {
+  if (from === to) return false;
+  if (board.vertices[to] !== null) return false;
+  if (board.knights[to] !== null) return false;
+  return canReachVertex(board, graph, playerId, from, to);
+}
+
 export function canDisplaceKnight(
   board: BoardState,
   graph: CatanGraph,
