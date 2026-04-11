@@ -68,6 +68,35 @@ describe('buildGraph', () => {
       }
     }
   });
+
+  it('each vertex has 2 or 3 edges', () => {
+    for (const vid of Object.keys(graph.vertices)) {
+      const edges = graph.edgesOfVertex[vid as VertexId] ?? [];
+      expect(edges.length, `vertex ${vid}`).toBeGreaterThanOrEqual(2);
+      expect(edges.length, `vertex ${vid}`).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it('no two edges share the same vertex pair', () => {
+    const seen = new Set<string>();
+    for (const [eid, [vA, vB]] of Object.entries(graph.verticesOfEdge)) {
+      const key = [vA, vB].sort().join('|');
+      expect(seen, `duplicate edge pair at ${eid}: ${vA} — ${vB}`).not.toContain(key);
+      seen.add(key);
+    }
+  });
+
+  it('edgesOfVertex and verticesOfEdge are consistent', () => {
+    for (const [vid, edges] of Object.entries(graph.edgesOfVertex)) {
+      for (const eid of edges) {
+        const [vA, vB] = graph.verticesOfEdge[eid as EdgeId] ?? [];
+        expect(
+          vA === vid || vB === vid,
+          `edge ${eid} in edgesOfVertex[${vid}] but verticesOfEdge[${eid}] = [${vA}, ${vB}]`
+        ).toBe(true);
+      }
+    }
+  });
 });
 
 describe('hexToPixel', () => {

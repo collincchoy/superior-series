@@ -5,7 +5,7 @@ import type {
   EdgeId,
   BoardState,
   PlayerId,
-} from './types.js';
+} from "./types.js";
 
 // ─── Hex Coordinates ──────────────────────────────────────────────────────────
 
@@ -47,15 +47,29 @@ import type {
  */
 export const CATAN_HEX_COORDS: HexCoord[] = [
   // r = -2 (top row, 3 hexes)
-  { q: 0, r: -2 }, { q: 1, r: -2 }, { q: 2, r: -2 },
+  { q: 0, r: -2 },
+  { q: 1, r: -2 },
+  { q: 2, r: -2 },
   // r = -1 (4 hexes)
-  { q: -1, r: -1 }, { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 2, r: -1 },
+  { q: -1, r: -1 },
+  { q: 0, r: -1 },
+  { q: 1, r: -1 },
+  { q: 2, r: -1 },
   // r = 0 (middle row, 5 hexes)
-  { q: -2, r: 0 }, { q: -1, r: 0 }, { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 },
+  { q: -2, r: 0 },
+  { q: -1, r: 0 },
+  { q: 0, r: 0 },
+  { q: 1, r: 0 },
+  { q: 2, r: 0 },
   // r = 1 (4 hexes)
-  { q: -2, r: 1 }, { q: -1, r: 1 }, { q: 0, r: 1 }, { q: 1, r: 1 },
+  { q: -2, r: 1 },
+  { q: -1, r: 1 },
+  { q: 0, r: 1 },
+  { q: 1, r: 1 },
   // r = 2 (bottom row, 3 hexes)
-  { q: -2, r: 2 }, { q: -1, r: 2 }, { q: 0, r: 2 },
+  { q: -2, r: 2 },
+  { q: -1, r: 2 },
+  { q: 0, r: 2 },
 ];
 
 export function hexId(c: HexCoord): HexId {
@@ -69,9 +83,12 @@ export function hexId(c: HexCoord): HexId {
  * With this formula, same-r rows are horizontal — the standard Catan board layout.
  * @param size circumradius (distance from center to corner)
  */
-export function hexToPixel(coord: HexCoord, size: number): { x: number; y: number } {
+export function hexToPixel(
+  coord: HexCoord,
+  size: number,
+): { x: number; y: number } {
   return {
-    x: size * (Math.sqrt(3) * coord.q + Math.sqrt(3) / 2 * coord.r),
+    x: size * (Math.sqrt(3) * coord.q + (Math.sqrt(3) / 2) * coord.r),
     y: size * (3 / 2) * coord.r,
   };
 }
@@ -101,12 +118,12 @@ export function vertexPixel(
  * Direction index (0..5) corresponds to: E, NE, NW, W, SW, SE.
  */
 const HEX_DIRECTIONS: HexCoord[] = [
-  { q: 1, r: 0 },   // 0: E
-  { q: 1, r: -1 },  // 1: NE
-  { q: 0, r: -1 },  // 2: NW
-  { q: -1, r: 0 },  // 3: W
-  { q: -1, r: 1 },  // 4: SW
-  { q: 0, r: 1 },   // 5: SE
+  { q: 1, r: 0 }, // 0: E
+  { q: 1, r: -1 }, // 1: NE
+  { q: 0, r: -1 }, // 2: NW
+  { q: -1, r: 0 }, // 3: W
+  { q: -1, r: 1 }, // 4: SW
+  { q: 0, r: 1 }, // 5: SE
 ];
 
 /**
@@ -136,10 +153,16 @@ function hexesSharingVertex(hex: HexCoord, v: number): HexCoord[] {
   // The vertex v of a flat-top hex is shared with neighbors at directions:
   //   dir = (v + 4) % 6  and  dir = (v + 5) % 6
   // These are the two hexes "around" that corner.
-  const d1 = (v + 4) % 6;
-  const d2 = (v + 5) % 6;
-  const n1 = { q: hex.q + HEX_DIRECTIONS[d1]!.q, r: hex.r + HEX_DIRECTIONS[d1]!.r };
-  const n2 = { q: hex.q + HEX_DIRECTIONS[d2]!.q, r: hex.r + HEX_DIRECTIONS[d2]!.r };
+  const d1 = (10 - v) % 6;
+  const d2 = (11 - v) % 6;
+  const n1 = {
+    q: hex.q + HEX_DIRECTIONS[d1]!.q,
+    r: hex.r + HEX_DIRECTIONS[d1]!.r,
+  };
+  const n2 = {
+    q: hex.q + HEX_DIRECTIONS[d2]!.q,
+    r: hex.r + HEX_DIRECTIONS[d2]!.r,
+  };
   return [hex, n1, n2];
 }
 
@@ -147,19 +170,26 @@ function hexesSharingVertex(hex: HexCoord, v: number): HexCoord[] {
  * The local vertex index on `owner` that corresponds to vertex v of `original`.
  * We find the shared vertex by looking at which corner of `owner` points to `original`.
  */
-function localVertexOnOwner(original: HexCoord, origV: number, owner: HexCoord): number {
+function localVertexOnOwner(
+  original: HexCoord,
+  origV: number,
+  owner: HexCoord,
+): number {
   // The three hexes around vertex (original, origV) are hexesSharingVertex(original, origV).
   // Each of those hexes has a local vertex that points to the same corner.
   // For hex `owner`, we need to find which of its 6 vertices corresponds to origV of original.
   for (let ov = 0; ov < 6; ov++) {
     const sharing = hexesSharingVertex(owner, ov);
-    if (sharing.some(h => h.q === original.q && h.r === original.r)) {
+    if (sharing.some((h) => h.q === original.q && h.r === original.r)) {
       // Verify all three are the same as the original set
       const origSharing = hexesSharingVertex(original, origV);
       const ownerSharing = hexesSharingVertex(owner, ov);
-      const origSet = new Set(origSharing.map(h => hexId(h)));
-      const ownerSet = new Set(ownerSharing.map(h => hexId(h)));
-      if (origSet.size === ownerSet.size && [...origSet].every(x => ownerSet.has(x))) {
+      const origSet = new Set(origSharing.map((h) => hexId(h)));
+      const ownerSet = new Set(ownerSharing.map((h) => hexId(h)));
+      if (
+        origSet.size === ownerSet.size &&
+        [...origSet].every((x) => ownerSet.has(x))
+      ) {
         return ov;
       }
     }
@@ -175,11 +205,11 @@ function canonicalVertexId(hex: HexCoord, localV: number): VertexId {
   const sharing = hexesSharingVertex(hex, localV);
   // Filter to only island hexes
   const islandIds = new Set(CATAN_HEX_COORDS.map(hexId));
-  const islandSharing = sharing.filter(h => islandIds.has(hexId(h)));
+  const islandSharing = sharing.filter((h) => islandIds.has(hexId(h)));
   if (islandSharing.length === 0) return `${hexId(hex)}:${localV}`; // shouldn't happen
 
   // Pick the smallest by (q, r) lexicographic order
-  islandSharing.sort((a, b) => a.q !== b.q ? a.q - b.q : a.r - b.r);
+  islandSharing.sort((a, b) => (a.q !== b.q ? a.q - b.q : a.r - b.r));
   const owner = islandSharing[0]!;
   if (owner.q === hex.q && owner.r === hex.r) {
     return `${hexId(hex)}:${localV}`;
@@ -209,8 +239,10 @@ function hexesSharingEdge(hex: HexCoord, e: number): HexCoord[] {
  */
 function canonicalEdgeId(hex: HexCoord, localE: number): EdgeId {
   const islandIds = new Set(CATAN_HEX_COORDS.map(hexId));
-  const sharing = hexesSharingEdge(hex, localE).filter(h => islandIds.has(hexId(h)));
-  sharing.sort((a, b) => a.q !== b.q ? a.q - b.q : a.r - b.r);
+  const sharing = hexesSharingEdge(hex, localE).filter((h) =>
+    islandIds.has(hexId(h)),
+  );
+  sharing.sort((a, b) => (a.q !== b.q ? a.q - b.q : a.r - b.r));
   const owner = sharing[0]!;
   if (owner.q === hex.q && owner.r === hex.r) {
     return `${hexId(hex)}:${localE}`;
@@ -302,14 +334,14 @@ export function buildGraph(): CatanGraph {
     vertices,
     edges,
     adjacentVertices: Object.fromEntries(
-      Object.entries(adjacentVerticesMap).map(([k, v]) => [k, [...v]])
+      Object.entries(adjacentVerticesMap).map(([k, v]) => [k, [...v]]),
     ),
     edgesOfVertex: Object.fromEntries(
-      Object.entries(edgesOfVertexMap).map(([k, v]) => [k, [...v]])
+      Object.entries(edgesOfVertexMap).map(([k, v]) => [k, [...v]]),
     ),
     verticesOfEdge: verticesOfEdgeMap,
     hexesOfVertex: Object.fromEntries(
-      Object.entries(hexesOfVertexMap).map(([k, v]) => [k, [...v]])
+      Object.entries(hexesOfVertexMap).map(([k, v]) => [k, [...v]]),
     ),
     verticesOfHex: verticesOfHexMap,
     edgesOfHex: edgesOfHexMap,
@@ -339,7 +371,7 @@ export function computeLongestRoad(
   const playerEdges = new Set<EdgeId>(
     Object.entries(board.edges)
       .filter(([, r]) => r?.playerId === playerId)
-      .map(([eid]) => eid as EdgeId)
+      .map(([eid]) => eid as EdgeId),
   );
 
   if (playerEdges.size === 0) return 0;
@@ -410,14 +442,14 @@ export function tradeRatio(
   const playerVertices = new Set<VertexId>(
     Object.entries(board.vertices)
       .filter(([, b]) => b?.playerId === playerId)
-      .map(([vid]) => vid as VertexId)
+      .map(([vid]) => vid as VertexId),
   );
 
   let bestRatio = 4;
   for (const harbor of board.harbors) {
     const [v1, v2] = harbor.vertices;
     if (playerVertices.has(v1) || playerVertices.has(v2)) {
-      if (harbor.type === 'generic') {
+      if (harbor.type === "generic") {
         bestRatio = Math.min(bestRatio, 3);
       } else if (harbor.type === cardType) {
         bestRatio = Math.min(bestRatio, 2);
