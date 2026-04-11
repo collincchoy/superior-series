@@ -334,8 +334,7 @@
                 stroke-width="1.5"
               />
               <polygon
-                points="{p.x},{p.y - 16} {p.x + 10},{p.y - 4} {p.x - 10},{p.y -
-                  4}"
+                points={`${p.x},${p.y - 16} ${p.x + 10},${p.y - 4} ${p.x - 10},${p.y - 4}`}
                 fill={color}
                 stroke="#fff"
                 stroke-width="1.5"

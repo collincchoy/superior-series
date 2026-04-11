@@ -6,10 +6,10 @@ Astro 6.1 static site deployed to GitHub Pages (`https://collincchoy.github.io/s
 
 ## Tech Stack
 
-- **Framework**: Astro 6.1 (file-based routing; no React/Vue/Svelte)
+- **Framework**: Astro 6.1 (file-based routing; includes Svelte integration/components)
 - **Language**: TypeScript strict
 - **Package manager**: pnpm
-- **Testing**: Vitest — `pnpm test` (run before committing; 91 tests across 5 suites, all passing)
+- **Testing**: Vitest — `pnpm test` (run before committing)
 - **Multiplayer**: PeerJS (WebRTC P2P, host-authoritative)
 - **Board rendering**: Vanilla SVG (no canvas library)
 

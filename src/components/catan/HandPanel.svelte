@@ -3,6 +3,7 @@
     ImprovementTrack,
     Player,
     ProgressCardName,
+    TurnPhase,
   } from "../../lib/catan/types.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import {
@@ -14,9 +15,11 @@
   let {
     me,
     canPlayProgress = false,
+    phase,
   }: {
     me: Player;
     canPlayProgress: boolean;
+    phase: TurnPhase;
   } = $props();
 
   const RESOURCE_COLORS: Record<keyof Player["resources"], string> = {
@@ -47,7 +50,9 @@
   }
 
   function canPlayNow(cardName: ProgressCardName, isVP: boolean): boolean {
-    return canPlayProgress && !isVP;
+    if (isVP || !canPlayProgress) return false;
+    if (phase === "ROLL_DICE") return cardName === "Alchemy";
+    return phase === "ACTION";
   }
 
   function playCard(cardName: ProgressCardName) {
@@ -69,7 +74,7 @@
     const helperText = isVP
       ? "Victory point cards are kept face-up and are not played manually."
       : !canPlay
-        ? "You can play progress cards only during your action phase."
+        ? "Only Alchemy can be played in roll phase; other progress cards are action-phase only."
         : info.requiresTarget
           ? "This card needs a target/choice flow. Detailed use flow is being implemented next."
           : "This card can be used when legal. Tap in your action phase.";

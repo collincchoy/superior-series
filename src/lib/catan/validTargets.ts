@@ -28,8 +28,7 @@ export type PendingAction =
   | { type: "build_city_wall" }
   | { type: "recruit_knight" }
   | { type: "promote_knight" }
-  | { type: "activate_knight" }
-  | { type: "move_robber" };
+  | { type: "activate_knight" };
 
 export interface ValidTargets {
   validVertices: Set<VertexId>;

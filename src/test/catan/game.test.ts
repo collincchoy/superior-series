@@ -51,6 +51,28 @@ describe("createInitialState", () => {
     expect(state.decks.politics).toHaveLength(18);
   });
 
+  it("uses C&K-correct Constitution and TradeMonopoly deck placement", () => {
+    const state = createInitialState(makePlayers(3));
+
+    const tradeConstitutionCount = state.decks.trade.filter(
+      (c) => c.name === "Constitution",
+    ).length;
+    const politicsConstitutionCount = state.decks.politics.filter(
+      (c) => c.name === "Constitution",
+    ).length;
+    const tradeMonopolyCount = state.decks.trade.filter(
+      (c) => c.name === "TradeMonopoly",
+    ).length;
+    const politicsWeddingCount = state.decks.politics.filter(
+      (c) => c.name === "Wedding",
+    ).length;
+
+    expect(tradeConstitutionCount).toBe(0);
+    expect(politicsConstitutionCount).toBe(1);
+    expect(tradeMonopolyCount).toBe(2);
+    expect(politicsWeddingCount).toBe(2);
+  });
+
   it("barbarian track starts at 0 with robber inactive", () => {
     const state = createInitialState(makePlayers(3));
     expect(state.barbarian.position).toBe(0);

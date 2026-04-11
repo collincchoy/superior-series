@@ -143,8 +143,7 @@ export type TradeCardName =
   | "Merchant"
   | "MerchantFleet"
   | "ResourceMonopoly"
-  | "TradeMonopoly"
-  | "Constitution";
+  | "TradeMonopoly";
 
 export type PoliticsCardName =
   | "Diplomacy"
@@ -154,7 +153,8 @@ export type PoliticsCardName =
   | "Sabotage"
   | "Taxation"
   | "Treason"
-  | "Wedding";
+  | "Wedding"
+  | "Constitution";
 
 export type ProgressCardName =
   | ScienceCardName

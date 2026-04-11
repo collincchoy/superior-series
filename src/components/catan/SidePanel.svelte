@@ -29,6 +29,7 @@
   <PhaseBanner {gameState} {localPid} />
   <HandPanel
     {me}
+    phase={gameState.phase}
     canPlayProgress={
       canAct && (gameState.phase === "ACTION" || gameState.phase === "ROLL_DICE")
     }

@@ -117,8 +117,7 @@ export const TRADE_DECK: ProgressCard[] = [
   ...repeat(card("Merchant", "trade"), 6),
   ...repeat(card("MerchantFleet", "trade"), 2),
   ...repeat(card("ResourceMonopoly", "trade"), 4),
-  card("Constitution", "trade", true),
-  ...repeat(card("TradeMonopoly", "trade"), 1),
+  ...repeat(card("TradeMonopoly", "trade"), 2),
 ]; // 18 cards
 
 export const POLITICS_DECK: ProgressCard[] = [
@@ -130,7 +129,7 @@ export const POLITICS_DECK: ProgressCard[] = [
   ...repeat(card("Taxation", "politics"), 2),
   ...repeat(card("Treason", "politics"), 2),
   ...repeat(card("Wedding", "politics"), 2),
-  card("Wedding", "politics"), // 18th card — verify against rules
+  card("Constitution", "politics", true),
 ]; // 18 cards
 
 // ─── City Improvement Costs ────────────────────────────────────────────────────

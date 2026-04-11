@@ -23,12 +23,16 @@
     }
   });
 
+  function syncOpenState() {
+    if (open && !dialog?.open) open = false;
+  }
+
   function handleClick(e: MouseEvent) {
     if (closeOnBackdrop && e.target === dialog) open = false;
   }
 </script>
 
-<dialog bind:this={dialog} onclick={handleClick}>
+<dialog bind:this={dialog} onclick={handleClick} onclose={syncOpenState} oncancel={syncOpenState}>
   <h3>{title}</h3>
   {@render children()}
 </dialog>

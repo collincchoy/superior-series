@@ -114,8 +114,8 @@ export function vertexPixel(
 // ─── Graph Precomputation ─────────────────────────────────────────────────────
 
 /**
- * For flat-top hexagons, each hex has 6 neighbors.
- * Direction index (0..5) corresponds to: E, NE, NW, W, SW, SE.
+ * Hex neighbor directions for this axial, pointy-top layout.
+ * Direction index (0..5): E, NE, NW, W, SW, SE.
  */
 const HEX_DIRECTIONS: HexCoord[] = [
   { q: 1, r: 0 }, // 0: E
@@ -127,30 +127,12 @@ const HEX_DIRECTIONS: HexCoord[] = [
 ];
 
 /**
- * Each local vertex v of a hex is shared with two neighbors.
- * neighborVertexSharing[v] = [[neighborDir, neighborLocalVertex], ...]
- * For flat-top hexagons:
- *   v0 (top-right): shared with neighbor NE (dir1, their v4) and neighbor E (dir0, their v2... wait)
- *
- * We use a different approach: derive vertex IDs from cube coordinates.
- * In a flat-top hex, vertex v is between edge (v-1) and edge v (mod 6).
- * The three hexes sharing vertex v of hex H are: H, H+dir[(v+4)%6], H+dir[(v+5)%6]
- * (Verified from standard hex grid geometry.)
- */
-const VERTEX_HEX_NEIGHBORS: [number, number][] = [
-  // For local vertex v, the two additional hexes sharing it are at directions:
-  [4, 5], // v0: dirs 4 & 5 (SW, SE) — nope, we compute these dynamically
-];
-
-/**
  * Returns the (up to 3) hex coords that share local vertex v of hex H.
- * For flat-top hexes: vertex v is between edges v-1 and v (mod 6).
- * The neighbors sharing vertex v are at directions (v+1)%6 and (v+2)%6.
- * (This matches the standard hex grid: each vertex touches exactly the 3 hexes
- * at one "tip" of the hexagonal grid.)
+ * For this pointy-top mapping, we compute the two neighboring hex directions
+ * around vertex v and include the source hex itself.
  */
 function hexesSharingVertex(hex: HexCoord, v: number): HexCoord[] {
-  // The vertex v of a flat-top hex is shared with neighbors at directions:
+  // The vertex v is shared with neighbors at directions:
   //   dir = (v + 4) % 6  and  dir = (v + 5) % 6
   // These are the two hexes "around" that corner.
   const d1 = (10 - v) % 6;

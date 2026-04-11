@@ -10,7 +10,15 @@
   import type { CommodityType, ResourceType } from "../../lib/catan/types.js";
 
   let modal = $derived(store.infoModal);
-  let open = $derived(modal !== null);
+  let open = $state(false);
+
+  $effect(() => {
+    open = modal !== null;
+  });
+
+  $effect(() => {
+    if (modal && !open) close();
+  });
 
   const TRACK_BADGE_COLOR: Record<string, string> = {
     science: "#2e9e4f",
@@ -123,7 +131,7 @@
 </script>
 
 {#if modal}
-  <Modal open={open} title={modal.kind === "progress" ? PROGRESS_CARD_INFO[modal.card.name].title : modal.kind === "build-costs" ? "Build Costs" : "Knight Levels"} closeOnBackdrop>
+  <Modal bind:open={open} title={modal.kind === "progress" ? PROGRESS_CARD_INFO[modal.card.name].title : modal.kind === "build-costs" ? "Build Costs" : "Knight Levels"} closeOnBackdrop>
     {#if modal.kind === "progress"}
       {@const info = PROGRESS_CARD_INFO[modal.card.name]}
       <div class="track-badge" style={`background:${TRACK_BADGE_COLOR[modal.card.track] ?? "#4d5f4d"}`}>

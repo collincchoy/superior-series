@@ -46,7 +46,7 @@ export class CatanNetwork {
 
   /**
    * Creates a new PeerJS peer. Returns the room code (= peer.id).
-   * The host must call `initHost(initialState)` once the game starts.
+    * The host must call `initHostState(state)` once the game starts.
    */
   async hostGame(hostPid: PlayerId): Promise<string> {
     this.isHost = true;
