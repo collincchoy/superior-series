@@ -5,12 +5,10 @@
  * Clients connect to host's peer.id, send actions, receive state updates.
  * Bot turns run only on the host after every state update.
  */
-
 import type { GameState, GameAction, PlayerId } from './types.js';
 import { applyAction } from './game.js';
 import { chooseBotAction } from './ai.js';
-
-// ─── Message Protocol ─────────────────────────────────────────────────────────
+import { getActingPlayerIds } from './turnActors.js';
 
 export type NetMessage =
   | { type: 'join';    name: string; pid?: PlayerId }  // pid present on reconnect
@@ -163,15 +161,17 @@ export class CatanNetwork {
     if (!this.state) return;
     let guard = 0;
     while (this.state.phase !== 'GAME_OVER' && guard++ < 200) {
-      // During progress draws, bot players in `remaining` act in order
-      if (this.state.phase === 'RESOLVE_PROGRESS_DRAW') {
-        const remaining = this.state.pendingProgressDraw?.remaining ?? [];
-        const botPid = remaining.find(p => this.state!.players[p]?.isBot);
-        if (!botPid) break;
-        const action = chooseBotAction(this.state, botPid);
+      const queuedBotPid = this.findQueuedBotPid();
+      if (queuedBotPid) {
+        const action = chooseBotAction(this.state, queuedBotPid);
         this.state = applyAction(this.state, action);
         continue;
       }
+
+      if (this.state.phase === 'RESOLVE_PROGRESS_DRAW' || this.state.phase === 'DISCARD' || this.state.phase === 'KNIGHT_DISPLACE_RESPONSE') {
+        break;
+      }
+
       if (!this.state.players[this.state.currentPlayerId]?.isBot) break;
       const action = chooseBotAction(this.state, this.state.currentPlayerId);
       this.state = applyAction(this.state, action);
@@ -180,6 +180,12 @@ export class CatanNetwork {
       this.callbacks.onStateUpdate(this.state);
       this.broadcastState();
     }
+  }
+
+  private findQueuedBotPid(): PlayerId | null {
+    if (!this.state) return null;
+
+    return getActingPlayerIds(this.state).find(pid => this.state!.players[pid]?.isBot) ?? null;
   }
 
   broadcastState() {
