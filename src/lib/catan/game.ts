@@ -189,6 +189,10 @@ export function createInitialState(
     pendingDisplace: null,
     pendingProgressDraw: null,
     pendingDiscard: null,
+    progressEffects: {
+      craneDiscountPlayerId: null,
+      merchantFleet: null,
+    },
     winner: null,
     log: [],
   };
@@ -609,7 +613,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       const currentLevel = player.improvements[track];
       const targetLevel = currentLevel + 1;
       const commodity = TRACK_COMMODITY[track];
-      const cost = targetLevel;
+      const craneDiscount = s.progressEffects.craneDiscountPlayerId === pid ? 1 : 0;
+      const cost = Math.max(0, targetLevel - craneDiscount);
 
       const newImprovements = { ...player.improvements, [track]: targetLevel };
       s = {
@@ -624,6 +629,13 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             improvements: newImprovements,
           },
         },
+        progressEffects:
+          craneDiscount > 0
+            ? {
+                ...s.progressEffects,
+                craneDiscountPlayerId: null,
+              }
+            : s.progressEffects,
       };
 
       // Check metropolis thresholds
@@ -910,6 +922,16 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         ...s,
         currentPlayerId: s.playerOrder[nextIdx]!,
         phase: "ROLL_DICE",
+        progressEffects: {
+          craneDiscountPlayerId:
+            s.progressEffects.craneDiscountPlayerId === pid
+              ? null
+              : s.progressEffects.craneDiscountPlayerId,
+          merchantFleet:
+            s.progressEffects.merchantFleet?.playerId === pid
+              ? null
+              : s.progressEffects.merchantFleet,
+        },
       };
       return s;
     }
@@ -1535,6 +1557,31 @@ function applyProgressCard(
           },
         };
       }
+      break;
+    }
+    case "Crane": {
+      s = {
+        ...s,
+        progressEffects: {
+          ...s.progressEffects,
+          craneDiscountPlayerId: pid,
+        },
+      };
+      break;
+    }
+    case "MerchantFleet": {
+      const cardType = (params as any)?.cardType as keyof Resources | undefined;
+      if (!cardType) return state;
+      s = {
+        ...s,
+        progressEffects: {
+          ...s.progressEffects,
+          merchantFleet: {
+            playerId: pid,
+            cardType,
+          },
+        },
+      };
       break;
     }
     case "TradeMonopoly": {

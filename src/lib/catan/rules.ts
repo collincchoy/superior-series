@@ -353,6 +353,7 @@ export function canImproveCity(
   board: BoardState,
   player: Player,
   track: ImprovementTrack,
+  hasCraneDiscount = false,
 ): boolean {
   if (!playerHasCity(board, player.id)) return false;
 
@@ -361,7 +362,7 @@ export function canImproveCity(
 
   const targetLevel = currentLevel + 1;
   const commodity = TRACK_COMMODITY[track];
-  const cost = targetLevel; // cost = N commodities where N = target level
+  const cost = Math.max(0, targetLevel - (hasCraneDiscount ? 1 : 0));
 
   return (player.resources[commodity] ?? 0) >= cost;
 }

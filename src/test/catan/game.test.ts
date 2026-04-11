@@ -595,6 +595,79 @@ describe("progress card effects", () => {
 
     expect(next.players[pid]!.progressCards.some((c) => c.name === "ResourceMonopoly")).toBe(true);
   });
+
+  it("Crane applies a one-time city improvement discount", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    state = {
+      ...state,
+      phase: "ACTION",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          resources: { ...state.players[pid]!.resources, paper: 5 },
+          improvements: {
+            ...state.players[pid]!.improvements,
+            science: 1,
+          },
+          progressCards: [{ name: "Crane", track: "science", isVP: false }],
+        },
+      },
+    };
+
+    const withCrane = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "Crane",
+      params: { track: "science" },
+    });
+    const improved = applyAction(withCrane, {
+      type: "IMPROVE_CITY",
+      pid,
+      track: "science",
+    });
+
+    expect(improved.players[pid]!.improvements.science).toBe(2);
+    expect(improved.players[pid]!.resources.paper).toBe(4);
+    expect(improved.progressEffects.craneDiscountPlayerId).toBeNull();
+  });
+
+  it("MerchantFleet sets and clears a turn-scoped 2:1 trade type", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    state = {
+      ...state,
+      phase: "ACTION",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          progressCards: [
+            { name: "MerchantFleet", track: "trade", isVP: false },
+          ],
+        },
+      },
+    };
+
+    const withFleet = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "MerchantFleet",
+      params: { cardType: "coin" },
+    });
+
+    expect(withFleet.progressEffects.merchantFleet?.playerId).toBe(pid);
+    expect(withFleet.progressEffects.merchantFleet?.cardType).toBe("coin");
+
+    const ended = applyAction(withFleet, {
+      type: "END_TURN",
+      pid,
+    });
+    expect(ended.progressEffects.merchantFleet).toBeNull();
+  });
 });
 
 describe("displaced knight resolution", () => {

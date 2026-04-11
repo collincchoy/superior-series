@@ -290,7 +290,12 @@
           <button
             class="action-btn"
             onclick={() => send({ type: "IMPROVE_CITY", pid, track })}
-            disabled={!canImproveCity(board, me, track)}
+            disabled={!canImproveCity(
+              board,
+              me,
+              track,
+              gameState.progressEffects.craneDiscountPlayerId === pid
+            )}
             style={`background:${trackLabel[track].color};color:${track === "politics" ? "#3f2d00" : "#ffffff"};border-color:rgba(0,0,0,0.35);`}
           >
             {trackLabel[track].label}

@@ -42,6 +42,12 @@
         r[harbor.type as keyof Resources] = 2;
       }
     }
+
+    const fleet = gameState.progressEffects.merchantFleet;
+    if (fleet && fleet.playerId === localPid) {
+      r[fleet.cardType] = Math.min(r[fleet.cardType], 2);
+    }
+
     return r;
   });
 
@@ -73,7 +79,7 @@
 
 <Modal bind:open title="Trade with Bank" closeOnBackdrop>
   <div class="section">
-    <label>Give (×ratio):</label>
+    <div class="field-label">Give (x ratio):</div>
     <div class="options">
       {#each canGive as k}
         <button
@@ -91,7 +97,7 @@
     </div>
   </div>
   <div class="section">
-    <label>Receive:</label>
+    <div class="field-label">Receive:</div>
     <div class="options">
       {#each RESOURCE_KEYS as k}
         <button
@@ -118,7 +124,7 @@
     margin-bottom: 0.8rem;
   }
 
-  label {
+  .field-label {
     display: block;
     font-size: 0.8rem;
     color: #c8b47a;

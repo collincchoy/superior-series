@@ -263,6 +263,14 @@ export interface PendingDiscard {
   remaining: Record<PlayerId, number>;
 }
 
+export interface ProgressEffects {
+  craneDiscountPlayerId: PlayerId | null;
+  merchantFleet: {
+    playerId: PlayerId;
+    cardType: keyof Resources;
+  } | null;
+}
+
 export interface GameState {
   /** Incremented on every mutation — helps detect stale renders */
   version: number;
@@ -292,6 +300,7 @@ export interface GameState {
   pendingDisplace: PendingDisplace | null;
   pendingProgressDraw: PendingProgressDraw | null;
   pendingDiscard: PendingDiscard | null;
+  progressEffects: ProgressEffects;
   winner: PlayerId | null;
   /** Game log entries */
   log: string[];

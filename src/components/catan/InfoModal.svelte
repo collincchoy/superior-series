@@ -30,9 +30,24 @@
     "wool",
   ];
   const COMMODITY_OPTIONS: CommodityType[] = ["cloth", "coin", "paper"];
+  const CARD_TYPE_OPTIONS: Array<keyof typeof CARD_EMOJI> = [
+    "brick",
+    "lumber",
+    "ore",
+    "grain",
+    "wool",
+    "cloth",
+    "coin",
+    "paper",
+  ];
+  const CRANE_TRACK_OPTIONS = ["science", "trade", "politics"] as const;
 
   let selectedResource = $state<ResourceType>("grain");
   let selectedCommodity = $state<CommodityType>("cloth");
+  let selectedCardType = $state<keyof typeof CARD_EMOJI>("cloth");
+  let selectedCraneTrack = $state<(typeof CRANE_TRACK_OPTIONS)[number]>(
+    "science",
+  );
   let die1 = $state(1);
   let die2 = $state(1);
 
@@ -69,6 +84,28 @@
         pid,
         card: modal.card.name,
         params: { die1, die2 },
+      });
+      close();
+      return;
+    }
+
+    if (modal.card.name === "MerchantFleet") {
+      store.sendAction({
+        type: "PLAY_PROGRESS",
+        pid,
+        card: modal.card.name,
+        params: { cardType: selectedCardType },
+      });
+      close();
+      return;
+    }
+
+    if (modal.card.name === "Crane") {
+      store.sendAction({
+        type: "PLAY_PROGRESS",
+        pid,
+        card: modal.card.name,
+        params: { track: selectedCraneTrack },
       });
       close();
       return;
@@ -132,9 +169,27 @@
             </select>
           </div>
         </div>
+      {:else if modal.canPlayNow && modal.card.name === "MerchantFleet"}
+        <div class="picker-row">
+          <label for="fleet-select">2:1 card type</label>
+          <select id="fleet-select" bind:value={selectedCardType}>
+            {#each CARD_TYPE_OPTIONS as option}
+              <option value={option}>{CARD_EMOJI[option]} {option}</option>
+            {/each}
+          </select>
+        </div>
+      {:else if modal.canPlayNow && modal.card.name === "Crane"}
+        <div class="picker-row">
+          <label for="crane-select">Discount track</label>
+          <select id="crane-select" bind:value={selectedCraneTrack}>
+            {#each CRANE_TRACK_OPTIONS as option}
+              <option value={option}>{option}</option>
+            {/each}
+          </select>
+        </div>
       {/if}
       <div class="actions">
-        {#if modal.canPlayNow && (!info.requiresTarget || modal.card.name === "ResourceMonopoly" || modal.card.name === "TradeMonopoly" || modal.card.name === "Alchemy")}
+        {#if modal.canPlayNow && (!info.requiresTarget || modal.card.name === "ResourceMonopoly" || modal.card.name === "TradeMonopoly" || modal.card.name === "Alchemy" || modal.card.name === "MerchantFleet" || modal.card.name === "Crane")}
           <button class="confirm" onclick={playProgress}>Use Card</button>
         {/if}
         <button class="cancel" onclick={close}>Close</button>
