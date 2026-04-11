@@ -45,7 +45,7 @@
   );
   let isMyTurn = $derived(isPlayerActing(gameState, localPid));
 
-  const knightEmoji = ["⚔️", "🗡️", "🛡️"];
+  const KNIGHT_EMOJI = "⚔️";
 
   function onKeyActivate(event: KeyboardEvent, action: () => void) {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -389,15 +389,17 @@
           {@const p = getVertexPixel(vid as VertexId)}
           {#if p}
             {@const color = gameState.players[knight.playerId]?.color ?? "#999"}
-            <g
-              transform={knight.active ? undefined : `rotate(90,${p.x},${p.y})`}
-            >
+            {@const r = knight.strength === 1 ? 12 : knight.strength === 2 ? 16 : 20}
+            {@const fill = knight.active ? color : "#aaa"}
+            {@const stroke = knight.active ? "#fff" : color}
+            {@const fontSize = knight.strength === 1 ? 12 : knight.strength === 2 ? 14 : 18}
+            <g>
               <circle
                 cx={p.x}
                 cy={p.y}
-                r="16"
-                fill={color}
-                stroke="#fff"
+                {r}
+                {fill}
+                {stroke}
                 stroke-width="2"
               />
               <text
@@ -405,9 +407,9 @@
                 y={p.y + 2}
                 text-anchor="middle"
                 dominant-baseline="middle"
-                font-size="16"
+                font-size={fontSize}
               >
-                {knightEmoji[knight.strength - 1] ?? "⚔️"}
+                {KNIGHT_EMOJI}
               </text>
             </g>
           {/if}
