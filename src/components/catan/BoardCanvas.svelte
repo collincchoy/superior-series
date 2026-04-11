@@ -498,6 +498,12 @@
     cursor: pointer;
   }
 
+  /* Decorative overlays should not block hex hit-testing. */
+  .board-svg :global(#hexes text),
+  .board-svg :global(#numbers) {
+    pointer-events: none;
+  }
+
   @media (min-width: 700px) {
     .board-area {
       flex: 1;
