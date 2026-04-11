@@ -3,10 +3,10 @@ import type { Resources } from "../../lib/catan/types.js";
 export const CARD_EMOJI: Record<keyof Resources, string> = {
   brick: "🧱",
   lumber: "🪵",
-  ore: "⛏️",
+  ore: "🪨",
   grain: "🌾",
   wool: "🐑",
-  cloth: "🧵",
+  cloth: "🩳",
   coin: "🪙",
   paper: "📄",
 };
