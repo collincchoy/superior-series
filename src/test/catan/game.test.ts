@@ -193,6 +193,46 @@ describe('resource production', () => {
   });
 });
 
+describe('displaced knight resolution', () => {
+  it('keeps the displacer in place and relocates the displaced knight', () => {
+    const state = createInitialState(makePlayers(2));
+    const edgeId = Object.keys(graph.edges)[0]!;
+    const [from, to] = graph.verticesOfEdge[edgeId]!;
+    const displacedState: GameState = {
+      ...state,
+      phase: 'KNIGHT_DISPLACE_RESPONSE',
+      currentPlayerId: 'p1',
+      board: {
+        ...state.board,
+        edges: { ...state.board.edges, [edgeId]: { playerId: 'p2' } },
+        knights: {
+          ...state.board.knights,
+          [from]: { playerId: 'p1', strength: 2, active: false },
+        },
+      },
+      pendingDisplace: {
+        displacerPlayerId: 'p1',
+        displacedPlayerId: 'p2',
+        displacedKnightVertex: from,
+        displacedKnightStrength: 1,
+      },
+    };
+
+    const nextState = applyAction(displacedState, {
+      type: 'DISPLACED_MOVE',
+      pid: 'p2',
+      from,
+      to,
+    });
+
+    expect(nextState.pendingDisplace).toBeNull();
+    expect(nextState.phase).toBe('ACTION');
+    expect(nextState.board.knights[from]?.playerId).toBe('p1');
+    expect(nextState.board.knights[to]?.playerId).toBe('p2');
+    expect(nextState.board.knights[to]?.strength).toBe(1);
+  });
+});
+
 // ─── computeVP ────────────────────────────────────────────────────────────────
 
 describe('computeVP', () => {

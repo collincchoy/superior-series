@@ -41,6 +41,36 @@ describe('computeValidTargets', () => {
       expect(targets.validEdges.size).toBe(0);
       expect(targets.validHexes.size).toBe(0);
     });
+
+    it('returns displaced-knight destinations for the acting player in shared response phases', () => {
+      const state = createInitialState(makePlayers(2));
+      const edgeId = Object.keys(graph.edges)[0] as EdgeId;
+      const [from, to] = graph.verticesOfEdge[edgeId]!;
+      const displacedState: GameState = {
+        ...state,
+        phase: 'KNIGHT_DISPLACE_RESPONSE',
+        currentPlayerId: 'p1',
+        board: {
+          ...state.board,
+          edges: { ...state.board.edges, [edgeId]: { playerId: 'p2' } },
+          knights: {
+            ...state.board.knights,
+            [from]: { playerId: 'p1', strength: 2, active: false },
+          },
+        },
+        pendingDisplace: {
+          displacerPlayerId: 'p1',
+          displacedPlayerId: 'p2',
+          displacedKnightVertex: from,
+          displacedKnightStrength: 1,
+        },
+      };
+
+      const targets = computeValidTargets(displacedState, 'p2', null);
+      expect(targets.validVertices.has(to)).toBe(true);
+      expect(targets.validEdges.size).toBe(0);
+      expect(targets.validHexes.size).toBe(0);
+    });
   });
 
   describe('SETUP_R1_SETTLEMENT phase', () => {

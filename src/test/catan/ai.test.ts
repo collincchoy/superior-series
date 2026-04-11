@@ -138,6 +138,70 @@ describe('chooseBotAction - robber', () => {
   });
 });
 
+describe('chooseBotAction - displaced knight', () => {
+  it('chooses a legal relocation when a displaced knight can move', () => {
+    const state = createInitialState(makeBotPlayers(2));
+    const pid = 'bot2';
+    const edgeId = Object.keys(graph.edges)[0]!;
+    const [from, to] = graph.verticesOfEdge[edgeId]!;
+    const displacedState: GameState = {
+      ...state,
+      phase: 'KNIGHT_DISPLACE_RESPONSE',
+      currentPlayerId: 'bot1',
+      board: {
+        ...state.board,
+        edges: { ...state.board.edges, [edgeId]: { playerId: pid } },
+        knights: {
+          ...state.board.knights,
+          [from]: { playerId: 'bot1', strength: 2, active: false },
+        },
+      },
+      pendingDisplace: {
+        displacerPlayerId: 'bot1',
+        displacedPlayerId: pid,
+        displacedKnightVertex: from,
+        displacedKnightStrength: 1,
+      },
+    };
+
+    const action = chooseBotAction(displacedState, pid);
+    expect(action.type).toBe('DISPLACED_MOVE');
+    if (action.type === 'DISPLACED_MOVE') {
+      expect(action.to).toBe(to);
+    }
+  });
+
+  it('returns null destination when a displaced knight has no legal move', () => {
+    const state = createInitialState(makeBotPlayers(2));
+    const pid = 'bot2';
+    const from = Object.keys(graph.vertices)[0] as VertexId;
+    const displacedState: GameState = {
+      ...state,
+      phase: 'KNIGHT_DISPLACE_RESPONSE',
+      currentPlayerId: 'bot1',
+      board: {
+        ...state.board,
+        knights: {
+          ...state.board.knights,
+          [from]: { playerId: 'bot1', strength: 2, active: false },
+        },
+      },
+      pendingDisplace: {
+        displacerPlayerId: 'bot1',
+        displacedPlayerId: pid,
+        displacedKnightVertex: from,
+        displacedKnightStrength: 1,
+      },
+    };
+
+    const action = chooseBotAction(displacedState, pid);
+    expect(action.type).toBe('DISPLACED_MOVE');
+    if (action.type === 'DISPLACED_MOVE') {
+      expect(action.to).toBeNull();
+    }
+  });
+});
+
 // ─── No infinite loops ────────────────────────────────────────────────────────
 
 describe('chooseBotAction - no infinite loops', () => {
