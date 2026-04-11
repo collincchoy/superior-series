@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { GameState, PlayerId } from '../../lib/catan/types.js';
   import type { PendingAction } from '../../lib/catan/validTargets.js';
+  import { isPlayerActing } from '../../lib/catan/turnActors.js';
   import BoardCanvas from './BoardCanvas.svelte';
   import SidePanel from './SidePanel.svelte';
   import PlayersPanel from './PlayersPanel.svelte';
@@ -14,7 +15,7 @@
     roomCode: string | null;
   } = $props();
 
-  let isMyTurn = $derived(gameState.currentPlayerId === localPid);
+  let isMyTurn = $derived(isPlayerActing(gameState, localPid));
   let showTrade = $state(false);
 </script>
 
