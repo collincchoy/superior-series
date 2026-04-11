@@ -31,9 +31,9 @@
   };
 
   const TRACK_COLORS: Record<ImprovementTrack, string> = {
-    science: "#2f6fe4",
-    trade: "#2e9e4f",
-    politics: "#f1c232",
+    science: "#2e9e4f",
+    trade: "#f1c232",
+    politics: "#2f6fe4",
   };
 
   const TRACK_LABEL: Record<ImprovementTrack, string> = {

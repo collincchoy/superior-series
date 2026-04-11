@@ -8,9 +8,9 @@
 
   const EVENT_COLORS: Record<EventDieFace, string> = {
     ship: "#1f2630",
-    science: "#2f6fe4",
-    trade: "#2e9e4f",
-    politics: "#f1c232",
+    science: "#2e9e4f",
+    trade: "#f1c232",
+    politics: "#2f6fe4",
   };
 
   const EVENT_LABELS: Record<EventDieFace, string> = {
@@ -63,7 +63,7 @@
   }
 
   function eventTextColor(event: EventDieFace): string {
-    return event === "politics" ? "#2f2400" : "#ffffff";
+    return event === "trade" ? "#2f2400" : "#ffffff";
   }
 
   function parseRollLine(line: string): {

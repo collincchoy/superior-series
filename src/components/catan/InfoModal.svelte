@@ -13,9 +13,9 @@
   let open = $derived(modal !== null);
 
   const TRACK_BADGE_COLOR: Record<string, string> = {
-    science: "#2f6fe4",
-    trade: "#2e9e4f",
-    politics: "#f1c232",
+    science: "#2e9e4f",
+    trade: "#f1c232",
+    politics: "#2f6fe4",
   };
 
   function close() {

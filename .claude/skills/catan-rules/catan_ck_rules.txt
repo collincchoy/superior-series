@@ -1823,6 +1823,10 @@ You may trade commodities 2:1 for resources or other commodities.
 Politics
 You may promote strong knights (level 2) to mighty knights (level 3).
 
+Compatibility note: Some newer Cities & Knights editions use different
+progress-track colors. This project intentionally keeps the previous-edition
+mapping for consistency: politics = blue, trade = yellow, science = green.
+
 science
 
 trade

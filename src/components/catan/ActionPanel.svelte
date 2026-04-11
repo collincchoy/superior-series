@@ -112,9 +112,9 @@
 
   const tracks: ImprovementTrack[] = ["science", "trade", "politics"];
   const trackLabel: Record<ImprovementTrack, { label: string; color: string }> = {
-    science: { label: "🔬 Science", color: "#2f6fe4" },
-    trade: { label: "🤝 Trade", color: "#2e9e4f" },
-    politics: { label: "⚔️ Politics", color: "#f1c232" },
+    science: { label: "🔬 Science", color: "#2e9e4f" },
+    trade: { label: "🤝 Trade", color: "#f1c232" },
+    politics: { label: "⚔️ Politics", color: "#2f6fe4" },
   };
 
   function showBuildInfo() {
@@ -296,7 +296,7 @@
               track,
               gameState.progressEffects.craneDiscountPlayerId === pid
             )}
-            style={`background:${trackLabel[track].color};color:${track === "politics" ? "#3f2d00" : "#ffffff"};border-color:rgba(0,0,0,0.35);`}
+            style={`background:${trackLabel[track].color};color:${track === "trade" ? "#3f2d00" : "#ffffff"};border-color:rgba(0,0,0,0.35);`}
           >
             {trackLabel[track].label}
           </button>
