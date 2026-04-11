@@ -2,7 +2,6 @@
   import type { GameState, PlayerId } from '../../lib/catan/types.js';
   import type { PendingAction } from '../../lib/catan/validTargets.js';
   import PhaseBanner from './PhaseBanner.svelte';
-  import PlayersPanel from './PlayersPanel.svelte';
   import HandPanel from './HandPanel.svelte';
   import ActionPanel from './ActionPanel.svelte';
   import LogPanel from './LogPanel.svelte';
@@ -24,7 +23,6 @@
 
 <div class="side-panel">
   <PhaseBanner {gameState} {localPid} />
-  <PlayersPanel {gameState} {localPid} />
   <HandPanel {me} />
   {#if isMyTurn || needsProgressDraw}
     <ActionPanel {gameState} {localPid} {pendingAction} bind:showTrade />

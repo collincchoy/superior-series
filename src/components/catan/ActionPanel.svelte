@@ -49,60 +49,145 @@
       🃏 Draw Progress Card
     </button>
   {:else if gameState.phase === 'ROLL_DICE'}
-    <button class="action-btn" onclick={() => send({ type: 'ROLL_DICE', pid })}>🎲 Roll Dice</button>
+    <button class="roll-dice-btn" onclick={() => send({ type: 'ROLL_DICE', pid })}>🎲 Roll Dice</button>
   {:else if gameState.phase === 'ROBBER_MOVE'}
     <button class="action-btn active" disabled>Click a hex to move robber…</button>
   {:else if gameState.phase === 'ACTION'}
-    {#if pendingAction?.type === 'build_road'}
-      <button class="action-btn active" onclick={() => pending(null)}>Cancel Road</button>
-    {:else}
-      <button class="action-btn" onclick={() => pending({ type: 'build_road' })} disabled={!canRoad}>🛣️ Road</button>
-    {/if}
+    <div class="action-group">
+      <span class="group-label">Build</span>
+      <div class="group-btns">
+        {#if pendingAction?.type === 'build_road'}
+          <button class="action-btn active" onclick={() => pending(null)}>Cancel Road</button>
+        {:else}
+          <button class="action-btn" onclick={() => pending({ type: 'build_road' })} disabled={!canRoad}>🛣️ Road</button>
+        {/if}
 
-    {#if pendingAction?.type === 'build_settlement'}
-      <button class="action-btn active" onclick={() => pending(null)}>Cancel Settlement</button>
-    {:else}
-      <button class="action-btn" onclick={() => pending({ type: 'build_settlement' })} disabled={!canSettle}>🏠 Settlement</button>
-    {/if}
+        {#if pendingAction?.type === 'build_settlement'}
+          <button class="action-btn active" onclick={() => pending(null)}>Cancel Settlement</button>
+        {:else}
+          <button class="action-btn" onclick={() => pending({ type: 'build_settlement' })} disabled={!canSettle}>🏠 Settlement</button>
+        {/if}
 
-    {#if pendingAction?.type === 'build_city'}
-      <button class="action-btn active" onclick={() => pending(null)}>Cancel City</button>
-    {:else}
-      <button class="action-btn" onclick={() => pending({ type: 'build_city' })} disabled={!canCity}>🏙️ City</button>
-    {/if}
+        {#if pendingAction?.type === 'build_city'}
+          <button class="action-btn active" onclick={() => pending(null)}>Cancel City</button>
+        {:else}
+          <button class="action-btn" onclick={() => pending({ type: 'build_city' })} disabled={!canCity}>🏙️ City</button>
+        {/if}
 
-    {#if pendingAction?.type === 'build_city_wall'}
-      <button class="action-btn active" onclick={() => pending(null)}>Cancel Wall</button>
-    {:else}
-      <button class="action-btn" onclick={() => pending({ type: 'build_city_wall' })} disabled={!canWall}>🏰 Wall</button>
-    {/if}
+        {#if pendingAction?.type === 'build_city_wall'}
+          <button class="action-btn active" onclick={() => pending(null)}>Cancel Wall</button>
+        {:else}
+          <button class="action-btn" onclick={() => pending({ type: 'build_city_wall' })} disabled={!canWall}>🏰 Wall</button>
+        {/if}
+      </div>
+    </div>
 
-    {#if pendingAction?.type === 'recruit_knight'}
-      <button class="action-btn active" onclick={() => pending(null)}>Cancel Knight</button>
-    {:else}
-      <button class="action-btn" onclick={() => pending({ type: 'recruit_knight' })} disabled={!canKnight}>⚔️ Knight</button>
-    {/if}
+    <div class="action-group">
+      <span class="group-label">Knights</span>
+      <div class="group-btns">
+        {#if pendingAction?.type === 'recruit_knight'}
+          <button class="action-btn active" onclick={() => pending(null)}>Cancel Knight</button>
+        {:else}
+          <button class="action-btn" onclick={() => pending({ type: 'recruit_knight' })} disabled={!canKnight}>⚔️ Knight</button>
+        {/if}
 
-    {#if pendingAction?.type === 'promote_knight'}
-      <button class="action-btn active" onclick={() => pending(null)}>Cancel Promote</button>
-    {:else}
-      <button class="action-btn" onclick={() => pending({ type: 'promote_knight' })} disabled={!canPromote}>⬆️ Promote</button>
-    {/if}
+        {#if pendingAction?.type === 'promote_knight'}
+          <button class="action-btn active" onclick={() => pending(null)}>Cancel Promote</button>
+        {:else}
+          <button class="action-btn" onclick={() => pending({ type: 'promote_knight' })} disabled={!canPromote}>⬆️ Promote</button>
+        {/if}
 
-    {#if pendingAction?.type === 'activate_knight'}
-      <button class="action-btn active" onclick={() => pending(null)}>Cancel Activate</button>
-    {:else}
-      <button class="action-btn" onclick={() => pending({ type: 'activate_knight' })} disabled={!canActivate}>🛡️ Activate</button>
-    {/if}
+        {#if pendingAction?.type === 'activate_knight'}
+          <button class="action-btn active" onclick={() => pending(null)}>Cancel Activate</button>
+        {:else}
+          <button class="action-btn" onclick={() => pending({ type: 'activate_knight' })} disabled={!canActivate}>🛡️ Activate</button>
+        {/if}
+      </div>
+    </div>
 
-    {#each tracks as track}
-      <button class="action-btn" onclick={() => send({ type: 'IMPROVE_CITY', pid, track })} disabled={!canImproveCity(board, me, track)}>
-        {trackLabel[track]}
-      </button>
-    {/each}
+    <div class="action-group">
+      <span class="group-label">Improve</span>
+      <div class="group-btns">
+        {#each tracks as track}
+          <button class="action-btn" onclick={() => send({ type: 'IMPROVE_CITY', pid, track })} disabled={!canImproveCity(board, me, track)}>
+            {trackLabel[track]}
+          </button>
+        {/each}
+      </div>
+    </div>
 
-    <button class="action-btn" onclick={() => showTrade = true}>🏦 Trade</button>
-    <button class="action-btn" onclick={() => send({ type: 'END_TURN', pid })}>✓ End Turn</button>
+    <div class="group-btns">
+      <button class="action-btn" onclick={() => showTrade = true}>🏦 Trade</button>
+      <button class="action-btn end-turn" onclick={() => send({ type: 'END_TURN', pid })}>✓ End Turn</button>
+    </div>
   {/if}
 </div>
 
+<style>
+  .action-panel {
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .action-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .group-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    color: #a0b0a0;
+    letter-spacing: 0.08em;
+  }
+  .group-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .end-turn {
+    flex: 1;
+  }
+  .action-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #f0e8d0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .action-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .action-btn.active {
+    background: #3a5e1e;
+    border-color: #6dbf6d;
+    color: #f5c842;
+  }
+  .action-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+  .roll-dice-btn {
+    width: 100%;
+    padding: 0.9rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+    background: #3a5e1e;
+    border: 2px solid #6dbf6d;
+    border-radius: 8px;
+    color: #f5c842;
+    cursor: pointer;
+  }
+  .roll-dice-btn:hover {
+    background: #4a7a28;
+  }
+  .action-instruction {
+    padding: 0.5rem;
+    font-size: 0.8rem;
+    color: #f5c842;
+    line-height: 1.4;
+  }
+</style>

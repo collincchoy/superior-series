@@ -3,6 +3,7 @@
   import type { PendingAction } from '../../lib/catan/validTargets.js';
   import BoardCanvas from './BoardCanvas.svelte';
   import SidePanel from './SidePanel.svelte';
+  import PlayersPanel from './PlayersPanel.svelte';
   import DiscardModal from './DiscardModal.svelte';
   import TradeBankModal from './TradeBankModal.svelte';
 
@@ -21,8 +22,11 @@
   {#if roomCode}
     <div class="room-code-banner">Room: <strong>{roomCode}</strong></div>
   {/if}
-  <BoardCanvas {gameState} {localPid} {pendingAction} />
-  <SidePanel {gameState} {localPid} {pendingAction} {isMyTurn} bind:showTrade />
+  <PlayersPanel {gameState} {localPid} />
+  <div class="board-and-panel">
+    <BoardCanvas {gameState} {localPid} {pendingAction} />
+    <SidePanel {gameState} {localPid} {pendingAction} {isMyTurn} bind:showTrade />
+  </div>
 </div>
 
 <DiscardModal {gameState} {localPid} />

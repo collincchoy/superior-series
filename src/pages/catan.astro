@@ -209,6 +209,13 @@ import CatanApp from "../components/catan/CatanApp.svelte";
         flex-shrink: 0;
       }
 
+      .board-and-panel {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
       .board-area {
         flex: 1;
         min-height: 0;
@@ -240,7 +247,7 @@ import CatanApp from "../components/catan/CatanApp.svelte";
       }
 
       @media (min-width: 700px) {
-        .game-layout {
+        .board-and-panel {
           flex-direction: row;
         }
         .board-area {
@@ -248,7 +255,7 @@ import CatanApp from "../components/catan/CatanApp.svelte";
         }
         .side-panel {
           width: 260px;
-          max-height: 100vh;
+          max-height: unset;
           border-top: none;
           border-left: 2px solid #2c5f2e;
           overflow-y: auto;
@@ -268,37 +275,6 @@ import CatanApp from "../components/catan/CatanApp.svelte";
         background: #3a5e1e;
         color: #f5c842;
         font-weight: 600;
-      }
-
-      /* ── Players Panel ──────────────────────────────────────────── */
-
-      .players-panel {
-        border-bottom: 1px solid #2c5f2e;
-        padding: 0.4rem 0;
-      }
-
-      .player-row {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.3rem 0.8rem;
-        font-size: 0.8rem;
-        opacity: 0.6;
-      }
-      .player-row.active {
-        opacity: 1;
-        background: rgba(255, 255, 255, 0.05);
-      }
-      .player-name {
-        flex: 1;
-        font-weight: 500;
-      }
-      .player-vp {
-        color: #f5c842;
-        font-weight: 700;
-      }
-      .player-cards {
-        color: #a0b0a0;
       }
 
       /* ── Hand Panel ─────────────────────────────────────────────── */
@@ -346,44 +322,6 @@ import CatanApp from "../components/catan/CatanApp.svelte";
       .improvements {
         color: #a0b0a0;
         font-size: 0.75rem;
-      }
-
-      /* ── Action Panel ───────────────────────────────────────────── */
-
-      .action-panel {
-        padding: 0.5rem;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.4rem;
-      }
-
-      .action-btn {
-        background: rgba(255, 255, 255, 0.1);
-        color: #f0e8d0;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 5px;
-        padding: 0.4rem 0.7rem;
-        font-size: 0.8rem;
-        cursor: pointer;
-      }
-      .action-btn:hover:not(.disabled) {
-        background: rgba(255, 255, 255, 0.18);
-      }
-      .action-btn.active {
-        background: #3a5e1e;
-        border-color: #6dbf6d;
-        color: #f5c842;
-      }
-      .action-btn.disabled {
-        opacity: 0.3;
-        cursor: default;
-      }
-
-      .action-instruction {
-        padding: 0.5rem;
-        font-size: 0.8rem;
-        color: #f5c842;
-        line-height: 1.4;
       }
 
       /* ── Log Panel ──────────────────────────────────────────────── */
