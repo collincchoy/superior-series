@@ -7,6 +7,7 @@
     PROGRESS_CARD_INFO,
   } from "../../lib/catan/constants.js";
   import { CARD_EMOJI } from "./cardEmoji.js";
+  import type { CommodityType, ResourceType } from "../../lib/catan/types.js";
 
   let modal = $derived(store.infoModal);
   let open = $derived(modal !== null);
@@ -20,6 +21,68 @@
   function close() {
     store.closeInfoModal();
   }
+
+  const RESOURCE_OPTIONS: ResourceType[] = [
+    "brick",
+    "lumber",
+    "ore",
+    "grain",
+    "wool",
+  ];
+  const COMMODITY_OPTIONS: CommodityType[] = ["cloth", "coin", "paper"];
+
+  let selectedResource = $state<ResourceType>("grain");
+  let selectedCommodity = $state<CommodityType>("cloth");
+  let die1 = $state(1);
+  let die2 = $state(1);
+
+  function playProgress() {
+    if (!modal || modal.kind !== "progress") return;
+    const pid = store.localPid;
+    if (!pid || !modal.canPlayNow) return;
+
+    if (modal.card.name === "ResourceMonopoly") {
+      store.sendAction({
+        type: "PLAY_PROGRESS",
+        pid,
+        card: modal.card.name,
+        params: { resource: selectedResource },
+      });
+      close();
+      return;
+    }
+
+    if (modal.card.name === "TradeMonopoly") {
+      store.sendAction({
+        type: "PLAY_PROGRESS",
+        pid,
+        card: modal.card.name,
+        params: { commodity: selectedCommodity },
+      });
+      close();
+      return;
+    }
+
+    if (modal.card.name === "Alchemy") {
+      store.sendAction({
+        type: "PLAY_PROGRESS",
+        pid,
+        card: modal.card.name,
+        params: { die1, die2 },
+      });
+      close();
+      return;
+    }
+
+    if (!PROGRESS_CARD_INFO[modal.card.name].requiresTarget) {
+      store.sendAction({
+        type: "PLAY_PROGRESS",
+        pid,
+        card: modal.card.name,
+      });
+      close();
+    }
+  }
 </script>
 
 {#if modal}
@@ -32,7 +95,48 @@
       <p class="short">{info.short}</p>
       <p class="effect">{info.effect}</p>
       <p class="helper">{modal.helperText}</p>
+      {#if modal.canPlayNow && modal.card.name === "ResourceMonopoly"}
+        <div class="picker-row">
+          <label for="res-select">Resource</label>
+          <select id="res-select" bind:value={selectedResource}>
+            {#each RESOURCE_OPTIONS as option}
+              <option value={option}>{CARD_EMOJI[option]} {option}</option>
+            {/each}
+          </select>
+        </div>
+      {:else if modal.canPlayNow && modal.card.name === "TradeMonopoly"}
+        <div class="picker-row">
+          <label for="com-select">Commodity</label>
+          <select id="com-select" bind:value={selectedCommodity}>
+            {#each COMMODITY_OPTIONS as option}
+              <option value={option}>{CARD_EMOJI[option]} {option}</option>
+            {/each}
+          </select>
+        </div>
+      {:else if modal.canPlayNow && modal.card.name === "Alchemy"}
+        <div class="picker-grid">
+          <div class="picker-row">
+            <label for="die-one">Die 1</label>
+            <select id="die-one" bind:value={die1}>
+              {#each [1, 2, 3, 4, 5, 6] as value}
+                <option value={value}>{value}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="picker-row">
+            <label for="die-two">Die 2</label>
+            <select id="die-two" bind:value={die2}>
+              {#each [1, 2, 3, 4, 5, 6] as value}
+                <option value={value}>{value}</option>
+              {/each}
+            </select>
+          </div>
+        </div>
+      {/if}
       <div class="actions">
+        {#if modal.canPlayNow && (!info.requiresTarget || modal.card.name === "ResourceMonopoly" || modal.card.name === "TradeMonopoly" || modal.card.name === "Alchemy")}
+          <button class="confirm" onclick={playProgress}>Use Card</button>
+        {/if}
         <button class="cancel" onclick={close}>Close</button>
       </div>
     {:else if modal.kind === "build-costs"}
@@ -158,7 +262,47 @@
   .actions {
     display: flex;
     justify-content: flex-end;
+    gap: 0.45rem;
     margin-top: 0.8rem;
+  }
+
+  .picker-row {
+    margin-top: 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .picker-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+  }
+
+  .picker-row label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    color: #c8b47a;
+    letter-spacing: 0.04em;
+  }
+
+  .picker-row select {
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: #1a2a1a;
+    color: #f0e8d0;
+    padding: 0.3rem 0.4rem;
+    font-size: 0.82rem;
+  }
+
+  .confirm {
+    background: #3a5e1e;
+    color: #f5c842;
+    border: 1px solid #6dbf6d;
+    border-radius: 7px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.82rem;
+    font-weight: 700;
   }
 
   .cancel {

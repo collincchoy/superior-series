@@ -1336,6 +1336,15 @@ function applyProgressCard(
   let s = state;
   const player = s.players[pid]!;
 
+  // Alchemy can only be played before rolling; all other cards in action phase.
+  if (cardName === "Alchemy") {
+    if (s.phase !== "ROLL_DICE") return s;
+  } else if (s.phase !== "ACTION") {
+    return s;
+  }
+
+  if (s.currentPlayerId !== pid) return s;
+
   // Remove card from hand
   const cardIdx = player.progressCards.findIndex((c) => c.name === cardName);
   if (cardIdx === -1) return s;
@@ -1347,6 +1356,25 @@ function applyProgressCard(
   };
 
   switch (cardName) {
+    case "Alchemy": {
+      const die1 = Number((params as any)?.die1);
+      const die2 = Number((params as any)?.die2);
+      if (
+        !Number.isInteger(die1) ||
+        !Number.isInteger(die2) ||
+        die1 < 1 ||
+        die1 > 6 ||
+        die2 < 1 ||
+        die2 > 6
+      ) {
+        return state;
+      }
+      return applyAction(s, {
+        type: "ROLL_DICE",
+        pid,
+        result: [die1, die2, rollEventDie()],
+      });
+    }
     case "RoadBuilding": {
       // Handled via UI — give player 2 free roads
       // Mark in state that player has pending free roads (simplified: just give resources)
@@ -1472,81 +1500,79 @@ function applyProgressCard(
     }
     case "ResourceMonopoly": {
       const resource = (params as any)?.resource as ResourceType | undefined;
-      if (resource) {
-        let gained = 0;
-        for (const [oppId, opp] of Object.entries(s.players)) {
-          if (oppId === pid) continue;
-          const available = opp.resources[resource] ?? 0;
-          const taken = Math.min(2, available);
-          if (taken <= 0) continue;
-          gained += taken;
-          s = {
-            ...s,
-            players: {
-              ...s.players,
-              [oppId]: {
-                ...opp,
-                resources: subtractResources(opp.resources, {
-                  [resource]: taken,
-                }),
-              },
+      if (!resource) return state;
+      let gained = 0;
+      for (const [oppId, opp] of Object.entries(s.players)) {
+        if (oppId === pid) continue;
+        const available = opp.resources[resource] ?? 0;
+        const taken = Math.min(2, available);
+        if (taken <= 0) continue;
+        gained += taken;
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [oppId]: {
+              ...opp,
+              resources: subtractResources(opp.resources, {
+                [resource]: taken,
+              }),
             },
-          };
-        }
-        if (gained > 0) {
-          s = {
-            ...s,
-            players: {
-              ...s.players,
-              [pid]: {
-                ...s.players[pid]!,
-                resources: addResources(s.players[pid]!.resources, {
-                  [resource]: gained,
-                }),
-              },
+          },
+        };
+      }
+      if (gained > 0) {
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [pid]: {
+              ...s.players[pid]!,
+              resources: addResources(s.players[pid]!.resources, {
+                [resource]: gained,
+              }),
             },
-          };
-        }
+          },
+        };
       }
       break;
     }
     case "TradeMonopoly": {
       const commodity = (params as any)?.commodity as CommodityType | undefined;
-      if (commodity) {
-        let gained = 0;
-        for (const [oppId, opp] of Object.entries(s.players)) {
-          if (oppId === pid) continue;
-          const available = opp.resources[commodity] ?? 0;
-          const taken = Math.min(1, available);
-          if (taken <= 0) continue;
-          gained += taken;
-          s = {
-            ...s,
-            players: {
-              ...s.players,
-              [oppId]: {
-                ...opp,
-                resources: subtractResources(opp.resources, {
-                  [commodity]: taken,
-                }),
-              },
+      if (!commodity) return state;
+      let gained = 0;
+      for (const [oppId, opp] of Object.entries(s.players)) {
+        if (oppId === pid) continue;
+        const available = opp.resources[commodity] ?? 0;
+        const taken = Math.min(1, available);
+        if (taken <= 0) continue;
+        gained += taken;
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [oppId]: {
+              ...opp,
+              resources: subtractResources(opp.resources, {
+                [commodity]: taken,
+              }),
             },
-          };
-        }
-        if (gained > 0) {
-          s = {
-            ...s,
-            players: {
-              ...s.players,
-              [pid]: {
-                ...s.players[pid]!,
-                resources: addResources(s.players[pid]!.resources, {
-                  [commodity]: gained,
-                }),
-              },
+          },
+        };
+      }
+      if (gained > 0) {
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [pid]: {
+              ...s.players[pid]!,
+              resources: addResources(s.players[pid]!.resources, {
+                [commodity]: gained,
+              }),
             },
-          };
-        }
+          },
+        };
       }
       break;
     }

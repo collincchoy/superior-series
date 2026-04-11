@@ -331,6 +331,7 @@ describe("progress card effects", () => {
 
     state = {
       ...state,
+      phase: "ACTION",
       players: {
         ...state.players,
         [pid]: {
@@ -366,6 +367,7 @@ describe("progress card effects", () => {
 
     state = {
       ...state,
+      phase: "ACTION",
       players: {
         ...state.players,
         [pid]: {
@@ -405,6 +407,7 @@ describe("progress card effects", () => {
 
     state = {
       ...state,
+      phase: "ACTION",
       players: {
         ...state.players,
         [pid]: {
@@ -445,6 +448,7 @@ describe("progress card effects", () => {
 
     state = {
       ...state,
+      phase: "ACTION",
       players: {
         ...state.players,
         [pid]: {
@@ -509,6 +513,87 @@ describe("progress card effects", () => {
       0,
     );
     expect(after - before).toBe(2);
+  });
+
+  it("Alchemy can be played in roll phase and sets both production dice", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    state = {
+      ...state,
+      phase: "ROLL_DICE",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          progressCards: [{ name: "Alchemy", track: "science", isVP: false }],
+        },
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "Alchemy",
+      params: { die1: 6, die2: 1 },
+    });
+
+    expect(next.lastRoll?.[0]).toBe(6);
+    expect(next.lastRoll?.[1]).toBe(1);
+    expect(next.players[pid]!.progressCards.some((c) => c.name === "Alchemy")).toBe(false);
+  });
+
+  it("does not allow non-Alchemy progress cards during roll phase", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    state = {
+      ...state,
+      phase: "ROLL_DICE",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          progressCards: [
+            { name: "Irrigation", track: "science", isVP: false },
+          ],
+        },
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "Irrigation",
+    });
+
+    expect(next.players[pid]!.progressCards.some((c) => c.name === "Irrigation")).toBe(true);
+  });
+
+  it("does not consume ResourceMonopoly card when required param is missing", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          progressCards: [
+            { name: "ResourceMonopoly", track: "trade", isVP: false },
+          ],
+        },
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "ResourceMonopoly",
+    });
+
+    expect(next.players[pid]!.progressCards.some((c) => c.name === "ResourceMonopoly")).toBe(true);
   });
 });
 
