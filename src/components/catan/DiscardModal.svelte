@@ -1,20 +1,27 @@
 <script lang="ts">
-  import type { GameState, PlayerId, Resources } from '../../lib/catan/types.js';
-  import { store } from '../../lib/catan/store.svelte.js';
-  import { CARD_EMOJI, RESOURCE_KEYS } from './cardEmoji.js';
-  import Modal from './Modal.svelte';
+  import type {
+    GameState,
+    PlayerId,
+    Resources,
+  } from "../../lib/catan/types.js";
+  import { store } from "../../lib/catan/store.svelte.js";
+  import { CARD_EMOJI, RESOURCE_KEYS } from "./cardEmoji.js";
+  import Modal from "./Modal.svelte";
 
-  let { gameState, localPid }: { gameState: GameState; localPid: PlayerId } = $props();
+  let { gameState, localPid }: { gameState: GameState; localPid: PlayerId } =
+    $props();
 
   let needed = $derived(gameState.pendingDiscard?.remaining[localPid] ?? 0);
-  let open = $derived(gameState.phase === 'DISCARD' && needed > 0);
+  let open = $derived(gameState.phase === "DISCARD" && needed > 0);
   let me = $derived(gameState.players[localPid]!);
 
   let selected = $state<Partial<Resources>>({});
-  $effect(() => { if (open) selected = {}; });
+  $effect(() => {
+    if (open) selected = {};
+  });
 
   let selectedTotal = $derived(
-    Object.values(selected).reduce((a, b) => a + (b ?? 0), 0)
+    Object.values(selected).reduce((a, b) => a + (b ?? 0), 0),
   );
 
   function adjust(k: keyof Resources, dir: number) {
@@ -25,7 +32,7 @@
 
   function confirm() {
     if (selectedTotal !== needed) return;
-    store.sendAction({ type: 'DISCARD', pid: localPid, cards: selected });
+    store.sendAction({ type: "DISCARD", pid: localPid, cards: selected });
   }
 </script>
 
@@ -45,7 +52,11 @@
     {/each}
   </div>
   <div class="tally">Selected: {selectedTotal} / {needed}</div>
-  <button class="btn-primary" onclick={confirm} disabled={selectedTotal !== needed}>Discard</button>
+  <button
+    class="btn-primary"
+    onclick={confirm}
+    disabled={selectedTotal !== needed}>Discard</button
+  >
 </Modal>
 
 <style>
@@ -70,9 +81,9 @@
   }
 
   .cnt-btn {
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
     color: #f0e8d0;
-    border: 1px solid rgba(255,255,255,0.2);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 4px;
     width: 28px;
     height: 28px;
@@ -97,5 +108,8 @@
     cursor: pointer;
     font-weight: 600;
   }
-  .btn-primary:disabled { opacity: 0.4; cursor: default; }
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
 </style>

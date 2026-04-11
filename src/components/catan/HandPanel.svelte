@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { Player } from '../../lib/catan/types.js';
-  import { CARD_EMOJI, RESOURCE_KEYS } from './cardEmoji.js';
+  import type { Player } from "../../lib/catan/types.js";
+  import { CARD_EMOJI, RESOURCE_KEYS } from "./cardEmoji.js";
 
   let { me }: { me: Player } = $props();
 </script>
@@ -21,7 +21,10 @@
       {/each}
     </div>
   {/if}
-  <div class="improvements">🔬{me.improvements.science} 🤝{me.improvements.trade} ⚔️{me.improvements.politics}</div>
+  <div class="improvements">
+    🔬{me.improvements.science} 🤝{me.improvements.trade} ⚔️{me.improvements
+      .politics}
+  </div>
 </div>
 
 <style>

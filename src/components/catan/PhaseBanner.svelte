@@ -1,9 +1,10 @@
 <script lang="ts">
-  import type { GameState, PlayerId } from '../../lib/catan/types.js';
-  import { isPlayerActing } from '../../lib/catan/turnActors.js';
-  import { phaseLabel } from './phaseLabel.js';
+  import type { GameState, PlayerId } from "../../lib/catan/types.js";
+  import { isPlayerActing } from "../../lib/catan/turnActors.js";
+  import { phaseLabel } from "./phaseLabel.js";
 
-  let { gameState, localPid }: { gameState: GameState; localPid: PlayerId } = $props();
+  let { gameState, localPid }: { gameState: GameState; localPid: PlayerId } =
+    $props();
 
   let isMyTurn = $derived(isPlayerActing(gameState, localPid));
   let label = $derived(phaseLabel(gameState, localPid));

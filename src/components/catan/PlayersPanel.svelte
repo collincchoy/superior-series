@@ -1,9 +1,10 @@
 <script lang="ts">
-  import type { GameState, PlayerId } from '../../lib/catan/types.js';
-  import { computeVP } from '../../lib/catan/game.js';
-  import { totalCards } from './cardEmoji.js';
+  import type { GameState, PlayerId } from "../../lib/catan/types.js";
+  import { computeVP } from "../../lib/catan/game.js";
+  import { totalCards } from "./cardEmoji.js";
 
-  let { gameState, localPid }: { gameState: GameState; localPid: PlayerId } = $props();
+  let { gameState, localPid }: { gameState: GameState; localPid: PlayerId } =
+    $props();
 </script>
 
 <div class="players-bar">
@@ -11,9 +12,11 @@
     {@const p = gameState.players[pid]!}
     {@const vp = computeVP(gameState, pid)}
     {@const cards = totalCards(p.resources)}
-    <div class="player-card{pid === gameState.currentPlayerId ? ' active' : ''}"
-         style="border-top: 3px solid {p.color}">
-      <span class="name">{p.name}{p.isBot ? ' 🤖' : ''}</span>
+    <div
+      class="player-card{pid === gameState.currentPlayerId ? ' active' : ''}"
+      style="border-top: 3px solid {p.color}"
+    >
+      <span class="name">{p.name}{p.isBot ? " 🤖" : ""}</span>
       <span class="vp">{vp} VP</span>
       <span class="cards">{cards} 🃏</span>
     </div>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { store } from '../../lib/catan/store.svelte.js';
+  import { store } from "../../lib/catan/store.svelte.js";
 </script>
 
 {#if store.toast}

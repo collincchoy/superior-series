@@ -27,18 +27,18 @@ export type PlayerId = string;
 // ─── Board Terrain & Resources ────────────────────────────────────────────────
 
 export type TerrainType =
-  | 'hills'
-  | 'forest'
-  | 'mountains'
-  | 'fields'
-  | 'pasture'
-  | 'desert';
+  | "hills"
+  | "forest"
+  | "mountains"
+  | "fields"
+  | "pasture"
+  | "desert";
 
-export type ResourceType = 'brick' | 'lumber' | 'ore' | 'grain' | 'wool';
-export type CommodityType = 'cloth' | 'coin' | 'paper';
+export type ResourceType = "brick" | "lumber" | "ore" | "grain" | "wool";
+export type CommodityType = "cloth" | "coin" | "paper";
 export type CardType = ResourceType | CommodityType;
 
-export type ImprovementTrack = 'science' | 'trade' | 'politics';
+export type ImprovementTrack = "science" | "trade" | "politics";
 
 /** All resource + commodity amounts for a player */
 export interface Resources {
@@ -53,11 +53,22 @@ export interface Resources {
 }
 
 export function emptyResources(): Resources {
-  return { brick: 0, lumber: 0, ore: 0, grain: 0, wool: 0, cloth: 0, coin: 0, paper: 0 };
+  return {
+    brick: 0,
+    lumber: 0,
+    ore: 0,
+    grain: 0,
+    wool: 0,
+    cloth: 0,
+    coin: 0,
+    paper: 0,
+  };
 }
 
 export function totalCards(r: Resources): number {
-  return r.brick + r.lumber + r.ore + r.grain + r.wool + r.cloth + r.coin + r.paper;
+  return (
+    r.brick + r.lumber + r.ore + r.grain + r.wool + r.cloth + r.coin + r.paper
+  );
 }
 
 export function totalResourceCards(r: Resources): number {
@@ -75,7 +86,7 @@ export interface Hex {
   hasRobber: boolean;
 }
 
-export type HarborType = 'generic' | ResourceType;
+export type HarborType = "generic" | ResourceType;
 
 export interface Harbor {
   type: HarborType;
@@ -86,12 +97,12 @@ export interface Harbor {
 // ─── Buildings & Pieces ───────────────────────────────────────────────────────
 
 export interface Settlement {
-  type: 'settlement';
+  type: "settlement";
   playerId: PlayerId;
 }
 
 export interface City {
-  type: 'city';
+  type: "city";
   playerId: PlayerId;
   hasWall: boolean;
   /** Which metropolis track is placed here, if any */
@@ -115,37 +126,40 @@ export interface Road {
 // ─── Progress Cards ───────────────────────────────────────────────────────────
 
 export type ScienceCardName =
-  | 'Alchemy'
-  | 'Crane'
-  | 'Engineering'
-  | 'Invention'
-  | 'Irrigation'
-  | 'Medicine'
-  | 'Mining'
-  | 'RoadBuilding'
-  | 'Smithing'
-  | 'Printing';
+  | "Alchemy"
+  | "Crane"
+  | "Engineering"
+  | "Invention"
+  | "Irrigation"
+  | "Medicine"
+  | "Mining"
+  | "RoadBuilding"
+  | "Smithing"
+  | "Printing";
 
 export type TradeCardName =
-  | 'CommercialHarbor'
-  | 'GuildDues'
-  | 'Merchant'
-  | 'MerchantFleet'
-  | 'ResourceMonopoly'
-  | 'TradeMonopoly'
-  | 'Constitution';
+  | "CommercialHarbor"
+  | "GuildDues"
+  | "Merchant"
+  | "MerchantFleet"
+  | "ResourceMonopoly"
+  | "TradeMonopoly"
+  | "Constitution";
 
 export type PoliticsCardName =
-  | 'Diplomacy'
-  | 'Encouragement'
-  | 'Espionage'
-  | 'Intrigue'
-  | 'Sabotage'
-  | 'Taxation'
-  | 'Treason'
-  | 'Wedding';
+  | "Diplomacy"
+  | "Encouragement"
+  | "Espionage"
+  | "Intrigue"
+  | "Sabotage"
+  | "Taxation"
+  | "Treason"
+  | "Wedding";
 
-export type ProgressCardName = ScienceCardName | TradeCardName | PoliticsCardName;
+export type ProgressCardName =
+  | ScienceCardName
+  | TradeCardName
+  | PoliticsCardName;
 
 export interface ProgressCard {
   name: ProgressCardName;
@@ -214,22 +228,22 @@ export interface BarbarianTrack {
 
 // ─── Game State ───────────────────────────────────────────────────────────────
 
-export type EventDieFace = 'ship' | 'science' | 'trade' | 'politics';
+export type EventDieFace = "ship" | "science" | "trade" | "politics";
 
 export type TurnPhase =
-  | 'SETUP_R1_SETTLEMENT' // place settlement
-  | 'SETUP_R1_ROAD'       // place road after settlement
-  | 'SETUP_R2_CITY'       // place city (C&K: round 2 places a city)
-  | 'SETUP_R2_ROAD'       // place road after city
-  | 'ROLL_DICE'           // may play Alchemy before rolling
-  | 'RESOLVE_BARBARIANS'  // host-driven barbarian attack resolution
-  | 'RESOLVE_PROGRESS_DRAW' // players draw from progress decks
-  | 'PRODUCTION'          // collect resources / handle 7-roll discards
-  | 'DISCARD'             // sub-phase: specific players must discard
-  | 'ROBBER_MOVE'         // current player places robber
-  | 'ACTION'              // trade / build / knight actions
-  | 'KNIGHT_DISPLACE_RESPONSE' // displaced player must move their knight
-  | 'GAME_OVER';
+  | "SETUP_R1_SETTLEMENT" // place settlement
+  | "SETUP_R1_ROAD" // place road after settlement
+  | "SETUP_R2_CITY" // place city (C&K: round 2 places a city)
+  | "SETUP_R2_ROAD" // place road after city
+  | "ROLL_DICE" // may play Alchemy before rolling
+  | "RESOLVE_BARBARIANS" // host-driven barbarian attack resolution
+  | "RESOLVE_PROGRESS_DRAW" // players draw from progress decks
+  | "PRODUCTION" // collect resources / handle 7-roll discards
+  | "DISCARD" // sub-phase: specific players must discard
+  | "ROBBER_MOVE" // current player places robber
+  | "ACTION" // trade / build / knight actions
+  | "KNIGHT_DISPLACE_RESPONSE" // displaced player must move their knight
+  | "GAME_OVER";
 
 export interface PendingDisplace {
   displacerPlayerId: PlayerId;
@@ -287,34 +301,75 @@ export interface GameState {
 
 export type GameAction =
   // Setup
-  | { type: 'PLACE_BUILDING'; pid: PlayerId; vid: VertexId; building: 'settlement' | 'city' }
-  | { type: 'PLACE_ROAD'; pid: PlayerId; eid: EdgeId }
+  | {
+      type: "PLACE_BUILDING";
+      pid: PlayerId;
+      vid: VertexId;
+      building: "settlement" | "city";
+    }
+  | { type: "PLACE_ROAD"; pid: PlayerId; eid: EdgeId }
   // Roll
-  | { type: 'ROLL_DICE'; pid: PlayerId; result?: [number, number, EventDieFace] }
+  | {
+      type: "ROLL_DICE";
+      pid: PlayerId;
+      result?: [number, number, EventDieFace];
+    }
   // Production / 7 handling
-  | { type: 'DISCARD'; pid: PlayerId; cards: Partial<Resources> }
-  | { type: 'MOVE_ROBBER'; pid: PlayerId; hid: HexId; stealFrom: PlayerId | null }
+  | { type: "DISCARD"; pid: PlayerId; cards: Partial<Resources> }
+  | {
+      type: "MOVE_ROBBER";
+      pid: PlayerId;
+      hid: HexId;
+      stealFrom: PlayerId | null;
+    }
   // Building
-  | { type: 'BUILD_ROAD'; pid: PlayerId; eid: EdgeId }
-  | { type: 'BUILD_SETTLEMENT'; pid: PlayerId; vid: VertexId }
-  | { type: 'BUILD_CITY'; pid: PlayerId; vid: VertexId }
-  | { type: 'BUILD_CITY_WALL'; pid: PlayerId; vid: VertexId }
-  | { type: 'IMPROVE_CITY'; pid: PlayerId; track: ImprovementTrack }
+  | { type: "BUILD_ROAD"; pid: PlayerId; eid: EdgeId }
+  | { type: "BUILD_SETTLEMENT"; pid: PlayerId; vid: VertexId }
+  | { type: "BUILD_CITY"; pid: PlayerId; vid: VertexId }
+  | { type: "BUILD_CITY_WALL"; pid: PlayerId; vid: VertexId }
+  | { type: "IMPROVE_CITY"; pid: PlayerId; track: ImprovementTrack }
   // Knights
-  | { type: 'RECRUIT_KNIGHT'; pid: PlayerId; vid: VertexId }
-  | { type: 'PROMOTE_KNIGHT'; pid: PlayerId; vid: VertexId }
-  | { type: 'ACTIVATE_KNIGHT'; pid: PlayerId; vid: VertexId }
-  | { type: 'MOVE_KNIGHT'; pid: PlayerId; from: VertexId; to: VertexId }
-  | { type: 'DISPLACE_KNIGHT'; pid: PlayerId; from: VertexId; target: VertexId }
-  | { type: 'DISPLACED_MOVE'; pid: PlayerId; from: VertexId; to: VertexId | null }
-  | { type: 'CHASE_ROBBER'; pid: PlayerId; knight: VertexId; hid: HexId; stealFrom: PlayerId | null }
+  | { type: "RECRUIT_KNIGHT"; pid: PlayerId; vid: VertexId }
+  | { type: "PROMOTE_KNIGHT"; pid: PlayerId; vid: VertexId }
+  | { type: "ACTIVATE_KNIGHT"; pid: PlayerId; vid: VertexId }
+  | { type: "MOVE_KNIGHT"; pid: PlayerId; from: VertexId; to: VertexId }
+  | { type: "DISPLACE_KNIGHT"; pid: PlayerId; from: VertexId; target: VertexId }
+  | {
+      type: "DISPLACED_MOVE";
+      pid: PlayerId;
+      from: VertexId;
+      to: VertexId | null;
+    }
+  | {
+      type: "CHASE_ROBBER";
+      pid: PlayerId;
+      knight: VertexId;
+      hid: HexId;
+      stealFrom: PlayerId | null;
+    }
   // Progress cards
-  | { type: 'PLAY_PROGRESS'; pid: PlayerId; card: ProgressCardName; params?: unknown }
-  | { type: 'DRAW_PROGRESS'; pid: PlayerId; track: ImprovementTrack }
+  | {
+      type: "PLAY_PROGRESS";
+      pid: PlayerId;
+      card: ProgressCardName;
+      params?: unknown;
+    }
+  | { type: "DRAW_PROGRESS"; pid: PlayerId; track: ImprovementTrack }
   // Trading
-  | { type: 'TRADE_BANK'; pid: PlayerId; give: Partial<Resources>; get: Partial<Resources> }
-  | { type: 'TRADE_OFFER'; from: PlayerId; to: PlayerId; offer: Partial<Resources>; want: Partial<Resources> }
-  | { type: 'TRADE_ACCEPT'; from: PlayerId; to: PlayerId }
-  | { type: 'TRADE_REJECT'; from: PlayerId; to: PlayerId }
+  | {
+      type: "TRADE_BANK";
+      pid: PlayerId;
+      give: Partial<Resources>;
+      get: Partial<Resources>;
+    }
+  | {
+      type: "TRADE_OFFER";
+      from: PlayerId;
+      to: PlayerId;
+      offer: Partial<Resources>;
+      want: Partial<Resources>;
+    }
+  | { type: "TRADE_ACCEPT"; from: PlayerId; to: PlayerId }
+  | { type: "TRADE_REJECT"; from: PlayerId; to: PlayerId }
   // Turn
-  | { type: 'END_TURN'; pid: PlayerId };
+  | { type: "END_TURN"; pid: PlayerId };

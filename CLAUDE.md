@@ -22,17 +22,17 @@ Use `import.meta.env.BASE_URL` for internal links (see Navigation.astro).
 
 All game logic lives in `src/lib/catan/`:
 
-| File | Purpose |
-|------|---------|
-| `types.ts` | All TS interfaces — single source of truth |
+| File           | Purpose                                            |
+| -------------- | -------------------------------------------------- |
+| `types.ts`     | All TS interfaces — single source of truth         |
 | `constants.ts` | Board layout, card decks, build costs, draw ranges |
-| `board.ts` | Hex grid math, adjacency tables, longest road |
-| `rules.ts` | `canXxx()` validators — pure, no side effects |
-| `game.ts` | `applyAction()` reducer + `createInitialState()` |
-| `ai.ts` | Rule-based bot: `chooseBotAction()` |
-| `network.ts` | PeerJS host/client wrapper |
-| `render.ts` | SVG board renderer (DOM-touching, not unit-tested) |
-| `ui.ts` | Lobby + game UI event wiring |
+| `board.ts`     | Hex grid math, adjacency tables, longest road      |
+| `rules.ts`     | `canXxx()` validators — pure, no side effects      |
+| `game.ts`      | `applyAction()` reducer + `createInitialState()`   |
+| `ai.ts`        | Rule-based bot: `chooseBotAction()`                |
+| `network.ts`   | PeerJS host/client wrapper                         |
+| `render.ts`    | SVG board renderer (DOM-touching, not unit-tested) |
+| `ui.ts`        | Lobby + game UI event wiring                       |
 
 Tests live in `src/test/catan/`. **Always write tests before implementation (TDD).**
 

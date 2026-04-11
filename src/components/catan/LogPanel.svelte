@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick } from "svelte";
 
   let { log }: { log: string[] } = $props();
 
@@ -8,7 +8,9 @@
   $effect(() => {
     // access log so the effect re-runs when it changes
     log.length;
-    tick().then(() => { if (el) el.scrollTop = el.scrollHeight; });
+    tick().then(() => {
+      if (el) el.scrollTop = el.scrollHeight;
+    });
   });
 </script>
 

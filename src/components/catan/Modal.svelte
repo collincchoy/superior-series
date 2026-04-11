@@ -1,7 +1,12 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte';
+  import type { Snippet } from "svelte";
 
-  let { open = $bindable(), title, closeOnBackdrop = false, children }: {
+  let {
+    open = $bindable(),
+    title,
+    closeOnBackdrop = false,
+    children,
+  }: {
     open: boolean;
     title: string;
     closeOnBackdrop?: boolean;

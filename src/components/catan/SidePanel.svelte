@@ -1,13 +1,19 @@
 <script lang="ts">
-  import type { GameState, PlayerId } from '../../lib/catan/types.js';
-  import type { PendingAction } from '../../lib/catan/validTargets.js';
-  import { isPlayerActing } from '../../lib/catan/turnActors.js';
-  import PhaseBanner from './PhaseBanner.svelte';
-  import HandPanel from './HandPanel.svelte';
-  import ActionPanel from './ActionPanel.svelte';
-  import LogPanel from './LogPanel.svelte';
+  import type { GameState, PlayerId } from "../../lib/catan/types.js";
+  import type { PendingAction } from "../../lib/catan/validTargets.js";
+  import { isPlayerActing } from "../../lib/catan/turnActors.js";
+  import PhaseBanner from "./PhaseBanner.svelte";
+  import HandPanel from "./HandPanel.svelte";
+  import ActionPanel from "./ActionPanel.svelte";
+  import LogPanel from "./LogPanel.svelte";
 
-  let { gameState, localPid, pendingAction, isMyTurn, showTrade = $bindable(false) }: {
+  let {
+    gameState,
+    localPid,
+    pendingAction,
+    isMyTurn,
+    showTrade = $bindable(false),
+  }: {
     gameState: GameState;
     localPid: PlayerId;
     pendingAction: PendingAction | null;

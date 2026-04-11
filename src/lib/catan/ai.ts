@@ -8,8 +8,8 @@ import type {
   ImprovementTrack,
   Resources,
   TurnPhase,
-} from './types.js';
-import { buildGraph } from './board.js';
+} from "./types.js";
+import { buildGraph } from "./board.js";
 import {
   canPlaceSettlement,
   canPlaceCity,
@@ -26,8 +26,8 @@ import {
   canImproveCity,
   hasResources,
   BUILD_COSTS,
-} from './rules.js';
-import { computeVP } from './game.js';
+} from "./rules.js";
+import { computeVP } from "./game.js";
 
 // ─── Main Entry Point ─────────────────────────────────────────────────────────
 
@@ -39,38 +39,38 @@ export function chooseBotAction(state: GameState, pid: PlayerId): GameAction {
   const graph = buildGraph();
 
   switch (state.phase) {
-    case 'SETUP_R1_SETTLEMENT':
+    case "SETUP_R1_SETTLEMENT":
       return chooseSetupSettlement(state, pid, graph);
 
-    case 'SETUP_R1_ROAD':
-      return chooseSetupRoad(state, pid, graph, 'settlement');
+    case "SETUP_R1_ROAD":
+      return chooseSetupRoad(state, pid, graph, "settlement");
 
-    case 'SETUP_R2_CITY':
+    case "SETUP_R2_CITY":
       return chooseSetupCity(state, pid, graph);
 
-    case 'SETUP_R2_ROAD':
-      return chooseSetupRoad(state, pid, graph, 'city');
+    case "SETUP_R2_ROAD":
+      return chooseSetupRoad(state, pid, graph, "city");
 
-    case 'ROLL_DICE':
-      return { type: 'ROLL_DICE', pid };
+    case "ROLL_DICE":
+      return { type: "ROLL_DICE", pid };
 
-    case 'DISCARD':
+    case "DISCARD":
       return chooseDiscard(state, pid);
 
-    case 'ROBBER_MOVE':
+    case "ROBBER_MOVE":
       return chooseRobberMove(state, pid, graph);
 
-    case 'ACTION':
+    case "ACTION":
       return chooseAction(state, pid, graph);
 
-    case 'KNIGHT_DISPLACE_RESPONSE':
+    case "KNIGHT_DISPLACE_RESPONSE":
       return chooseDisplacedMove(state, pid, graph);
 
-    case 'RESOLVE_PROGRESS_DRAW':
+    case "RESOLVE_PROGRESS_DRAW":
       return choosProgressDraw(state, pid);
 
     default:
-      return { type: 'END_TURN', pid };
+      return { type: "END_TURN", pid };
   }
 }
 
@@ -97,17 +97,22 @@ function chooseSetupSettlement(
   }
 
   if (bestVid) {
-    return { type: 'PLACE_BUILDING', pid, vid: bestVid, building: 'settlement' };
+    return {
+      type: "PLACE_BUILDING",
+      pid,
+      vid: bestVid,
+      building: "settlement",
+    };
   }
 
   // Fallback: first available
   for (const vid of allVertices) {
     if (canPlaceSettlement(state.board, graph, pid, vid, true)) {
-      return { type: 'PLACE_BUILDING', pid, vid, building: 'settlement' };
+      return { type: "PLACE_BUILDING", pid, vid, building: "settlement" };
     }
   }
 
-  return { type: 'END_TURN', pid };
+  return { type: "END_TURN", pid };
 }
 
 function chooseSetupCity(
@@ -131,27 +136,28 @@ function chooseSetupCity(
   }
 
   if (bestVid) {
-    return { type: 'PLACE_BUILDING', pid, vid: bestVid, building: 'city' };
+    return { type: "PLACE_BUILDING", pid, vid: bestVid, building: "city" };
   }
 
   for (const vid of allVertices) {
     if (canPlaceCity(state.board, graph, pid, vid)) {
-      return { type: 'PLACE_BUILDING', pid, vid, building: 'city' };
+      return { type: "PLACE_BUILDING", pid, vid, building: "city" };
     }
   }
 
-  return { type: 'END_TURN', pid };
+  return { type: "END_TURN", pid };
 }
 
 function chooseSetupRoad(
   state: GameState,
   pid: PlayerId,
   graph: ReturnType<typeof buildGraph>,
-  anchorType: 'settlement' | 'city',
+  anchorType: "settlement" | "city",
 ): GameAction {
   // Find the most recently placed building of this type for this player
-  const anchorVertex = Object.entries(state.board.vertices)
-    .find(([, b]) => b?.playerId === pid && b.type === anchorType)?.[0] as VertexId | undefined;
+  const anchorVertex = Object.entries(state.board.vertices).find(
+    ([, b]) => b?.playerId === pid && b.type === anchorType,
+  )?.[0] as VertexId | undefined;
 
   if (!anchorVertex) {
     // Fallback: any free edge adjacent to our buildings
@@ -174,7 +180,7 @@ function chooseSetupRoad(
   }
 
   if (bestEdge) {
-    return { type: 'PLACE_ROAD', pid, eid: bestEdge };
+    return { type: "PLACE_ROAD", pid, eid: bestEdge };
   }
 
   return firstAvailableRoad(state, pid, graph);
@@ -189,22 +195,34 @@ function firstAvailableRoad(
   // Find any edge adjacent to player buildings/roads
   for (const eid of allEdges) {
     const [vA, vB] = graph.verticesOfEdge[eid]!;
-    const anchorA = vA && (state.board.vertices[vA]?.playerId === pid || state.board.edges[eid]?.playerId === pid);
+    const anchorA =
+      vA &&
+      (state.board.vertices[vA]?.playerId === pid ||
+        state.board.edges[eid]?.playerId === pid);
     if (anchorA && canPlaceRoad(state.board, graph, pid, eid, vA!)) {
-      return { type: 'PLACE_ROAD', pid, eid };
+      return { type: "PLACE_ROAD", pid, eid };
     }
     const anchorB = vB && state.board.vertices[vB]?.playerId === pid;
     if (anchorB && canPlaceRoad(state.board, graph, pid, eid, vB!)) {
-      return { type: 'PLACE_ROAD', pid, eid };
+      return { type: "PLACE_ROAD", pid, eid };
     }
   }
-  return { type: 'END_TURN', pid };
+  return { type: "END_TURN", pid };
 }
 
 // ─── Score a vertex by production value ───────────────────────────────────────
 
 const PIPS: Record<number, number> = {
-  2: 1, 12: 1, 3: 2, 11: 2, 4: 3, 10: 3, 5: 4, 9: 4, 6: 5, 8: 5,
+  2: 1,
+  12: 1,
+  3: 2,
+  11: 2,
+  4: 3,
+  10: 3,
+  5: 4,
+  9: 4,
+  6: 5,
+  8: 5,
 };
 
 function scoreVertex(
@@ -220,13 +238,13 @@ function scoreVertex(
   // Get terrains from existing own buildings for diversity
   if (diversityBonus) {
     for (const [, b] of Object.entries(state.board.vertices)) {
-      if (b?.playerId === '') continue; // doesn't matter for placeholder
+      if (b?.playerId === "") continue; // doesn't matter for placeholder
     }
   }
 
   for (const hid of hexIds) {
     const hex = state.board.hexes[hid];
-    if (!hex || hex.terrain === 'desert' || hex.number === null) continue;
+    if (!hex || hex.terrain === "desert" || hex.number === null) continue;
     score += PIPS[hex.number] ?? 0;
     if (diversityBonus && !ownedTerrains.has(hex.terrain)) {
       score += 2; // bonus for resource diversity
@@ -242,10 +260,19 @@ function scoreVertex(
 function chooseDiscard(state: GameState, pid: PlayerId): GameAction {
   const player = state.players[pid]!;
   const pending = state.pendingDiscard?.remaining[pid] ?? 0;
-  if (pending === 0) return { type: 'END_TURN', pid };
+  if (pending === 0) return { type: "END_TURN", pid };
 
   // Discard lowest-priority resources first
-  const priority: (keyof Resources)[] = ['cloth', 'coin', 'paper', 'brick', 'lumber', 'wool', 'grain', 'ore'];
+  const priority: (keyof Resources)[] = [
+    "cloth",
+    "coin",
+    "paper",
+    "brick",
+    "lumber",
+    "wool",
+    "grain",
+    "ore",
+  ];
   const cards: Partial<Resources> = {};
   let remaining = pending;
 
@@ -259,7 +286,7 @@ function chooseDiscard(state: GameState, pid: PlayerId): GameAction {
     }
   }
 
-  return { type: 'DISCARD', pid, cards };
+  return { type: "DISCARD", pid, cards };
 }
 
 // ─── Robber Move ──────────────────────────────────────────────────────────────
@@ -278,12 +305,16 @@ function chooseRobberMove(
 
   for (const hid of allHexIds) {
     const hex = state.board.hexes[hid];
-    if (!hex || hex.hasRobber || hex.terrain === 'desert') continue;
+    if (!hex || hex.hasRobber || hex.terrain === "desert") continue;
 
     // Check if lead player has a building here
     const hexVerts = graph.verticesOfHex[hid] ?? [];
-    const leadIsHere = hexVerts.some(v => state.board.vertices[v]?.playerId === leadPlayer);
-    const selfIsHere = hexVerts.some(v => state.board.vertices[v]?.playerId === pid);
+    const leadIsHere = hexVerts.some(
+      (v) => state.board.vertices[v]?.playerId === leadPlayer,
+    );
+    const selfIsHere = hexVerts.some(
+      (v) => state.board.vertices[v]?.playerId === pid,
+    );
     if (selfIsHere) continue;
 
     const score = (leadIsHere ? 100 : 0) + (PIPS[hex.number ?? 0] ?? 0);
@@ -297,9 +328,9 @@ function chooseRobberMove(
     // Fallback: any non-self, non-desert hex
     for (const hid of allHexIds) {
       const hex = state.board.hexes[hid];
-      if (hex && !hex.hasRobber && hex.terrain !== 'desert') {
+      if (hex && !hex.hasRobber && hex.terrain !== "desert") {
         const hexVerts = graph.verticesOfHex[hid] ?? [];
-        if (!hexVerts.some(v => state.board.vertices[v]?.playerId === pid)) {
+        if (!hexVerts.some((v) => state.board.vertices[v]?.playerId === pid)) {
           bestHexId = hid;
           break;
         }
@@ -310,11 +341,17 @@ function chooseRobberMove(
 
   // Find steal target
   const hexVerts = graph.verticesOfHex[bestHexId] ?? [];
-  const stealFrom = hexVerts
-    .map(v => state.board.vertices[v]?.playerId)
-    .find(p => p && p !== pid) ?? null;
+  const stealFrom =
+    hexVerts
+      .map((v) => state.board.vertices[v]?.playerId)
+      .find((p) => p && p !== pid) ?? null;
 
-  return { type: 'MOVE_ROBBER', pid, hid: bestHexId, stealFrom: stealFrom ?? null };
+  return {
+    type: "MOVE_ROBBER",
+    pid,
+    hid: bestHexId,
+    stealFrom: stealFrom ?? null,
+  };
 }
 
 // ─── Action Phase ─────────────────────────────────────────────────────────────
@@ -329,32 +366,35 @@ function chooseAction(
   // 1. Build city (highest VP gain)
   if (canBuildCitySomewhere(state, player, graph)) {
     const vid = findCityTarget(state, player);
-    if (vid) return { type: 'BUILD_CITY', pid, vid };
+    if (vid) return { type: "BUILD_CITY", pid, vid };
   }
 
   // 2. City improvement (if have commodities)
   const improvTrack = chooseCityImprovement(state, player);
   if (improvTrack) {
-    return { type: 'IMPROVE_CITY', pid, track: improvTrack };
+    return { type: "IMPROVE_CITY", pid, track: improvTrack };
   }
 
   // 3. Build settlement (expansion)
   const settlementVid = findSettlementTarget(state, pid, graph);
-  if (settlementVid && canBuildSettlement(state.board, graph, player, settlementVid)) {
-    return { type: 'BUILD_SETTLEMENT', pid, vid: settlementVid };
+  if (
+    settlementVid &&
+    canBuildSettlement(state.board, graph, player, settlementVid)
+  ) {
+    return { type: "BUILD_SETTLEMENT", pid, vid: settlementVid };
   }
 
   // 4. Build road (expand network toward good vertices)
   const roadEid = findRoadTarget(state, pid, graph);
   if (roadEid && canBuildRoad(state.board, graph, player, roadEid)) {
-    return { type: 'BUILD_ROAD', pid, eid: roadEid };
+    return { type: "BUILD_ROAD", pid, eid: roadEid };
   }
 
   // 5. Recruit knight (if barbarians approaching)
   if (state.barbarian.position >= 4) {
     const knightVid = findKnightSpot(state, pid, graph);
     if (knightVid && canRecruitKnight(state.board, graph, player, knightVid)) {
-      return { type: 'RECRUIT_KNIGHT', pid, vid: knightVid };
+      return { type: "RECRUIT_KNIGHT", pid, vid: knightVid };
     }
   }
 
@@ -362,7 +402,7 @@ function chooseAction(
   if (state.barbarian.position >= 5) {
     const knightVid = findInactiveKnight(state, pid);
     if (knightVid && canActivateKnight(state.board, player, knightVid)) {
-      return { type: 'ACTIVATE_KNIGHT', pid, vid: knightVid };
+      return { type: "ACTIVATE_KNIGHT", pid, vid: knightVid };
     }
   }
 
@@ -370,7 +410,7 @@ function chooseAction(
   const tradeAction = findTradeOpportunity(state, player, graph);
   if (tradeAction) return tradeAction;
 
-  return { type: 'END_TURN', pid };
+  return { type: "END_TURN", pid };
 }
 
 function canBuildCitySomewhere(
@@ -380,20 +420,26 @@ function canBuildCitySomewhere(
 ): boolean {
   if (!hasResources(player as any, BUILD_COSTS.city)) return false;
   return Object.values(state.board.vertices).some(
-    b => b?.type === 'settlement' && b.playerId === player.id,
+    (b) => b?.type === "settlement" && b.playerId === player.id,
   );
 }
 
-function findCityTarget(state: GameState, player: { id: PlayerId }): VertexId | null {
+function findCityTarget(
+  state: GameState,
+  player: { id: PlayerId },
+): VertexId | null {
   const entry = Object.entries(state.board.vertices).find(
-    ([, b]) => b?.type === 'settlement' && b.playerId === player.id,
+    ([, b]) => b?.type === "settlement" && b.playerId === player.id,
   );
   return entry ? (entry[0] as VertexId) : null;
 }
 
-function chooseCityImprovement(state: GameState, player: GameState['players'][string]): ImprovementTrack | null {
+function chooseCityImprovement(
+  state: GameState,
+  player: GameState["players"][string],
+): ImprovementTrack | null {
   if (!player) return null;
-  const tracks: ImprovementTrack[] = ['science', 'trade', 'politics'];
+  const tracks: ImprovementTrack[] = ["science", "trade", "politics"];
   for (const track of tracks) {
     if (canImproveCity(state.board, player, track)) return track;
   }
@@ -434,8 +480,9 @@ function findRoadTarget(
     const [vA, vB] = graph.verticesOfEdge[eid]!;
 
     // Check connectivity
-    const canBuild = Object.values(state.board.vertices).some(b => b?.playerId === pid) ||
-      Object.values(state.board.edges).some(r => r?.playerId === pid);
+    const canBuild =
+      Object.values(state.board.vertices).some((b) => b?.playerId === pid) ||
+      Object.values(state.board.edges).some((r) => r?.playerId === pid);
     if (!canBuild) continue;
 
     const score = Math.max(
@@ -457,7 +504,8 @@ function findKnightSpot(
 ): VertexId | null {
   const allVertices = Object.keys(graph.vertices) as VertexId[];
   for (const vid of allVertices) {
-    if (canRecruitKnight(state.board, graph, state.players[pid]!, vid)) return vid;
+    if (canRecruitKnight(state.board, graph, state.players[pid]!, vid))
+      return vid;
   }
   return null;
 }
@@ -471,15 +519,22 @@ function findInactiveKnight(state: GameState, pid: PlayerId): VertexId | null {
 
 function findTradeOpportunity(
   state: GameState,
-  player: GameState['players'][string],
+  player: GameState["players"][string],
   graph: ReturnType<typeof buildGraph>,
 ): GameAction | null {
   if (!player) return null;
   const pid = player.id;
 
   // Try to trade excess resources for ore or grain (for city building)
-  const excessTypes: (keyof Resources)[] = ['brick', 'lumber', 'wool', 'cloth', 'coin', 'paper'];
-  const wantTypes: (keyof Resources)[] = ['ore', 'grain'];
+  const excessTypes: (keyof Resources)[] = [
+    "brick",
+    "lumber",
+    "wool",
+    "cloth",
+    "coin",
+    "paper",
+  ];
+  const wantTypes: (keyof Resources)[] = ["ore", "grain"];
 
   for (const giveType of excessTypes) {
     const have = player.resources[giveType] ?? 0;
@@ -488,7 +543,7 @@ function findTradeOpportunity(
     for (const getType of wantTypes) {
       const give: Partial<Resources> = { [giveType]: 4 };
       const get: Partial<Resources> = { [getType]: 1 };
-      return { type: 'TRADE_BANK', pid, give, get };
+      return { type: "TRADE_BANK", pid, give, get };
     }
   }
   return null;
@@ -503,7 +558,7 @@ function chooseDisplacedMove(
 ): GameAction {
   const pending = state.pendingDisplace;
   if (!pending || pending.displacedPlayerId !== pid) {
-    return { type: 'DISPLACED_MOVE', pid, from: '' as VertexId, to: null };
+    return { type: "DISPLACED_MOVE", pid, from: "" as VertexId, to: null };
   }
 
   const from = pending.displacedKnightVertex;
@@ -512,12 +567,12 @@ function chooseDisplacedMove(
   // Find a safe spot to move the displaced knight
   for (const to of allVertices) {
     if (canRelocateDisplacedKnight(state.board, graph, pid, from, to)) {
-      return { type: 'DISPLACED_MOVE', pid, from, to };
+      return { type: "DISPLACED_MOVE", pid, from, to };
     }
   }
 
   // Can't move — return to supply
-  return { type: 'DISPLACED_MOVE', pid, from, to: null };
+  return { type: "DISPLACED_MOVE", pid, from, to: null };
 }
 
 // ─── Progress card draw ───────────────────────────────────────────────────────
@@ -525,9 +580,9 @@ function chooseDisplacedMove(
 function choosProgressDraw(state: GameState, pid: PlayerId): GameAction {
   const pending = state.pendingProgressDraw;
   if (!pending || !pending.remaining.includes(pid)) {
-    return { type: 'END_TURN', pid };
+    return { type: "END_TURN", pid };
   }
-  return { type: 'DRAW_PROGRESS', pid, track: pending.track };
+  return { type: "DRAW_PROGRESS", pid, track: pending.track };
 }
 
 // ─── Utility: find lead player ────────────────────────────────────────────────

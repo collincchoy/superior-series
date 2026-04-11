@@ -8,32 +8,38 @@ import type {
   ImprovementTrack,
   Resources,
   KnightStrength,
-} from './types.js';
-import type { CatanGraph } from './board.js';
+} from "./types.js";
+import type { CatanGraph } from "./board.js";
 
 // ─── Build Costs ──────────────────────────────────────────────────────────────
 
 export const BUILD_COSTS = {
-  road:         { brick: 1, lumber: 1 } as Partial<Resources>,
-  settlement:   { brick: 1, lumber: 1, wool: 1, grain: 1 } as Partial<Resources>,
-  city:         { ore: 3, grain: 2 } as Partial<Resources>,
-  cityWall:     { brick: 2 } as Partial<Resources>,  // 2 brick per rulebook
-  knightRecruit:   { ore: 1, wool: 1 } as Partial<Resources>,
-  knightPromote:   { ore: 1, grain: 1 } as Partial<Resources>,
-  knightActivate:  { grain: 1 } as Partial<Resources>,
+  road: { brick: 1, lumber: 1 } as Partial<Resources>,
+  settlement: { brick: 1, lumber: 1, wool: 1, grain: 1 } as Partial<Resources>,
+  city: { ore: 3, grain: 2 } as Partial<Resources>,
+  cityWall: { brick: 2 } as Partial<Resources>, // 2 brick per rulebook
+  knightRecruit: { ore: 1, wool: 1 } as Partial<Resources>,
+  knightPromote: { ore: 1, grain: 1 } as Partial<Resources>,
+  knightActivate: { grain: 1 } as Partial<Resources>,
 };
 
 /** Map from ImprovementTrack to the commodity type it requires */
 const TRACK_COMMODITY: Record<ImprovementTrack, keyof Resources> = {
-  science: 'paper',
-  trade:   'cloth',
-  politics: 'coin',
+  science: "paper",
+  trade: "cloth",
+  politics: "coin",
 };
 
 // ─── Resource Helpers ─────────────────────────────────────────────────────────
 
-export function hasResources(player: Player, cost: Partial<Resources>): boolean {
-  for (const [key, amount] of Object.entries(cost) as [keyof Resources, number][]) {
+export function hasResources(
+  player: Player,
+  cost: Partial<Resources>,
+): boolean {
+  for (const [key, amount] of Object.entries(cost) as [
+    keyof Resources,
+    number,
+  ][]) {
     if ((player.resources[key] ?? 0) < amount) return false;
   }
   return true;
@@ -107,7 +113,7 @@ export function canReachVertex(
 
 export function playerHasCity(board: BoardState, playerId: PlayerId): boolean {
   return Object.values(board.vertices).some(
-    b => b?.type === 'city' && b.playerId === playerId,
+    (b) => b?.type === "city" && b.playerId === playerId,
   );
 }
 
@@ -230,7 +236,7 @@ export function canBuildCity(
   if (!hasResources(player, BUILD_COSTS.city)) return false;
   if (player.supply.cities <= 0) return false;
   const building = board.vertices[vid];
-  return building?.type === 'settlement' && building.playerId === player.id;
+  return building?.type === "settlement" && building.playerId === player.id;
 }
 
 export function canBuildCityWall(
@@ -242,7 +248,7 @@ export function canBuildCityWall(
   if (player.supply.cityWalls <= 0) return false;
   const building = board.vertices[vid];
   return (
-    building?.type === 'city' &&
+    building?.type === "city" &&
     building.playerId === player.id &&
     !building.hasWall
   );
@@ -259,7 +265,7 @@ export function canRecruitKnight(
   if (!hasResources(player, BUILD_COSTS.knightRecruit)) return false;
   if (player.supply.knights[1] <= 0) return false;
   if (board.vertices[vid] !== null) return false; // occupied by building
-  if (board.knights[vid] !== null) return false;  // occupied by knight
+  if (board.knights[vid] !== null) return false; // occupied by knight
 
   // Must connect to own road network
   if (!isConnectedToNetwork(board, graph, player.id, vid)) return false;
@@ -304,7 +310,7 @@ export function canMoveKnight(
   if (!knight || knight.playerId !== playerId || !knight.active) return false;
   if (from === to) return false;
   if (board.vertices[to] !== null) return false; // occupied by building
-  if (board.knights[to] !== null) return false;  // occupied by another knight
+  if (board.knights[to] !== null) return false; // occupied by another knight
   return canReachVertex(board, graph, playerId, from, to);
 }
 
@@ -329,7 +335,8 @@ export function canDisplaceKnight(
   target: VertexId,
 ): boolean {
   const myKnight = board.knights[from];
-  if (!myKnight || myKnight.playerId !== playerId || !myKnight.active) return false;
+  if (!myKnight || myKnight.playerId !== playerId || !myKnight.active)
+    return false;
 
   const theirKnight = board.knights[target];
   if (!theirKnight || theirKnight.playerId === playerId) return false;
@@ -376,7 +383,7 @@ export function discardCount(player: Player, board: BoardState): number {
 
 function countPlayerCityWalls(board: BoardState, playerId: PlayerId): number {
   return Object.values(board.vertices).filter(
-    b => b?.type === 'city' && b.playerId === playerId && b.hasWall,
+    (b) => b?.type === "city" && b.playerId === playerId && b.hasWall,
   ).length;
 }
 
@@ -389,12 +396,18 @@ export function canTradeBank(
   get: Partial<Resources>,
 ): boolean {
   // Validate give amounts
-  for (const [key, amount] of Object.entries(give) as [keyof Resources, number][]) {
+  for (const [key, amount] of Object.entries(give) as [
+    keyof Resources,
+    number,
+  ][]) {
     if ((player.resources[key] ?? 0) < amount) return false;
   }
 
   // Each "give" group must be a single resource/commodity type and correct ratio
-  const giveEntries = Object.entries(give).filter(([, v]) => v > 0) as [keyof Resources, number][];
+  const giveEntries = Object.entries(give).filter(([, v]) => v > 0) as [
+    keyof Resources,
+    number,
+  ][];
   if (giveEntries.length !== 1) return false; // simple bank trade: 1 type given
   const [giveType, giveAmount] = giveEntries[0]!;
 
@@ -409,7 +422,11 @@ export function canTradeBank(
   return true;
 }
 
-function getBankRatio(player: Player, board: BoardState, cardType: keyof Resources): number {
+function getBankRatio(
+  player: Player,
+  board: BoardState,
+  cardType: keyof Resources,
+): number {
   const playerVertices = new Set(
     Object.entries(board.vertices)
       .filter(([, b]) => b?.playerId === player.id)
@@ -420,7 +437,7 @@ function getBankRatio(player: Player, board: BoardState, cardType: keyof Resourc
   for (const harbor of board.harbors) {
     const [v1, v2] = harbor.vertices;
     if (playerVertices.has(v1) || playerVertices.has(v2)) {
-      if (harbor.type === 'generic') best = Math.min(best, 3);
+      if (harbor.type === "generic") best = Math.min(best, 3);
       else if (harbor.type === cardType) best = Math.min(best, 2);
     }
   }

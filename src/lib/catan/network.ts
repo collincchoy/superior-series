@@ -5,17 +5,17 @@
  * Clients connect to host's peer.id, send actions, receive state updates.
  * Bot turns run only on the host after every state update.
  */
-import type { GameState, GameAction, PlayerId } from './types.js';
-import { applyAction } from './game.js';
-import { chooseBotAction } from './ai.js';
-import { getActingPlayerIds } from './turnActors.js';
+import type { GameState, GameAction, PlayerId } from "./types.js";
+import { applyAction } from "./game.js";
+import { chooseBotAction } from "./ai.js";
+import { getActingPlayerIds } from "./turnActors.js";
 
 export type NetMessage =
-  | { type: 'join';    name: string; pid?: PlayerId }  // pid present on reconnect
-  | { type: 'welcome'; pid: PlayerId; state: GameState }
-  | { type: 'action';  action: GameAction }
-  | { type: 'state';   state: GameState }
-  | { type: 'error';   msg: string };
+  | { type: "join"; name: string; pid?: PlayerId } // pid present on reconnect
+  | { type: "welcome"; pid: PlayerId; state: GameState }
+  | { type: "action"; action: GameAction }
+  | { type: "state"; state: GameState }
+  | { type: "error"; msg: string };
 
 // ─── Callbacks ────────────────────────────────────────────────────────────────
 
@@ -56,14 +56,16 @@ export class CatanNetwork {
     return new Promise((resolve, reject) => {
       this.peer = new Peer();
 
-      this.peer.on('open', (id: string) => resolve(id));
-      this.peer.on('error', (err: any) => reject(err));
+      this.peer.on("open", (id: string) => resolve(id));
+      this.peer.on("error", (err: any) => reject(err));
 
-      this.peer.on('connection', (conn: any) => {
-        conn.on('open', () => {
-          conn.on('data', (msg: NetMessage) => this.handleHostMessage(conn, msg));
+      this.peer.on("connection", (conn: any) => {
+        conn.on("open", () => {
+          conn.on("data", (msg: NetMessage) =>
+            this.handleHostMessage(conn, msg),
+          );
         });
-        conn.on('error', (e: any) => console.warn('[host] conn error', e));
+        conn.on("error", (e: any) => console.warn("[host] conn error", e));
       });
     });
   }
@@ -74,11 +76,15 @@ export class CatanNetwork {
     for (const { conn, name } of this.pendingJoins) {
       const pid = this.findPendingSlot(name);
       if (!pid) {
-        conn.send({ type: 'error', msg: 'No open slot' } satisfies NetMessage);
+        conn.send({ type: "error", msg: "No open slot" } satisfies NetMessage);
         continue;
       }
       this.connections.set(pid, conn);
-      conn.send({ type: 'welcome', pid, state: this.state } satisfies NetMessage);
+      conn.send({
+        type: "welcome",
+        pid,
+        state: this.state,
+      } satisfies NetMessage);
       this.callbacks.onPlayerJoined?.(name, pid);
     }
     this.pendingJoins = [];
@@ -91,7 +97,7 @@ export class CatanNetwork {
   }
 
   private handleHostMessage(conn: any, msg: NetMessage) {
-    if (msg.type === 'join') {
+    if (msg.type === "join") {
       if (!this.state) {
         // Game not started yet — queue until initHostState is called
         this.pendingJoins.push({ conn, name: msg.name });
@@ -100,9 +106,17 @@ export class CatanNetwork {
       }
 
       // Reconnect: client sends their previous pid
-      if (msg.pid && this.state.players[msg.pid] && !this.state.players[msg.pid]!.isBot) {
+      if (
+        msg.pid &&
+        this.state.players[msg.pid] &&
+        !this.state.players[msg.pid]!.isBot
+      ) {
         this.connections.set(msg.pid, conn);
-        conn.send({ type: 'welcome', pid: msg.pid, state: this.state } satisfies NetMessage);
+        conn.send({
+          type: "welcome",
+          pid: msg.pid,
+          state: this.state,
+        } satisfies NetMessage);
         this.callbacks.onPlayerJoined?.(msg.name, msg.pid);
         return;
       }
@@ -110,14 +124,18 @@ export class CatanNetwork {
       // New join: find a waiting human slot
       const pid = this.findPendingSlot(msg.name);
       if (!pid) {
-        conn.send({ type: 'error', msg: 'No open slot' } satisfies NetMessage);
+        conn.send({ type: "error", msg: "No open slot" } satisfies NetMessage);
         return;
       }
       this.connections.set(pid, conn);
-      conn.send({ type: 'welcome', pid, state: this.state } satisfies NetMessage);
+      conn.send({
+        type: "welcome",
+        pid,
+        state: this.state,
+      } satisfies NetMessage);
       this.callbacks.onPlayerJoined?.(msg.name, pid);
       this.broadcastState();
-    } else if (msg.type === 'action') {
+    } else if (msg.type === "action") {
       this.applyAndBroadcast(msg.action);
     }
   }
@@ -136,7 +154,7 @@ export class CatanNetwork {
 
   private applyAndBroadcast(action: GameAction) {
     if (!this.state) {
-      this.callbacks.onError('Game not initialized');
+      this.callbacks.onError("Game not initialized");
       return;
     }
     try {
@@ -145,14 +163,16 @@ export class CatanNetwork {
       this.broadcastState();
       this.runBotTurns();
     } catch (e: any) {
-      const msg = e?.message ?? 'Invalid action';
-      console.error('[catan] applyAction failed:', msg, action);
+      const msg = e?.message ?? "Invalid action";
+      console.error("[catan] applyAction failed:", msg, action);
       // Show error to host directly
       this.callbacks.onError(msg);
       // Also forward to remote sender if applicable
       const pid = (action as any).pid as PlayerId | undefined;
       if (pid && this.connections.has(pid)) {
-        this.connections.get(pid)!.send({ type: 'error', msg } satisfies NetMessage);
+        this.connections
+          .get(pid)!
+          .send({ type: "error", msg } satisfies NetMessage);
       }
     }
   }
@@ -160,7 +180,7 @@ export class CatanNetwork {
   private runBotTurns() {
     if (!this.state) return;
     let guard = 0;
-    while (this.state.phase !== 'GAME_OVER' && guard++ < 200) {
+    while (this.state.phase !== "GAME_OVER" && guard++ < 200) {
       const queuedBotPid = this.findQueuedBotPid();
       if (queuedBotPid) {
         const action = chooseBotAction(this.state, queuedBotPid);
@@ -168,7 +188,11 @@ export class CatanNetwork {
         continue;
       }
 
-      if (this.state.phase === 'RESOLVE_PROGRESS_DRAW' || this.state.phase === 'DISCARD' || this.state.phase === 'KNIGHT_DISPLACE_RESPONSE') {
+      if (
+        this.state.phase === "RESOLVE_PROGRESS_DRAW" ||
+        this.state.phase === "DISCARD" ||
+        this.state.phase === "KNIGHT_DISPLACE_RESPONSE"
+      ) {
         break;
       }
 
@@ -185,49 +209,61 @@ export class CatanNetwork {
   private findQueuedBotPid(): PlayerId | null {
     if (!this.state) return null;
 
-    return getActingPlayerIds(this.state).find(pid => this.state!.players[pid]?.isBot) ?? null;
+    return (
+      getActingPlayerIds(this.state).find(
+        (pid) => this.state!.players[pid]?.isBot,
+      ) ?? null
+    );
   }
 
   broadcastState() {
     if (!this.state) return;
-    const msg: NetMessage = { type: 'state', state: this.state };
+    const msg: NetMessage = { type: "state", state: this.state };
     for (const conn of this.connections.values()) {
-      try { conn.send(msg); } catch { /* stale connection */ }
+      try {
+        conn.send(msg);
+      } catch {
+        /* stale connection */
+      }
     }
   }
 
   // ─── Client ────────────────────────────────────────────────────────────────
 
-  async joinGame(roomCode: string, playerName: string, existingPid?: PlayerId): Promise<void> {
+  async joinGame(
+    roomCode: string,
+    playerName: string,
+    existingPid?: PlayerId,
+  ): Promise<void> {
     this.isHost = false;
     const Peer = await loadPeer();
     return new Promise((resolve, reject) => {
       this.peer = new Peer();
-      this.peer.on('error', reject);
-      this.peer.on('open', () => {
+      this.peer.on("error", reject);
+      this.peer.on("open", () => {
         const conn = this.peer.connect(roomCode);
-        conn.on('open', () => {
+        conn.on("open", () => {
           const joinMsg: NetMessage = existingPid
-            ? { type: 'join', name: playerName, pid: existingPid }
-            : { type: 'join', name: playerName };
+            ? { type: "join", name: playerName, pid: existingPid }
+            : { type: "join", name: playerName };
           conn.send(joinMsg);
-          conn.on('data', (msg: NetMessage) => {
-            if (msg.type === 'welcome') {
+          conn.on("data", (msg: NetMessage) => {
+            if (msg.type === "welcome") {
               this.localPid = msg.pid;
               this.state = msg.state;
               this.callbacks.onStateUpdate(msg.state);
               resolve();
-            } else if (msg.type === 'state') {
+            } else if (msg.type === "state") {
               this.state = msg.state;
               this.callbacks.onStateUpdate(msg.state);
-            } else if (msg.type === 'error') {
+            } else if (msg.type === "error") {
               this.callbacks.onError(msg.msg);
               reject(new Error(msg.msg));
             }
           });
-          this.connections.set('host', conn);
+          this.connections.set("host", conn);
         });
-        conn.on('error', reject);
+        conn.on("error", reject);
       });
     });
   }
@@ -238,12 +274,18 @@ export class CatanNetwork {
     if (this.isHost) {
       this.applyAndBroadcast(action);
     } else {
-      this.connections.get('host')?.send({ type: 'action', action } satisfies NetMessage);
+      this.connections
+        .get("host")
+        ?.send({ type: "action", action } satisfies NetMessage);
     }
   }
 
-  get myPid(): PlayerId | null { return this.localPid; }
-  get currentState(): GameState | null { return this.state; }
+  get myPid(): PlayerId | null {
+    return this.localPid;
+  }
+  get currentState(): GameState | null {
+    return this.state;
+  }
 
   destroy() {
     this.peer?.destroy();
@@ -259,16 +301,19 @@ let PeerClass: any = null;
 async function loadPeer(): Promise<any> {
   if (PeerClass) return PeerClass;
   // In browser: load from CDN via script tag if not already loaded
-  if (typeof window !== 'undefined') {
+  if (typeof window !== "undefined") {
     if ((window as any).Peer) {
       PeerClass = (window as any).Peer;
       return PeerClass;
     }
     await new Promise<void>((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
-      s.onload = () => { PeerClass = (window as any).Peer; resolve(); };
-      s.onerror = () => reject(new Error('Failed to load PeerJS'));
+      const s = document.createElement("script");
+      s.src = "https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js";
+      s.onload = () => {
+        PeerClass = (window as any).Peer;
+        resolve();
+      };
+      s.onerror = () => reject(new Error("Failed to load PeerJS"));
       document.head.appendChild(s);
     });
   }
