@@ -162,11 +162,17 @@ export class CatanNetwork {
   private runBotTurns() {
     if (!this.state) return;
     let guard = 0;
-    while (
-      this.state.phase !== 'GAME_OVER' &&
-      this.state.players[this.state.currentPlayerId]?.isBot &&
-      guard++ < 200
-    ) {
+    while (this.state.phase !== 'GAME_OVER' && guard++ < 200) {
+      // During progress draws, bot players in `remaining` act in order
+      if (this.state.phase === 'RESOLVE_PROGRESS_DRAW') {
+        const remaining = this.state.pendingProgressDraw?.remaining ?? [];
+        const botPid = remaining.find(p => this.state!.players[p]?.isBot);
+        if (!botPid) break;
+        const action = chooseBotAction(this.state, botPid);
+        this.state = applyAction(this.state, action);
+        continue;
+      }
+      if (!this.state.players[this.state.currentPlayerId]?.isBot) break;
       const action = chooseBotAction(this.state, this.state.currentPlayerId);
       this.state = applyAction(this.state, action);
     }
