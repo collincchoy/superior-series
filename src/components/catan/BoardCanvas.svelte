@@ -197,7 +197,7 @@
             y={y - HEX_SIZE * 0.35}
             text-anchor="middle"
             dominant-baseline="middle"
-            font-size="20"
+            font-size="28"
           >
             {TERRAIN_ICONS[hex.terrain]}
           </text>
@@ -214,12 +214,12 @@
           {@const { x, y } = hexCenter(coord)}
           {@const isRed = hex.number === 6 || hex.number === 8}
           {#if hex.hasRobber}
-            <text {x} y={y + 5} text-anchor="middle" font-size="28">👺</text>
+            <text {x} y={y + 5} text-anchor="middle" font-size="40">👺</text>
           {:else}
             <circle
               cx={x}
               cy={y}
-              r="18"
+              r="24"
               fill="#f5e6c8"
               stroke="#8b6914"
               stroke-width="1.5"
@@ -229,7 +229,7 @@
               y={y + 1}
               text-anchor="middle"
               dominant-baseline="middle"
-              font-size="15"
+              font-size="21"
               font-weight="bold"
               fill={isRed ? "#cc2200" : "#2c1a0a"}
             >
@@ -238,9 +238,9 @@
             {#each Array.from({ length: NUMBER_DOTS[hex.number] ?? 0 }, (_, d) => d) as d}
               {@const dots = NUMBER_DOTS[hex.number] ?? 0}
               <circle
-                cx={x + (d - (dots - 1) / 2) * 5}
-                cy={y + 14}
-                r="2"
+                cx={x + (d - (dots - 1) / 2) * 6}
+                cy={y + 18}
+                r="2.5"
                 fill={isRed ? "#cc2200" : "#2c1a0a"}
               />
             {/each}
@@ -275,7 +275,7 @@
         <circle
           cx={hp.outerX}
           cy={hp.outerY}
-          r="13"
+          r="17"
           fill="#1a5276"
           stroke="#5dade2"
           stroke-width="1.5"
@@ -285,7 +285,7 @@
           y={hp.outerY + 1}
           text-anchor="middle"
           dominant-baseline="middle"
-          font-size="8"
+          font-size="11"
           fill="white"
         >
           {HARBOR_ICONS[hp.harbor.type] ?? "?"}
@@ -395,7 +395,7 @@
               <circle
                 cx={p.x}
                 cy={p.y}
-                r="12"
+                r="16"
                 fill={color}
                 stroke="#fff"
                 stroke-width="2"
@@ -405,7 +405,7 @@
                 y={p.y + 2}
                 text-anchor="middle"
                 dominant-baseline="middle"
-                font-size="12"
+                font-size="16"
               >
                 {knightEmoji[knight.strength - 1] ?? "⚔️"}
               </text>
