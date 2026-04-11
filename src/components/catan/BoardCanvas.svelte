@@ -3,6 +3,7 @@
   import type { PendingAction, ValidTargets } from '../../lib/catan/validTargets.js';
   import { computeValidTargets } from '../../lib/catan/validTargets.js';
   import { store } from '../../lib/catan/store.svelte.js';
+  import { isPlayerActing } from '../../lib/catan/turnActors.js';
   import {
     HEX_SIZE, TERRAIN_COLORS, TERRAIN_ICONS, NUMBER_DOTS, HARBOR_ICONS,
     hexPoints, hexCenter, getVertexPixel, getEdgePoints, CATAN_HEX_COORDS, hexId,
@@ -18,13 +19,18 @@
   const graph = buildGraph();
 
   let targets: ValidTargets = $derived(computeValidTargets(gameState, localPid, pendingAction));
-  let isMyTurn = $derived(gameState.currentPlayerId === localPid);
+  let isMyTurn = $derived(isPlayerActing(gameState, localPid));
 
   const knightEmoji = ['⚔️', '🗡️', '🛡️'];
 
+  function onKeyActivate(event: KeyboardEvent, action: () => void) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    action();
+  }
+
   function onVertexClick(vid: VertexId) {
     if (!isMyTurn) return;
-    const { board } = gameState;
     const pid = localPid;
     function s(action: any) { store.setPendingAction(null); store.sendAction(action); }
 
@@ -32,6 +38,8 @@
       s({ type: 'PLACE_BUILDING', pid, vid, building: 'settlement' });
     } else if (gameState.phase === 'SETUP_R2_CITY') {
       s({ type: 'PLACE_BUILDING', pid, vid, building: 'city' });
+    } else if (gameState.phase === 'KNIGHT_DISPLACE_RESPONSE' && gameState.pendingDisplace?.displacedPlayerId === pid) {
+      s({ type: 'DISPLACED_MOVE', pid, from: gameState.pendingDisplace.displacedKnightVertex, to: vid });
     } else if (pendingAction?.type === 'build_settlement') {
       s({ type: 'BUILD_SETTLEMENT', pid, vid });
     } else if (pendingAction?.type === 'build_city') {
@@ -109,6 +117,7 @@
           {@const { x, y } = hexCenter(coord)}
           {@const pts = hexPoints(x, y, HEX_SIZE - 2)}
           {@const isValidHex = targets.validHexes.has(hid)}
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
           <polygon
             points={pts}
             fill={TERRAIN_COLORS[hex.terrain]}
@@ -116,7 +125,11 @@
             stroke-width={isValidHex ? 4 : 2}
             class={isValidHex ? 'valid-hex' : undefined}
             style={isValidHex ? 'cursor:pointer' : undefined}
+            role={isValidHex ? 'button' : undefined}
+            tabindex={isValidHex ? 0 : undefined}
+            aria-label={isValidHex ? 'Move robber here' : undefined}
             onclick={isValidHex ? () => onHexClick(hid) : undefined}
+            onkeydown={isValidHex ? (event) => onKeyActivate(event, () => onHexClick(hid)) : undefined}
           />
           <text x={x} y={y - HEX_SIZE * 0.35} text-anchor="middle" dominant-baseline="middle" font-size="20">
             {TERRAIN_ICONS[hex.terrain]}
@@ -177,7 +190,12 @@
         {#if pts}
           <line x1={pts[0].x} y1={pts[0].y} x2={pts[1].x} y2={pts[1].y}
             stroke="#ffcc00" stroke-width="12" opacity="0.4" stroke-linecap="round"
-            style="cursor:pointer" onclick={() => onEdgeClick(eid)} />
+            style="cursor:pointer"
+            role="button"
+            tabindex="0"
+            aria-label="Select road placement"
+            onclick={() => onEdgeClick(eid)}
+            onkeydown={(event) => onKeyActivate(event, () => onEdgeClick(eid))} />
         {/if}
       {/each}
       {#each Object.entries(gameState.board.edges) as [eid, road]}
@@ -198,7 +216,12 @@
         {@const p = getVertexPixel(vid)}
         {#if p}
           <circle cx={p.x} cy={p.y} r="14" fill="#ffcc00" opacity="0.5"
-            style="cursor:pointer" onclick={() => onVertexClick(vid)} />
+            style="cursor:pointer"
+            role="button"
+            tabindex="0"
+            aria-label="Select board position"
+            onclick={() => onVertexClick(vid)}
+            onkeydown={(event) => onKeyActivate(event, () => onVertexClick(vid))} />
         {/if}
       {/each}
       {#each Object.entries(gameState.board.vertices) as [vid, building]}
