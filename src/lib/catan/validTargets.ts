@@ -13,9 +13,11 @@ import {
   canRecruitKnight,
   canPromoteKnight,
   canActivateKnight,
+  canRelocateDisplacedKnight,
   canPlaceSettlement,
 } from './rules.js';
 import { buildGraph } from './board.js';
+import { isPlayerActing } from './turnActors.js';
 
 const graph = buildGraph();
 
@@ -44,7 +46,7 @@ export function computeValidTargets(
   const validEdges = new Set<EdgeId>();
   const validHexes = new Set<HexId>();
 
-  const isMyTurn = state.currentPlayerId === localPid;
+  const isMyTurn = isPlayerActing(state, localPid);
   if (!isMyTurn) return { validVertices, validEdges, validHexes };
 
   const { board } = state;
@@ -82,19 +84,28 @@ export function computeValidTargets(
         break;
       case 'promote_knight':
         Object.entries(board.knights).forEach(([vid, k]) => {
-          if (k?.playerId === pid && canPromoteKnight(board, me, vid as VertexId, pid))
+          if (k?.playerId === pid && canPromoteKnight(board, me, vid as VertexId))
             validVertices.add(vid as VertexId);
         });
         break;
       case 'activate_knight':
         Object.entries(board.knights).forEach(([vid, k]) => {
-          if (k?.playerId === pid && canActivateKnight(board, me, vid as VertexId, pid))
+          if (k?.playerId === pid && canActivateKnight(board, me, vid as VertexId))
             validVertices.add(vid as VertexId);
         });
         break;
     }
   } else if (state.phase === 'ROBBER_MOVE') {
     Object.values(state.board.hexes).forEach(h => { if (!h.hasRobber) validHexes.add(h.id); });
+  } else if (state.phase === 'KNIGHT_DISPLACE_RESPONSE') {
+    const from = state.pendingDisplace?.displacedKnightVertex;
+    if (from && state.pendingDisplace?.displacedPlayerId === pid) {
+      Object.keys(graph.vertices).forEach(vid => {
+        if (canRelocateDisplacedKnight(board, graph, pid, from, vid as VertexId)) {
+          validVertices.add(vid as VertexId);
+        }
+      });
+    }
   } else if (state.phase === 'SETUP_R1_ROAD' || state.phase === 'SETUP_R2_ROAD') {
     computeSetupRoadEdges(state, pid, validEdges);
   } else if (state.phase === 'SETUP_R1_SETTLEMENT' || state.phase === 'SETUP_R2_CITY') {
