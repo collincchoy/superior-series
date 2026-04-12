@@ -200,8 +200,6 @@ export interface Player {
   vpTokens: number;
   improvements: PlayerImprovements;
   supply: PlayerSupply;
-  /** Total knights played ever (for Largest Army tracking) */
-  knightsActivatedTotal: number;
 }
 
 // ─── Board State ──────────────────────────────────────────────────────────────
@@ -304,8 +302,6 @@ export interface GameState {
   };
   longestRoadOwner: PlayerId | null;
   longestRoadLength: number;
-  largestArmyOwner: PlayerId | null;
-  largestArmySize: number;
   /** Who permanently owns each metropolis (level 5) or temporarily (level 4) */
   metropolisOwner: Record<ImprovementTrack, PlayerId | null>;
   /** Last dice roll: [die1, die2, eventDie] */

@@ -77,7 +77,6 @@ function makePlayer(id: string, overrides: Partial<Player> = {}): Player {
       cityWalls: 3,
       knights: { 1: 2, 2: 2, 3: 2 },
     },
-    knightsActivatedTotal: 0,
     ...overrides,
   };
 }
