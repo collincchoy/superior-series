@@ -15,7 +15,7 @@
   let el = $state<HTMLDivElement | undefined>(undefined);
 
   const EVENT_COLORS: Record<EventDieFace, string> = {
-    ship: "#1f2630",
+    ship: "#7a8fa0",
     science: "#2e9e4f",
     trade: "#f1c232",
     politics: "#2f6fe4",
