@@ -10,7 +10,8 @@
 
   let { log }: { log: string[] } = $props();
 
-  let el: HTMLDivElement;
+  let isExpanded = $state(true);
+  let el = $state<HTMLDivElement | undefined>(undefined);
 
   const EVENT_COLORS: Record<EventDieFace, string> = {
     ship: "#1f2630",
@@ -133,86 +134,173 @@
   $effect(() => {
     // access log so the effect re-runs when it changes
     log.length;
+    isExpanded;
     tick().then(() => {
-      if (el) el.scrollTop = el.scrollHeight;
+      if (isExpanded && el) el.scrollTop = el.scrollHeight;
     });
   });
 </script>
 
-<div class="log-panel" bind:this={el}>
-  {#each log.slice(-8) as line}
-    {@const roll = parseRollLine(line)}
-    {#if roll}
-      <div class="log-line">
-        <span class="player-name">{roll.player}</span>
-        <span> rolled </span>
-        <span class="dice-pack">
-          <span class="die die-yellow" aria-label={`Yellow die ${roll.yellow}`}>
-            {#each pipLayout(roll.yellow) as pip}
-              <span
-                class="pip"
-                style={`left:${pip.x}%;top:${pip.y}%`}
-              ></span>
-            {/each}
-          </span>
-          <span class="die-value">{roll.yellow}</span>
-        </span>
-        <span> </span>
-        <span class="dice-pack">
-          <span class="die die-red" aria-label={`Red die ${roll.red}`}>
-            {#each pipLayout(roll.red) as pip}
-              <span
-                class="pip"
-                style={`left:${pip.x}%;top:${pip.y}%`}
-              ></span>
-            {/each}
-          </span>
-          <span class="die-value">{roll.red}</span>
-        </span>
-        <span> = </span>
-        <span class="sum">{roll.sum}</span>
-        <span> </span>
-        <span
-          class="event-die"
-          style={`background:${EVENT_COLORS[roll.event]};color:${eventTextColor(roll.event)}`}
-          aria-label={EVENT_LABELS[roll.event]}
-          title={EVENT_LABELS[roll.event]}
-        >
-          {eventIcon(roll.event)}
-        </span>
-        <span class="event-label" style={`color:${EVENT_COLORS[roll.event]}`}
-          >{EVENT_LABELS[roll.event]}</span
-        >
-      </div>
-    {:else}
-      <div class="log-line">
-        {#each parseLogSegments(line) as segment}
-          {#if segment.type === "text"}
-            <span>{segment.value}</span>
-          {:else}
-            <button
-              class="card-link"
-              type="button"
-              style={`color:${TRACK_BADGE_COLOR[getProgressCardByName(segment.name).track]}`}
-              onclick={() => openCardInfo(segment.name)}
+<div class="log-panel" class:collapsed={!isExpanded}>
+  <div class="log-header">
+    <span class="log-title">Event Log</span>
+    <button
+      class="log-toggle"
+      type="button"
+      aria-expanded={isExpanded}
+      aria-controls="log-content"
+      aria-label={isExpanded ? "Collapse event log" : "Expand event log"}
+      onclick={() => (isExpanded = !isExpanded)}
+    >
+      {isExpanded ? "Hide" : "Show"}
+    </button>
+  </div>
+
+  {#if isExpanded}
+    <div id="log-content" class="log-content" bind:this={el}>
+      {#each log.slice(-8) as line}
+        {@const roll = parseRollLine(line)}
+        {#if roll}
+          <div class="log-line">
+            <span class="player-name">{roll.player}</span>
+            <span> rolled </span>
+            <span class="dice-pack">
+              <span class="die die-yellow" aria-label={`Yellow die ${roll.yellow}`}>
+                {#each pipLayout(roll.yellow) as pip}
+                  <span
+                    class="pip"
+                    style={`left:${pip.x}%;top:${pip.y}%`}
+                  ></span>
+                {/each}
+              </span>
+              <span class="die-value">{roll.yellow}</span>
+            </span>
+            <span> </span>
+            <span class="dice-pack">
+              <span class="die die-red" aria-label={`Red die ${roll.red}`}>
+                {#each pipLayout(roll.red) as pip}
+                  <span
+                    class="pip"
+                    style={`left:${pip.x}%;top:${pip.y}%`}
+                  ></span>
+                {/each}
+              </span>
+              <span class="die-value">{roll.red}</span>
+            </span>
+            <span> = </span>
+            <span class="sum">{roll.sum}</span>
+            <span> </span>
+            <span
+              class="event-die"
+              style={`background:${EVENT_COLORS[roll.event]};color:${eventTextColor(roll.event)}`}
+              aria-label={EVENT_LABELS[roll.event]}
+              title={EVENT_LABELS[roll.event]}
             >
-              {PROGRESS_CARD_INFO[segment.name].title}
-            </button>
-          {/if}
-        {/each}
-      </div>
-    {/if}
-  {/each}
+              {eventIcon(roll.event)}
+            </span>
+            <span class="event-label" style={`color:${EVENT_COLORS[roll.event]}`}
+              >{EVENT_LABELS[roll.event]}</span
+            >
+          </div>
+        {:else}
+          <div class="log-line">
+            {#each parseLogSegments(line) as segment}
+              {#if segment.type === "text"}
+                <span>{segment.value}</span>
+              {:else}
+                <button
+                  class="card-link"
+                  type="button"
+                  style={`color:${TRACK_BADGE_COLOR[getProgressCardByName(segment.name).track]}`}
+                  onclick={() => openCardInfo(segment.name)}
+                >
+                  {PROGRESS_CARD_INFO[segment.name].title}
+                </button>
+              {/if}
+            {/each}
+          </div>
+        {/if}
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <style>
   .log-panel {
-    padding: 0.4rem 0.8rem;
     font-size: 0.7rem;
     color: #a0b0a0;
-    max-height: 6rem;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .log-panel.collapsed {
+    flex: 0 0 auto;
+  }
+
+  .log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.4rem 0.8rem;
+  }
+
+  .log-title {
+    font-weight: 700;
+    color: #d2decf;
+  }
+
+  .log-toggle {
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #cdd5df;
+    font: inherit;
+    font-size: 0.65rem;
+    line-height: 1;
+    padding: 0.18rem 0.45rem;
+    cursor: pointer;
+  }
+
+  .log-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .log-content {
+    padding: 0.4rem 0.8rem;
+    max-height: 8rem;
     overflow-y: auto;
     flex: 1;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(171, 193, 168, 0.45) rgba(255, 255, 255, 0.05);
+  }
+
+  .log-content::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .log-content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 999px;
+  }
+
+  .log-content::-webkit-scrollbar-thumb {
+    background: linear-gradient(
+      180deg,
+      rgba(195, 212, 188, 0.7),
+      rgba(146, 166, 142, 0.72)
+    );
+    border-radius: 999px;
+    border: 1px solid rgba(14, 20, 14, 0.45);
+  }
+
+  .log-content::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(
+      180deg,
+      rgba(212, 226, 205, 0.85),
+      rgba(162, 182, 156, 0.84)
+    );
   }
 
   .log-line {
