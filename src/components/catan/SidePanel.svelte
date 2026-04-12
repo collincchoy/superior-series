@@ -57,12 +57,16 @@
   }
 
   /* Decorative dividers between panel sections */
-  .side-panel :global(> :not(:first-child)) {
+  .side-panel :global(.hand-panel),
+  .side-panel :global(.action-panel),
+  .side-panel :global(.log-panel) {
     border-top: 1px solid #2c5f2e;
     position: relative;
   }
 
-  .side-panel :global(> :not(:first-child))::before {
+  .side-panel :global(.hand-panel)::before,
+  .side-panel :global(.action-panel)::before,
+  .side-panel :global(.log-panel)::before {
     content: "✦";
     position: absolute;
     top: -0.5em;
