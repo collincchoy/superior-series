@@ -10,18 +10,7 @@ import type {
   KnightStrength,
 } from "./types.js";
 import type { CatanGraph } from "./board.js";
-
-// ─── Build Costs ──────────────────────────────────────────────────────────────
-
-export const BUILD_COSTS = {
-  road: { brick: 1, lumber: 1 } as Partial<Resources>,
-  settlement: { brick: 1, lumber: 1, wool: 1, grain: 1 } as Partial<Resources>,
-  city: { ore: 3, grain: 2 } as Partial<Resources>,
-  cityWall: { brick: 2 } as Partial<Resources>, // 2 brick per rulebook
-  knightRecruit: { ore: 1, wool: 1 } as Partial<Resources>,
-  knightPromote: { ore: 1, wool: 1 } as Partial<Resources>,
-  knightActivate: { grain: 1 } as Partial<Resources>,
-};
+import { BUILD_COSTS } from "./constants.js";
 
 /** Map from ImprovementTrack to the commodity type it requires */
 const TRACK_COMMODITY: Record<ImprovementTrack, keyof Resources> = {

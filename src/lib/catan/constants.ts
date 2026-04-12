@@ -9,7 +9,6 @@ import type {
   KnightStrength,
   Resources,
 } from "./types.js";
-import { CATAN_HEX_COORDS, buildGraph, hexId } from "./board.js";
 
 // ─── Standard Beginner Board Layout ───────────────────────────────────────────
 // Follows the fixed beginner setup from the Catan base rules.
@@ -437,17 +436,30 @@ export function getProgressCardByName(name: ProgressCardName): ProgressCard {
   return PROGRESS_CARD_BY_NAME[name];
 }
 
+// ─── Build Costs (Canonical Source) ───────────────────────────────────────────
+
+export const BUILD_COSTS = {
+  road: { brick: 1, lumber: 1 } as Partial<Resources>,
+  settlement: { brick: 1, lumber: 1, wool: 1, grain: 1 } as Partial<Resources>,
+  city: { ore: 3, grain: 2 } as Partial<Resources>,
+  cityWall: { brick: 2 } as Partial<Resources>, // 2 brick per rulebook
+  knightRecruit: { ore: 1, wool: 1 } as Partial<Resources>,
+  knightPromote: { ore: 1, wool: 1 } as Partial<Resources>,
+  knightActivate: { grain: 1 } as Partial<Resources>,
+};
+
+/** UI hints derived from canonical BUILD_COSTS */
 export const BUILD_COST_HINTS: Array<{
   label: string;
   cost: Partial<Resources>;
 }> = [
-  { label: "Road", cost: { brick: 1, lumber: 1 } },
-  { label: "Settlement", cost: { brick: 1, lumber: 1, wool: 1, grain: 1 } },
-  { label: "City", cost: { grain: 2, ore: 3 } },
-  { label: "City Wall", cost: { brick: 2 } },
-  { label: "Recruit Knight", cost: { ore: 1, wool: 1 } },
-  { label: "Promote Knight", cost: { ore: 1, wool: 1 } },
-  { label: "Activate Knight", cost: { grain: 1 } },
+  { label: "Road", cost: BUILD_COSTS.road },
+  { label: "Settlement", cost: BUILD_COSTS.settlement },
+  { label: "City", cost: BUILD_COSTS.city },
+  { label: "City Wall", cost: BUILD_COSTS.cityWall },
+  { label: "Recruit Knight", cost: BUILD_COSTS.knightRecruit },
+  { label: "Promote Knight", cost: BUILD_COSTS.knightPromote },
+  { label: "Activate Knight", cost: BUILD_COSTS.knightActivate },
 ];
 
 export const KNIGHT_LEVEL_HINTS: Record<

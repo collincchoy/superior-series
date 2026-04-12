@@ -25,8 +25,8 @@ import {
   canRelocateDisplacedKnight,
   canImproveCity,
   hasResources,
-  BUILD_COSTS,
 } from "./rules.js";
+import { BUILD_COSTS } from "./constants.js";
 import { computeVP } from "./game.js";
 
 // ─── Main Entry Point ─────────────────────────────────────────────────────────

@@ -23,7 +23,7 @@
     playerHasCity,
   } from "../../lib/catan/rules.js";
   import { buildGraph } from "../../lib/catan/board.js";
-  import { TRACK_COMMODITY } from "../../lib/catan/constants.js";
+  import { TRACK_COMMODITY, BUILD_COSTS } from "../../lib/catan/constants.js";
   import CatanPopover from "./CatanPopover.svelte";
   let {
     gameState,
@@ -168,25 +168,25 @@
 
   function roadReason(): string | undefined {
     if (me.supply.roads <= 0) return "No road pieces left.";
-    if (hasEnough({ brick: 1, lumber: 1 })) return "No valid road placement on the board.";
+    if (hasEnough(BUILD_COSTS.road)) return "No valid road placement on the board.";
   }
   function settlementReason(): string | undefined {
     if (me.supply.settlements <= 0) return "No settlement pieces left.";
-    if (hasEnough({ brick: 1, lumber: 1, wool: 1, grain: 1 })) {
+    if (hasEnough(BUILD_COSTS.settlement)) {
       return "No valid settlement spot (distance/network rules).";
     }
   }
   function cityReason(): string | undefined {
     if (me.supply.cities <= 0) return "No city pieces left.";
-    if (hasEnough({ ore: 3, grain: 2 })) return "No settlement available to upgrade.";
+    if (hasEnough(BUILD_COSTS.city)) return "No settlement available to upgrade.";
   }
   function wallReason(): string | undefined {
     if (me.supply.cityWalls <= 0) return "No city wall pieces left.";
-    if (hasEnough({ brick: 2 })) return "No eligible city without a wall.";
+    if (hasEnough(BUILD_COSTS.cityWall)) return "No eligible city without a wall.";
   }
   function recruitKnightReason(): string | undefined {
     if (me.supply.knights[1] <= 0) return "No basic knight pieces left (promote one first).";
-    if (hasEnough({ ore: 1, wool: 1 })) {
+    if (hasEnough(BUILD_COSTS.knightRecruit)) {
       return "No valid knight placement (must connect to your route).";
     }
   }
@@ -306,7 +306,7 @@
                 : showUnavailablePopover(
                     e,
                     "🛣️ Build Road",
-                    { brick: 1, lumber: 1 },
+                    BUILD_COSTS.road,
                     roadReason(),
                   )}
           >🛣️ Road</button
@@ -328,7 +328,7 @@
                 : showUnavailablePopover(
                     e,
                     "🏠 Build Settlement",
-                    { brick: 1, lumber: 1, wool: 1, grain: 1 },
+                    BUILD_COSTS.settlement,
                     settlementReason(),
                   )}
           >🏠 Settlement</button
@@ -350,7 +350,7 @@
                 : showUnavailablePopover(
                     e,
                     "🏙️ Build City",
-                    { grain: 2, ore: 3 },
+                    BUILD_COSTS.city,
                     cityReason(),
                   )}
           >🏙️ City</button
@@ -372,7 +372,7 @@
                 : showUnavailablePopover(
                     e,
                     "🏰 Build City Wall",
-                    { brick: 2 },
+                    BUILD_COSTS.cityWall,
                     wallReason(),
                   )}
           >🏰 Wall</button
@@ -402,7 +402,7 @@
                 : showUnavailablePopover(
                     e,
                     "⚔️ Recruit Knight",
-                    { ore: 1, wool: 1 },
+                    BUILD_COSTS.knightRecruit,
                     recruitKnightReason(),
                   )}
           >⚔️ Knight</button
@@ -424,7 +424,7 @@
                 : showUnavailablePopover(
                     e,
                     "⬆️ Promote Knight",
-                    { ore: 1, wool: 1 },
+                    BUILD_COSTS.knightPromote,
                     promoteKnightReason(),
                   )}
           >⬆️ Promote</button
@@ -446,7 +446,7 @@
                 : showUnavailablePopover(
                     e,
                     "🛡️ Activate Knight",
-                    { grain: 1 },
+                    BUILD_COSTS.knightActivate,
                     activateKnightReason(),
                   )}
           >🛡️ Activate</button

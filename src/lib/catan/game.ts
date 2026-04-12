@@ -39,6 +39,7 @@ import {
   EVENT_DIE_FACES,
   rollEventDie,
   rollProductionDie,
+  BUILD_COSTS,
 } from "./constants.js";
 import { discardCount, isOpenRoad, isOnPlayerNetwork } from "./rules.js";
 
@@ -597,10 +598,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           ...s.players,
           [pid]: {
             ...player,
-            resources: subtractResources(player.resources, {
-              brick: 1,
-              lumber: 1,
-            }),
+            resources: subtractResources(player.resources, BUILD_COSTS.road),
             supply: { ...player.supply, roads: player.supply.roads - 1 },
           },
         },
@@ -623,12 +621,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           ...s.players,
           [pid]: {
             ...player,
-            resources: subtractResources(player.resources, {
-              brick: 1,
-              lumber: 1,
-              wool: 1,
-              grain: 1,
-            }),
+            resources: subtractResources(
+              player.resources,
+              BUILD_COSTS.settlement,
+            ),
             supply: {
               ...player.supply,
               settlements: player.supply.settlements - 1,
@@ -656,10 +652,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           ...s.players,
           [pid]: {
             ...player,
-            resources: subtractResources(player.resources, {
-              ore: 3,
-              grain: 2,
-            }),
+            resources: subtractResources(player.resources, BUILD_COSTS.city),
             supply: {
               ...player.supply,
               settlements: player.supply.settlements + 1,
@@ -699,7 +692,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           ...s.players,
           [pid]: {
             ...player,
-            resources: subtractResources(player.resources, { brick: 2 }),
+            resources: subtractResources(
+              player.resources,
+              BUILD_COSTS.cityWall,
+            ),
             supply: {
               ...player.supply,
               cityWalls: player.supply.cityWalls - 1,
@@ -766,7 +762,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           ...s.players,
           [pid]: {
             ...player,
-            resources: subtractResources(player.resources, { ore: 1, wool: 1 }),
+            resources: subtractResources(
+              player.resources,
+              BUILD_COSTS.knightRecruit,
+            ),
             supply: {
               ...player.supply,
               knights: {
@@ -799,10 +798,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           ...s.players,
           [pid]: {
             ...player,
-            resources: subtractResources(player.resources, {
-              ore: 1,
-              wool: 1,
-            }),
+            resources: subtractResources(
+              player.resources,
+              BUILD_COSTS.knightPromote,
+            ),
             supply: {
               ...player.supply,
               knights: {
@@ -835,7 +834,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           ...s.players,
           [pid]: {
             ...player,
-            resources: subtractResources(player.resources, { grain: 1 }),
+            resources: subtractResources(
+              player.resources,
+              BUILD_COSTS.knightActivate,
+            ),
           },
         },
         board: {
