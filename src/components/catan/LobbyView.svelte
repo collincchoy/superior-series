@@ -76,6 +76,7 @@
     font-size: 1rem;
     color: #c8b47a;
     margin-bottom: 0.5rem;
+    margin-top: 0;
   }
 
   .lobby-section {

@@ -65,13 +65,26 @@
       return;
     }
     const info = PROGRESS_CARD_INFO[cardName];
+    const CARD_HELPER: Partial<Record<ProgressCardName, string>> = {
+      RoadBuilding: "Click 'Use Card' then place up to 2 roads free on the board.",
+      Smithing: "Click 'Use Card' then click up to 2 of your knights to promote them free.",
+      Medicine: "Select one of your settlements to upgrade to a city for 1 grain + 2 ore.",
+      Engineering: "Select one of your unwalled cities to place a city wall for free.",
+      Merchant: "Select a land hex adjacent to your buildings to control the merchant (2:1 trade + 1 VP).",
+      Invention: "Select two number tokens to swap (not 2, 6, 8, or 12).",
+      Taxation: "Move the robber and steal 1 card from every player with a building there. Requires robber to be active.",
+      CommercialHarbor: "Offer each opponent 1 resource; they must give you 1 commodity in return.",
+      Espionage: "Look at an opponent's hand and steal one of their non-VP progress cards.",
+      GuildDues: "Take 2 resource/commodity cards from a player who has at least as many VP as you.",
+      Intrigue: "Displace an enemy knight connected to your road network — without using one of your own.",
+      Treason: "Remove any enemy knight from the board.",
+      Diplomacy: "Remove an 'open' road. If it was your own, place 1 free road immediately.",
+    };
     const helperText = isVP
       ? "Victory point cards are kept face-up and are not played manually."
       : !canPlay
         ? "Only Alchemy can be played in roll phase; other progress cards are action-phase only."
-        : info.requiresTarget
-          ? "This card needs a target/choice flow. Detailed use flow is being implemented next."
-          : "This card can be used when legal. Tap in your action phase.";
+        : (canPlay && CARD_HELPER[cardName]) ?? "Tap 'Use Card' to play this card.";
 
     store.openInfoModal({
       kind: "progress",

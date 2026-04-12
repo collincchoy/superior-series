@@ -444,3 +444,78 @@ function getBankRatio(
   }
   return best;
 }
+
+// ─── Progress Card Helpers ───────────────────────────────────────────────────
+
+/** Like canBuildRoad but skips resource checks (for RoadBuilding progress card). */
+export function canPlaceFreeRoad(
+  board: BoardState,
+  graph: CatanGraph,
+  player: Player,
+  eid: EdgeId,
+): boolean {
+  if (player.supply.roads <= 0) return false;
+  if (board.edges[eid] !== null) return false;
+  const [vA, vB] = graph.verticesOfEdge[eid] ?? [];
+  if (!vA || !vB) return false;
+  const isBreak = (vid: VertexId): boolean => {
+    const b = board.vertices[vid];
+    if (b && b.playerId !== player.id) return true;
+    const k = board.knights[vid];
+    if (k && k.playerId !== player.id) return true;
+    return false;
+  };
+  const canConnectFrom = (vid: VertexId): boolean => {
+    if (isBreak(vid)) return false;
+    return isConnectedToNetwork(board, graph, player.id, vid);
+  };
+  return canConnectFrom(vA) || canConnectFrom(vB);
+}
+
+/** Like canPromoteKnight but skips resource checks (for Smithing progress card). */
+export function canPromoteFreeKnight(
+  board: BoardState,
+  player: Player,
+  vid: VertexId,
+): boolean {
+  const knight = board.knights[vid];
+  if (!knight || knight.playerId !== player.id) return false;
+  if (knight.strength >= 3) return false;
+  if (knight.strength === 2 && player.improvements.politics < 3) return false;
+  const nextStrength = (knight.strength + 1) as KnightStrength;
+  if (player.supply.knights[nextStrength] <= 0) return false;
+  return true;
+}
+
+/** Returns true if the road at eid is open: at least one endpoint has no other piece belonging to the road's owner. */
+export function isOpenRoad(
+  board: BoardState,
+  graph: CatanGraph,
+  eid: EdgeId,
+): boolean {
+  const road = board.edges[eid];
+  if (!road) return false;
+  const owner = road.playerId;
+  const [vA, vB] = graph.verticesOfEdge[eid] ?? [];
+  if (!vA || !vB) return false;
+  const vertexIsConnected = (vid: VertexId): boolean => {
+    if (board.vertices[vid]?.playerId === owner) return true;
+    if (board.knights[vid]?.playerId === owner) return true;
+    for (const adjEid of graph.edgesOfVertex[vid] ?? []) {
+      if (adjEid === eid) continue;
+      if (board.edges[adjEid]?.playerId === owner) return true;
+    }
+    return false;
+  };
+  return !vertexIsConnected(vA) || !vertexIsConnected(vB);
+}
+
+/** Returns true if vid is adjacent to or part of playerId's road network. */
+export function isOnPlayerNetwork(
+  board: BoardState,
+  graph: CatanGraph,
+  playerId: PlayerId,
+  vid: VertexId,
+): boolean {
+  return isConnectedToNetwork(board, graph, playerId, vid);
+}

@@ -15,6 +15,7 @@ import type {
   ProgressCard,
   KnightStrength,
   EventDieFace,
+  ProgressCardName,
 } from "./types.js";
 import { emptyResources } from "./types.js";
 import {
@@ -37,7 +38,7 @@ import {
   rollEventDie,
   rollProductionDie,
 } from "./constants.js";
-import { discardCount } from "./rules.js";
+import { discardCount, isOpenRoad, isOnPlayerNetwork } from "./rules.js";
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -189,6 +190,9 @@ export function createInitialState(
     pendingDisplace: null,
     pendingProgressDraw: null,
     pendingDiscard: null,
+    pendingFreeRoads: null,
+    pendingKnightPromotions: null,
+    pendingCommercialHarbor: null,
     progressEffects: {
       craneDiscountPlayerId: null,
       merchantFleet: null,
@@ -613,7 +617,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       const currentLevel = player.improvements[track];
       const targetLevel = currentLevel + 1;
       const commodity = TRACK_COMMODITY[track];
-      const craneDiscount = s.progressEffects.craneDiscountPlayerId === pid ? 1 : 0;
+      const craneDiscount =
+        s.progressEffects.craneDiscountPlayerId === pid ? 1 : 0;
       const cost = Math.max(0, targetLevel - craneDiscount);
 
       const newImprovements = { ...player.improvements, [track]: targetLevel };
@@ -886,6 +891,144 @@ export function applyAction(state: GameState, action: GameAction): GameState {
 
     case "PLAY_PROGRESS": {
       return applyProgressCard(s, action.pid, action.card, action.params);
+    }
+
+    // ── Progress multi-step actions ───────────────────────────────────────────
+    case "PROGRESS_PLACE_FREE_ROAD": {
+      const { pid, eid } = action;
+      const pending = s.pendingFreeRoads;
+      if (!pending || pending.pid !== pid) return s;
+      if (s.players[pid]!.supply.roads <= 0) return s;
+      if (s.board.edges[eid] !== null) return s;
+      const player = s.players[pid]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            supply: { ...player.supply, roads: player.supply.roads - 1 },
+          },
+        },
+        board: {
+          ...s.board,
+          edges: { ...s.board.edges, [eid]: { playerId: pid } },
+        },
+      };
+      s = updateLongestRoad(s);
+      const roadsLeft = (pending.remaining - 1) as 0 | 1 | 2;
+      if (roadsLeft <= 0 || s.players[pid]!.supply.roads <= 0) {
+        s = { ...s, pendingFreeRoads: null };
+      } else {
+        s = { ...s, pendingFreeRoads: { pid, remaining: roadsLeft as 1 | 2 } };
+      }
+      return s;
+    }
+
+    case "PROGRESS_SKIP_FREE_ROADS": {
+      const { pid } = action;
+      if (s.pendingFreeRoads?.pid !== pid) return s;
+      return { ...s, pendingFreeRoads: null };
+    }
+
+    case "PROGRESS_PROMOTE_FREE_KNIGHT": {
+      const { pid, vid } = action;
+      const pending = s.pendingKnightPromotions;
+      if (!pending || pending.pid !== pid) return s;
+      const knight = s.board.knights[vid];
+      if (!knight || knight.playerId !== pid) return s;
+      if (knight.strength >= 3) return s;
+      if (knight.strength === 2 && s.players[pid]!.improvements.politics < 3)
+        return s;
+      const newStrength = (knight.strength + 1) as KnightStrength;
+      if (s.players[pid]!.supply.knights[newStrength] <= 0) return s;
+      const player = s.players[pid]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            supply: {
+              ...player.supply,
+              knights: {
+                ...player.supply.knights,
+                [knight.strength]: player.supply.knights[knight.strength] + 1,
+                [newStrength]: player.supply.knights[newStrength] - 1,
+              },
+            },
+          },
+        },
+        board: {
+          ...s.board,
+          knights: {
+            ...s.board.knights,
+            [vid]: { ...knight, strength: newStrength },
+          },
+        },
+      };
+      const promsLeft = (pending.remaining - 1) as 0 | 1 | 2;
+      if (promsLeft <= 0) {
+        s = { ...s, pendingKnightPromotions: null };
+      } else {
+        s = {
+          ...s,
+          pendingKnightPromotions: { pid, remaining: promsLeft as 1 | 2 },
+        };
+      }
+      return s;
+    }
+
+    case "PROGRESS_SKIP_FREE_PROMOTIONS": {
+      const { pid } = action;
+      if (s.pendingKnightPromotions?.pid !== pid) return s;
+      return { ...s, pendingKnightPromotions: null };
+    }
+
+    case "PROGRESS_RESPOND_COMMERCIAL_HARBOR": {
+      const { pid, commodity } = action;
+      const pending = s.pendingCommercialHarbor;
+      if (!pending || !pending.remainingPids.includes(pid)) return s;
+      const initiatorPid = pending.initiatorPid;
+      const resource = pending.offeredResource;
+      if (commodity) {
+        const responder = s.players[pid]!;
+        const initiator = s.players[initiatorPid]!;
+        if ((responder.resources[commodity] ?? 0) < 1) return s;
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [pid]: {
+              ...responder,
+              resources: addResources(
+                subtractResources(responder.resources, {
+                  [commodity]: 1,
+                } as any),
+                { [resource]: 1 } as any,
+              ),
+            },
+            [initiatorPid]: {
+              ...initiator,
+              resources: addResources(
+                subtractResources(initiator.resources, {
+                  [resource]: 1,
+                } as any),
+                { [commodity]: 1 } as any,
+              ),
+            },
+          },
+        };
+      }
+      const newRemaining = pending.remainingPids.filter((p) => p !== pid);
+      s = {
+        ...s,
+        pendingCommercialHarbor:
+          newRemaining.length > 0
+            ? { ...pending, remainingPids: newRemaining }
+            : null,
+      };
+      return s;
     }
 
     // ── Trading ────────────────────────────────────────────────────────────────
@@ -1398,21 +1541,8 @@ function applyProgressCard(
       });
     }
     case "RoadBuilding": {
-      // Handled via UI — give player 2 free roads
-      // Mark in state that player has pending free roads (simplified: just give resources)
-      s = {
-        ...s,
-        players: {
-          ...s.players,
-          [pid]: {
-            ...s.players[pid]!,
-            resources: addResources(s.players[pid]!.resources, {
-              brick: 2,
-              lumber: 2,
-            }),
-          },
-        },
-      };
+      s = { ...s, pendingFreeRoads: { pid, remaining: 2 } };
+      s = log(s, `${player.name} plays Road Building — place 2 free roads.`);
       break;
     }
     case "Irrigation": {
@@ -1459,49 +1589,68 @@ function applyProgressCard(
       break;
     }
     case "Medicine": {
-      // Upgrade settlement to city: cost 1 grain + 2 ore (instead of 2+3)
       const targetVid = (params as any)?.vid as VertexId;
-      if (targetVid && s.board.vertices[targetVid]?.type === "settlement") {
-        s = {
-          ...s,
-          players: {
-            ...s.players,
-            [pid]: {
-              ...s.players[pid]!,
-              resources: subtractResources(s.players[pid]!.resources, {
-                grain: 1,
-                ore: 2,
-              }),
-            },
-          },
-          board: {
-            ...s.board,
-            vertices: {
-              ...s.board.vertices,
-              [targetVid]: {
-                type: "city",
-                playerId: pid,
-                hasWall: false,
-                metropolis: null,
-              },
-            },
-          },
-        };
+      if (!targetVid) {
+        return state;
       }
+      const vertex = s.board.vertices[targetVid];
+      if (!vertex || vertex.type !== "settlement" || vertex.playerId !== pid)
+        break;
+      if ((player.resources.grain ?? 0) < 1 || (player.resources.ore ?? 0) < 2)
+        break;
+      if (player.supply.cities <= 0) break;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            resources: subtractResources(player.resources, {
+              grain: 1,
+              ore: 2,
+            }),
+            supply: {
+              ...player.supply,
+              settlements: player.supply.settlements + 1,
+              cities: player.supply.cities - 1,
+            },
+          },
+        },
+        board: {
+          ...s.board,
+          vertices: {
+            ...s.board.vertices,
+            [targetVid]: {
+              type: "city",
+              playerId: pid,
+              hasWall: false,
+              metropolis: null,
+            },
+          },
+        },
+      };
       break;
     }
     case "Smithing": {
-      // Promote up to 2 knights for free
-      break; // Handled by UI
+      s = { ...s, pendingKnightPromotions: { pid, remaining: 2 } };
+      s = log(
+        s,
+        `${player.name} plays Smithing — promote up to 2 knights free.`,
+      );
+      break;
     }
     case "Merchant": {
       const targetHex = (params as any)?.hid as HexId;
-      if (targetHex) {
-        s = {
-          ...s,
-          board: { ...s.board, merchantHex: targetHex, merchantOwner: pid },
-        };
+      if (!targetHex) {
+        return state;
       }
+      const mGraph = buildGraph();
+      const mVerts = mGraph.verticesOfHex[targetHex] ?? [];
+      if (!mVerts.some((v) => s.board.vertices[v]?.playerId === pid)) break;
+      s = {
+        ...s,
+        board: { ...s.board, merchantHex: targetHex, merchantOwner: pid },
+      };
       break;
     }
     case "Encouragement": {
@@ -1679,7 +1828,315 @@ function applyProgressCard(
       }
       break;
     }
-    // Other cards handled with simplified effects
+    case "Engineering": {
+      const engVid = (params as any)?.vid as VertexId;
+      if (!engVid) {
+        return state;
+      }
+      const engCity = s.board.vertices[engVid];
+      if (
+        !engCity ||
+        engCity.type !== "city" ||
+        engCity.playerId !== pid ||
+        engCity.hasWall
+      )
+        break;
+      if (player.supply.cityWalls <= 0) break;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            supply: {
+              ...player.supply,
+              cityWalls: player.supply.cityWalls - 1,
+            },
+          },
+        },
+        board: {
+          ...s.board,
+          vertices: {
+            ...s.board.vertices,
+            [engVid]: { ...engCity, hasWall: true },
+          },
+        },
+      };
+      break;
+    }
+    case "Invention": {
+      const hid1 = (params as any)?.hid1 as HexId;
+      const hid2 = (params as any)?.hid2 as HexId;
+      if (!hid1 || !hid2 || hid1 === hid2) {
+        return state;
+      }
+      const invHex1 = s.board.hexes[hid1];
+      const invHex2 = s.board.hexes[hid2];
+      if (!invHex1 || !invHex2) break;
+      const forbidden = [2, 6, 8, 12];
+      if (
+        forbidden.includes(invHex1.number ?? 0) ||
+        forbidden.includes(invHex2.number ?? 0)
+      )
+        break;
+      if (!invHex1.number || !invHex2.number) break;
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          hexes: {
+            ...s.board.hexes,
+            [hid1]: { ...invHex1, number: invHex2.number },
+            [hid2]: { ...invHex2, number: invHex1.number },
+          },
+        },
+      };
+      break;
+    }
+    case "Taxation": {
+      if (!s.barbarian.robberActive) {
+        return state;
+      }
+      const taxHid = (params as any)?.hid as HexId;
+      if (!taxHid) {
+        return state;
+      }
+      const taxGraph = buildGraph();
+      const taxHexes = Object.fromEntries(
+        Object.entries(s.board.hexes).map(([k, v]) => [
+          k,
+          { ...v, hasRobber: false },
+        ]),
+      ) as typeof s.board.hexes;
+      taxHexes[taxHid] = { ...taxHexes[taxHid]!, hasRobber: true };
+      s = { ...s, board: { ...s.board, hexes: taxHexes } };
+      const taxVerts = taxGraph.verticesOfHex[taxHid] ?? [];
+      const stolenFrom = new Set<PlayerId>();
+      for (const vid of taxVerts) {
+        const b = s.board.vertices[vid];
+        if (!b || b.playerId === pid || stolenFrom.has(b.playerId)) continue;
+        stolenFrom.add(b.playerId);
+        s = stealRandomCard(s, pid, b.playerId);
+      }
+      break;
+    }
+    case "Diplomacy": {
+      const dipEid = (params as any)?.eid as EdgeId;
+      if (!dipEid) {
+        return state;
+      }
+      const dipGraph = buildGraph();
+      const dipRoad = s.board.edges[dipEid];
+      if (!dipRoad) break;
+      if (!isOpenRoad(s.board, dipGraph, dipEid)) break;
+      const roadOwner = dipRoad.playerId;
+      const roadOwnerPlayer = s.players[roadOwner]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [roadOwner]: {
+            ...roadOwnerPlayer,
+            supply: {
+              ...roadOwnerPlayer.supply,
+              roads: roadOwnerPlayer.supply.roads + 1,
+            },
+          },
+        },
+        board: { ...s.board, edges: { ...s.board.edges, [dipEid]: null } },
+      };
+      s = updateLongestRoad(s);
+      if (roadOwner === pid) {
+        s = { ...s, pendingFreeRoads: { pid, remaining: 1 } };
+      }
+      break;
+    }
+    case "Intrigue": {
+      const intVid = (params as any)?.vid as VertexId;
+      if (!intVid) {
+        return state;
+      }
+      const intGraph = buildGraph();
+      const intKnight = s.board.knights[intVid];
+      if (!intKnight || intKnight.playerId === pid) break;
+      if (!isOnPlayerNetwork(s.board, intGraph, pid, intVid)) break;
+      s = {
+        ...s,
+        board: { ...s.board, knights: { ...s.board.knights, [intVid]: null } },
+        pendingDisplace: {
+          displacerPlayerId: pid,
+          displacedPlayerId: intKnight.playerId,
+          displacedKnightVertex: intVid,
+          displacedKnightStrength: intKnight.strength,
+        },
+        phase: "KNIGHT_DISPLACE_RESPONSE",
+      };
+      break;
+    }
+    case "Treason": {
+      const trsVid = (params as any)?.vid as VertexId;
+      const trsPlaceVid = (params as any)?.placeVid as VertexId | undefined;
+      const trsPlaceStrength = (params as any)?.placeStrength as
+        | KnightStrength
+        | undefined;
+      if (!trsVid) {
+        return state;
+      }
+      const trsKnight = s.board.knights[trsVid];
+      if (!trsKnight || trsKnight.playerId === pid) break;
+      const trsPid = trsKnight.playerId;
+      const trsTarget = s.players[trsPid]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [trsPid]: {
+            ...trsTarget,
+            supply: {
+              ...trsTarget.supply,
+              knights: {
+                ...trsTarget.supply.knights,
+                [trsKnight.strength]:
+                  trsTarget.supply.knights[trsKnight.strength] + 1,
+              },
+            },
+          },
+        },
+        board: { ...s.board, knights: { ...s.board.knights, [trsVid]: null } },
+      };
+      if (trsPlaceVid && trsPlaceStrength) {
+        const myPlayer = s.players[pid]!;
+        const strength = Math.min(
+          trsPlaceStrength,
+          trsKnight.strength,
+        ) as KnightStrength;
+        if (myPlayer.supply.knights[strength] > 0) {
+          const trsGraph = buildGraph();
+          if (
+            !s.board.vertices[trsPlaceVid] &&
+            !s.board.knights[trsPlaceVid] &&
+            isOnPlayerNetwork(s.board, trsGraph, pid, trsPlaceVid)
+          ) {
+            s = {
+              ...s,
+              players: {
+                ...s.players,
+                [pid]: {
+                  ...myPlayer,
+                  supply: {
+                    ...myPlayer.supply,
+                    knights: {
+                      ...myPlayer.supply.knights,
+                      [strength]: myPlayer.supply.knights[strength] - 1,
+                    },
+                  },
+                },
+              },
+              board: {
+                ...s.board,
+                knights: {
+                  ...s.board.knights,
+                  [trsPlaceVid]: {
+                    playerId: pid,
+                    strength,
+                    active: trsKnight.active,
+                  },
+                },
+              },
+            };
+          }
+        }
+      }
+      break;
+    }
+    case "CommercialHarbor": {
+      const chResource = (params as any)?.resource as ResourceType | undefined;
+      if (!chResource) {
+        return state;
+      }
+      const chPlayer = s.players[pid]!;
+      if ((chPlayer.resources[chResource] ?? 0) <= 0) {
+        return state;
+      }
+      const opponents = s.playerOrder.filter((p) => p !== pid);
+      if (opponents.length === 0) break;
+      s = {
+        ...s,
+        pendingCommercialHarbor: {
+          initiatorPid: pid,
+          offeredResource: chResource,
+          remainingPids: opponents,
+        },
+      };
+      break;
+    }
+    case "Espionage": {
+      const espTarget = (params as any)?.targetPid as PlayerId | undefined;
+      if (!espTarget || espTarget === pid) {
+        return state;
+      }
+      const espTargetPlayer = s.players[espTarget];
+      if (!espTargetPlayer) break;
+      const espCardIndex = (params as any)?.cardIndex as number | undefined;
+      if (espCardIndex === undefined) break;
+      const nonVP = espTargetPlayer.progressCards
+        .map((c, i) => ({ c, i }))
+        .filter(({ c }) => !c.isVP);
+      const entry = nonVP[espCardIndex];
+      if (!entry) break;
+      const newTargetCards = [...espTargetPlayer.progressCards];
+      newTargetCards.splice(entry.i, 1);
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [espTarget]: { ...espTargetPlayer, progressCards: newTargetCards },
+          [pid]: {
+            ...s.players[pid]!,
+            progressCards: [...s.players[pid]!.progressCards, entry.c],
+          },
+        },
+      };
+      break;
+    }
+    case "GuildDues": {
+      const gdTarget = (params as any)?.targetPid as PlayerId | undefined;
+      const gdCards = (params as any)?.takeCards as
+        | Partial<Resources>
+        | undefined;
+      if (!gdTarget || !gdCards || gdTarget === pid) {
+        return state;
+      }
+      const gdTargetPlayer = s.players[gdTarget];
+      if (!gdTargetPlayer) break;
+      if (computeVP(s, gdTarget) < computeVP(s, pid)) break;
+      const gdTotal = (Object.values(gdCards) as number[]).reduce(
+        (a, b) => a + (b ?? 0),
+        0,
+      );
+      if (gdTotal > 2) return state;
+      for (const [k, v] of Object.entries(gdCards) as [
+        keyof Resources,
+        number,
+      ][]) {
+        if ((gdTargetPlayer.resources[k] ?? 0) < (v ?? 0)) return state;
+      }
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [gdTarget]: {
+            ...gdTargetPlayer,
+            resources: subtractResources(gdTargetPlayer.resources, gdCards),
+          },
+          [pid]: {
+            ...s.players[pid]!,
+            resources: addResources(s.players[pid]!.resources, gdCards),
+          },
+        },
+      };
+      break;
+    }
     default:
       break;
   }

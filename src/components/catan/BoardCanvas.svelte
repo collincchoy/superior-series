@@ -87,6 +87,8 @@
       s({ type: "PROMOTE_KNIGHT", pid, vid });
     } else if (pendingAction?.type === "activate_knight") {
       s({ type: "ACTIVATE_KNIGHT", pid, vid });
+    } else if (gameState.pendingKnightPromotions?.pid === pid) {
+      s({ type: "PROGRESS_PROMOTE_FREE_KNIGHT", pid, vid });
     }
   }
 
@@ -105,6 +107,8 @@
       s({ type: "PLACE_ROAD", pid, eid });
     } else if (pendingAction?.type === "build_road") {
       s({ type: "BUILD_ROAD", pid, eid });
+    } else if (gameState.pendingFreeRoads?.pid === pid) {
+      s({ type: "PROGRESS_PLACE_FREE_ROAD", pid, eid });
     }
   }
 

@@ -15,6 +15,8 @@ import {
   canActivateKnight,
   canRelocateDisplacedKnight,
   canPlaceSettlement,
+  canPlaceFreeRoad,
+  canPromoteFreeKnight,
 } from "./rules.js";
 import { buildGraph } from "./board.js";
 import { isPlayerActing } from "./turnActors.js";
@@ -138,6 +140,25 @@ export function computeValidTargets(
   ) {
     Object.keys(graph.vertices).forEach((vid) => {
       if (canPlaceSettlement(state.board, graph, pid, vid as VertexId, true))
+        validVertices.add(vid as VertexId);
+    });
+  }
+
+  // Free roads (Road Building / Diplomacy own-road)
+  if (state.pendingFreeRoads?.pid === localPid) {
+    Object.keys(graph.edges).forEach((eid) => {
+      if (canPlaceFreeRoad(board, graph, me, eid as EdgeId))
+        validEdges.add(eid as EdgeId);
+    });
+  }
+
+  // Free knight promotions (Smithing)
+  if (state.pendingKnightPromotions?.pid === localPid) {
+    Object.entries(board.knights).forEach(([vid, k]) => {
+      if (
+        k?.playerId === pid &&
+        canPromoteFreeKnight(board, me, vid as VertexId)
+      )
         validVertices.add(vid as VertexId);
     });
   }

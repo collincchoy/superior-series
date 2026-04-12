@@ -263,6 +263,23 @@ export interface PendingDiscard {
   remaining: Record<PlayerId, number>;
 }
 
+export interface PendingFreeRoads {
+  pid: PlayerId;
+  remaining: 1 | 2;
+}
+
+export interface PendingKnightPromotions {
+  pid: PlayerId;
+  remaining: 1 | 2;
+}
+
+export interface PendingCommercialHarbor {
+  initiatorPid: PlayerId;
+  offeredResource: ResourceType;
+  /** Opponents who still need to respond */
+  remainingPids: PlayerId[];
+}
+
 export interface ProgressEffects {
   craneDiscountPlayerId: PlayerId | null;
   merchantFleet: {
@@ -300,6 +317,9 @@ export interface GameState {
   pendingDisplace: PendingDisplace | null;
   pendingProgressDraw: PendingProgressDraw | null;
   pendingDiscard: PendingDiscard | null;
+  pendingFreeRoads: PendingFreeRoads | null;
+  pendingKnightPromotions: PendingKnightPromotions | null;
+  pendingCommercialHarbor: PendingCommercialHarbor | null;
   progressEffects: ProgressEffects;
   winner: PlayerId | null;
   /** Game log entries */
@@ -364,6 +384,16 @@ export type GameAction =
       params?: unknown;
     }
   | { type: "DRAW_PROGRESS"; pid: PlayerId; track: ImprovementTrack }
+  // Progress card multi-step actions (PROGRESS_ prefix)
+  | { type: "PROGRESS_PLACE_FREE_ROAD"; pid: PlayerId; eid: EdgeId }
+  | { type: "PROGRESS_SKIP_FREE_ROADS"; pid: PlayerId }
+  | { type: "PROGRESS_PROMOTE_FREE_KNIGHT"; pid: PlayerId; vid: VertexId }
+  | { type: "PROGRESS_SKIP_FREE_PROMOTIONS"; pid: PlayerId }
+  | {
+      type: "PROGRESS_RESPOND_COMMERCIAL_HARBOR";
+      pid: PlayerId;
+      commodity?: CommodityType;
+    }
   // Trading
   | {
       type: "TRADE_BANK";

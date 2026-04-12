@@ -6,6 +6,16 @@ export function phaseLabel(state: GameState, localPid: PlayerId): string {
   const name = state.players[state.currentPlayerId]?.name ?? "";
   const prefix = isMe ? "Your turn" : `${name}'s turn`;
 
+  // Pending progress card sub-phases
+  if (state.pendingFreeRoads?.pid === localPid) {
+    const rem = state.pendingFreeRoads.remaining;
+    return `Your turn — Place ${rem} free road${rem > 1 ? "s" : ""} (click a valid road spot, or skip)`;
+  }
+  if (state.pendingKnightPromotions?.pid === localPid) {
+    const rem = state.pendingKnightPromotions.remaining;
+    return `Your turn — Promote up to ${rem} free knight${rem > 1 ? "s" : ""} (click a knight, or skip)`;
+  }
+
   const labels: Partial<Record<TurnPhase, string>> = {
     SETUP_R1_SETTLEMENT: `${prefix} — Place settlement`,
     SETUP_R1_ROAD: `${prefix} — Place road`,
