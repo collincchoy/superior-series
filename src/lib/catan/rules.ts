@@ -10,14 +10,7 @@ import type {
   KnightStrength,
 } from "./types.js";
 import type { CatanGraph } from "./board.js";
-import { BUILD_COSTS } from "./constants.js";
-
-/** Map from ImprovementTrack to the commodity type it requires */
-const TRACK_COMMODITY: Record<ImprovementTrack, keyof Resources> = {
-  science: "paper",
-  trade: "cloth",
-  politics: "coin",
-};
+import { BUILD_COSTS, TRACK_COMMODITY } from "./constants.js";
 
 // ─── Resource Helpers ─────────────────────────────────────────────────────────
 
@@ -363,6 +356,11 @@ export function canImproveCity(
  * Standard: if hand > 7 (or modified by city walls), discard half rounded down.
  * City walls each increase limit by 2.
  */
+/** Returns true if the player can draw another progress card (hand < 4 non-VP cards). */
+export function canDrawProgress(player: Player): boolean {
+  return player.progressCards.filter((c) => !c.isVP).length < 4;
+}
+
 export function discardCount(player: Player, board: BoardState): number {
   const wallCount = countPlayerCityWalls(board, player.id);
   const limit = 7 + wallCount * 2;

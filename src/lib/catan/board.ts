@@ -410,33 +410,3 @@ export function computeLongestRoad(
 
 // ─── Harbor Utility ───────────────────────────────────────────────────────────
 
-/**
- * Get the best trade ratio for a player for a given resource/commodity.
- * Returns 2, 3, or 4.
- */
-export function tradeRatio(
-  board: BoardState,
-  graph: CatanGraph,
-  playerId: PlayerId,
-  cardType: string,
-): number {
-  // Collect all vertices where this player has a settlement or city
-  const playerVertices = new Set<VertexId>(
-    Object.entries(board.vertices)
-      .filter(([, b]) => b?.playerId === playerId)
-      .map(([vid]) => vid as VertexId),
-  );
-
-  let bestRatio = 4;
-  for (const harbor of board.harbors) {
-    const [v1, v2] = harbor.vertices;
-    if (playerVertices.has(v1) || playerVertices.has(v2)) {
-      if (harbor.type === "generic") {
-        bestRatio = Math.min(bestRatio, 3);
-      } else if (harbor.type === cardType) {
-        bestRatio = Math.min(bestRatio, 2);
-      }
-    }
-  }
-  return bestRatio;
-}
