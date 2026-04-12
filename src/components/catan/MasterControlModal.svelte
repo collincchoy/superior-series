@@ -178,6 +178,13 @@
             Undo Last Master Action
           </button>
           <button
+            class="btn"
+            onclick={() =>
+              sendAdmin({ type: "END_TURN", pid: gameState.currentPlayerId })}
+          >
+            End Current Turn
+          </button>
+          <button
             class="btn danger"
             onclick={() =>
               sendAdmin({ type: "ADMIN_END_GAME", winner: null, reason: currentReason() })}
