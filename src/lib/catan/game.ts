@@ -184,6 +184,25 @@ function progressCardTag(cardName: string): string {
   return `[card:${cardName}]`;
 }
 
+function describeTradeResources(delta: Partial<Resources>): string {
+  return (Object.entries(delta) as Array<[keyof Resources, number]>)
+    .filter(([, v]) => (v ?? 0) > 0)
+    .map(([k, v]) => `${v} ${k}`)
+    .join(", ");
+}
+
+function tradeDetailsText(
+  give: Partial<Resources>,
+  get: Partial<Resources>,
+): string {
+  const giveText = describeTradeResources(give);
+  const getText = describeTradeResources(get);
+  if (!giveText && !getText) return "";
+  if (!giveText) return ` Got ${getText}.`;
+  if (!getText) return ` Gave ${giveText}.`;
+  return ` Gave ${giveText}; got ${getText}.`;
+}
+
 // ─── createInitialState ───────────────────────────────────────────────────────
 
 export function createInitialState(
@@ -1167,7 +1186,11 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           },
         },
       };
-      s = log(s, `${s.players[pid]?.name} traded with the bank.`);
+      const tradeDetails = tradeDetailsText(give, get);
+      s = log(
+        s,
+        `${s.players[pid]?.name} traded with the bank.${tradeDetails}`,
+      );
       return s;
     }
 

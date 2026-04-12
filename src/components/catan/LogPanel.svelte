@@ -7,7 +7,10 @@
     TRACK_BADGE_COLOR,
     getProgressCardByName,
   } from "../../lib/catan/constants.js";
+  import type { CardDeltaKind } from "../../lib/catan/uiEffects.js";
   import type { EventDieFace, ProgressCardName } from "../../lib/catan/types.js";
+  import DeltaChip from "./DeltaChip.svelte";
+  import { parseTradeLogSegments } from "../../lib/catan/logParsing.js";
 
   let { log }: { log: string[] } = $props();
 
@@ -96,19 +99,42 @@
 
   type LogSegment =
     | { type: "text"; value: string }
-    | { type: "card"; name: ProgressCardName };
+    | { type: "card"; name: ProgressCardName }
+    | { type: "delta"; kind: CardDeltaKind; amount: number };
 
   function parseLogSegments(line: string): LogSegment[] {
+    const tradeSegments = parseTradeLogSegments(line);
+    if (tradeSegments) return tradeSegments;
+
     const segments: LogSegment[] = [];
+    const deltas: LogSegment[] = [];
+
+    // Always strip delta tags out of raw text first so marker text never leaks.
+    const lineWithoutDeltas = line.replace(
+      /\[delta:([a-z]+):([+-]?\d+)\]/g,
+      (_, kind: string, amount: string) => {
+        deltas.push({
+          type: "delta",
+          kind: kind as CardDeltaKind,
+          amount: Number(amount),
+        });
+        return "";
+      },
+    );
+
     const re = /\[card:([A-Za-z]+)\]/g;
     let cursor = 0;
     let match: RegExpExecArray | null = null;
 
-    while ((match = re.exec(line))) {
+    while ((match = re.exec(lineWithoutDeltas))) {
       const start = match.index;
       if (start > cursor) {
-        segments.push({ type: "text", value: line.slice(cursor, start) });
+        segments.push({
+          type: "text",
+          value: lineWithoutDeltas.slice(cursor, start),
+        });
       }
+
       const name = match[1] as ProgressCardName;
       if (PROGRESS_CARD_INFO[name]) {
         segments.push({ type: "card", name });
@@ -118,9 +144,12 @@
       cursor = start + match[0].length;
     }
 
-    if (cursor < line.length) {
-      segments.push({ type: "text", value: line.slice(cursor) });
+    if (cursor < lineWithoutDeltas.length) {
+      segments.push({ type: "text", value: lineWithoutDeltas.slice(cursor) });
     }
+
+    // Append extracted deltas after base text/card parsing.
+    segments.push(...deltas);
 
     return segments.length > 0 ? segments : [{ type: "text", value: line }];
   }
@@ -161,6 +190,7 @@
     <div id="log-content" class="log-content" bind:this={el}>
       {#each log.slice(-8) as line}
         {@const roll = parseRollLine(line)}
+        {@const tradeSegments = parseTradeLogSegments(line)}
         {#if roll}
           <div class="log-line">
             <span class="player-name">{roll.player}</span>
@@ -203,20 +233,34 @@
               >{EVENT_LABELS[roll.event]}</span
             >
           </div>
+        {:else if tradeSegments}
+          <div class="log-line">
+            {#each tradeSegments as segment}
+              {#if segment.type === "text"}
+                <span>{segment.value}</span>
+              {:else}
+                <DeltaChip kind={segment.kind} amount={segment.amount} compact={true} />
+              {/if}
+            {/each}
+          </div>
         {:else}
           <div class="log-line">
             {#each parseLogSegments(line) as segment}
               {#if segment.type === "text"}
                 <span>{segment.value}</span>
               {:else}
-                <button
-                  class="card-link"
-                  type="button"
-                  style={`color:${TRACK_BADGE_COLOR[getProgressCardByName(segment.name).track]}`}
-                  onclick={() => openCardInfo(segment.name)}
-                >
-                  {PROGRESS_CARD_INFO[segment.name].title}
-                </button>
+                {#if segment.type === "card"}
+                  <button
+                    class="card-link"
+                    type="button"
+                    style={`color:${TRACK_BADGE_COLOR[getProgressCardByName(segment.name).track]}`}
+                    onclick={() => openCardInfo(segment.name)}
+                  >
+                    {PROGRESS_CARD_INFO[segment.name].title}
+                  </button>
+                {:else}
+                  <DeltaChip kind={segment.kind} amount={segment.amount} compact={true} />
+                {/if}
               {/if}
             {/each}
           </div>
