@@ -125,7 +125,7 @@
 
 <style>
   .hand-panel {
-    padding: 0.5rem 0.8rem;
+    padding: 0.38rem 0.65rem;
     border-bottom: 1px solid #2c5f2e;
     font-size: 0.8rem;
   }
@@ -134,14 +134,14 @@
     font-size: 0.7rem;
     text-transform: uppercase;
     color: #c8b47a;
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.2rem;
   }
 
   .hand-cards {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.3rem;
-    margin-bottom: 0.3rem;
+    gap: 0.24rem;
+    margin-bottom: 0.22rem;
   }
 
   .card {
@@ -157,8 +157,8 @@
   .progress-cards {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.3rem;
-    margin-bottom: 0.3rem;
+    gap: 0.24rem;
+    margin-bottom: 0.2rem;
   }
 
   .prog-card {

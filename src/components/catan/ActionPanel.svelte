@@ -488,8 +488,18 @@
 </div>
 
 {#if popover}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="unavailable-backdrop" onclick={() => (popover = null)}></div>
+  <div
+    class="unavailable-backdrop"
+    role="button"
+    tabindex="0"
+    aria-label="Close unavailable action details"
+    onclick={() => (popover = null)}
+    onkeydown={(event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      popover = null;
+    }}
+  ></div>
   <div class="unavailable-popover" style={`left:${popover.x}px;top:${popover.y}px`}>
     <div class="unavailable-title">{popover.title}</div>
     {#if Object.keys(popover.cost).length > 0}
@@ -516,15 +526,15 @@
 
 <style>
   .action-panel {
-    padding: 0.5rem;
+    padding: 0.4rem;
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 0.3rem;
   }
   .action-group {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.2rem;
   }
   .group-label {
     font-size: 0.6rem;
@@ -555,7 +565,7 @@
   .group-btns {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: 0.3rem;
   }
   .end-turn {
     flex: 1;
@@ -565,8 +575,8 @@
     color: #f0e8d0;
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 5px;
-    padding: 0.4rem 0.7rem;
-    font-size: 0.8rem;
+    padding: 0.34rem 0.62rem;
+    font-size: 0.78rem;
     cursor: pointer;
     transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
   }
@@ -619,8 +629,8 @@
     50% { box-shadow: 0 0 0 6px rgba(107, 191, 109, 0); }
   }
   .action-instruction {
-    padding: 0.5rem;
-    font-size: 0.8rem;
+    padding: 0.4rem;
+    font-size: 0.76rem;
     color: #f5c842;
     line-height: 1.4;
   }

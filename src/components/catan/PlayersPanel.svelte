@@ -137,9 +137,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 0.4rem 0.5rem;
+    padding: 0.3rem 0.45rem;
     opacity: 0.55;
-    gap: 0.1rem;
+    gap: 0.06rem;
   }
   .player-card.active {
     opacity: 1;

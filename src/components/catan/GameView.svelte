@@ -102,14 +102,14 @@
   .room-code-banner {
     background: #2c5f2e;
     text-align: center;
-    padding: 0.3rem 1rem;
-    font-size: 0.8rem;
+    padding: 0.24rem 0.75rem;
+    font-size: 0.76rem;
     color: #c8f5c8;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.8rem;
+    gap: 0.6rem;
     flex-wrap: nowrap;
     min-width: 0;
   }
@@ -142,8 +142,8 @@
     color: #f0e8d0;
     border: 1px solid #8ab4ff;
     border-radius: 999px;
-    padding: 0.18rem 0.6rem;
-    font-size: 0.72rem;
+    padding: 0.14rem 0.5rem;
+    font-size: 0.68rem;
     font-weight: 700;
     cursor: pointer;
     white-space: nowrap;

@@ -15,8 +15,8 @@
 <style>
   .phase-banner {
     background: #2c3e2c;
-    padding: 0.5rem 0.8rem;
-    font-size: 0.85rem;
+    padding: 0.38rem 0.65rem;
+    font-size: 0.8rem;
     color: #c8b47a;
     border-bottom: 1px solid #2c5f2e;
     transition: background 300ms ease, color 300ms ease;

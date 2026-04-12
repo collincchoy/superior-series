@@ -45,7 +45,7 @@
 <style>
   .side-panel {
     flex-shrink: 0;
-    max-height: 45vh;
+    max-height: 42vh;
     overflow-y: scroll;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
@@ -69,10 +69,10 @@
   .side-panel :global(.log-panel)::before {
     content: "✦";
     position: absolute;
-    top: -0.5em;
+    top: -0.46em;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 0.55rem;
+    font-size: 0.5rem;
     color: #4a6e4a;
     background: #1a2a1a;
     padding: 0 0.4rem;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ChevronIcon from "./ChevronIcon.svelte";
   import { tick } from "svelte";
   import { store } from "../../lib/catan/store.svelte.js";
   import {
@@ -142,19 +143,19 @@
 </script>
 
 <div class="log-panel" class:collapsed={!isExpanded}>
-  <div class="log-header">
+  <button
+    class="log-header"
+    type="button"
+    aria-expanded={isExpanded}
+    aria-controls="log-content"
+    aria-label={isExpanded ? "Collapse event log" : "Expand event log"}
+    onclick={() => (isExpanded = !isExpanded)}
+  >
     <span class="log-title">Event Log</span>
-    <button
-      class="log-toggle"
-      type="button"
-      aria-expanded={isExpanded}
-      aria-controls="log-content"
-      aria-label={isExpanded ? "Collapse event log" : "Expand event log"}
-      onclick={() => (isExpanded = !isExpanded)}
-    >
-      {isExpanded ? "Hide" : "Show"}
-    </button>
-  </div>
+    <span class="log-chevron" aria-hidden="true">
+      <ChevronIcon expanded={isExpanded} />
+    </span>
+  </button>
 
   {#if isExpanded}
     <div id="log-content" class="log-content" bind:this={el}>
@@ -240,10 +241,25 @@
   }
 
   .log-header {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    width: 100%;
+    font: inherit;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.4rem 0.8rem;
+    padding: 0.32rem 0.65rem;
+    cursor: pointer;
+  }
+
+  .log-header:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .log-header:focus-visible {
+    outline: 2px solid rgba(199, 218, 188, 0.8);
+    outline-offset: -1px;
   }
 
   .log-title {
@@ -251,25 +267,23 @@
     color: #d2decf;
   }
 
-  .log-toggle {
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.06);
-    color: #cdd5df;
-    font: inherit;
-    font-size: 0.65rem;
-    line-height: 1;
-    padding: 0.18rem 0.45rem;
-    cursor: pointer;
+  .log-chevron {
+    width: 0.8rem;
+    height: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #d9e3ef;
+    opacity: 0.86;
   }
 
-  .log-toggle:hover {
-    background: rgba(255, 255, 255, 0.1);
+  .log-header:hover .log-chevron {
+    opacity: 1;
   }
 
   .log-content {
-    padding: 0.4rem 0.8rem;
-    max-height: 8rem;
+    padding: 0.32rem 0.65rem;
+    max-height: 7rem;
     overflow-y: auto;
     flex: 1;
     scrollbar-width: thin;

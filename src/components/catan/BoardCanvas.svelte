@@ -46,6 +46,36 @@
   let isMyTurn = $derived(isPlayerActing(gameState, localPid));
 
   const KNIGHT_EMOJI = "⚔️";
+  const NUMBER_DOT_RADIUS = 3.8;
+  const NUMBER_DOT_SPACING = 7;
+  const NUMBER_DOT_Y_OFFSET = 19;
+
+  const HARBOR_MARKER_RADIUS = 23;
+  const HARBOR_MARKER_FONT_SIZE = 15;
+
+  const ROAD_STROKE = 10;
+
+  const TARGET_EDGE_CAPTURE_STROKE = 40;
+  const TARGET_EDGE_VISIBLE_STROKE = 14;
+  const TARGET_VERTEX_RADIUS = 20;
+
+  let selectedHarborKey = $state<string | null>(null);
+
+  function harborRateLabel(type: (typeof gameState.board.harbors)[0]["type"]) {
+    return type === "generic" ? "3:1" : "2:1";
+  }
+
+  function harborDescription(type: (typeof gameState.board.harbors)[0]["type"]) {
+    return type === "generic" ? "any resource" : type;
+  }
+
+  function toggleHarborDetail(key: string) {
+    selectedHarborKey = selectedHarborKey === key ? null : key;
+  }
+
+  function onWindowKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") selectedHarborKey = null;
+  }
 
   function onKeyActivate(event: KeyboardEvent, action: () => void) {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -147,9 +177,18 @@
         const dist2 = (midX + perpX2) ** 2 + (midY + perpY2) ** 2;
         const [perpX, perpY] =
           dist1 > dist2 ? [perpX1, perpY1] : [perpX2, perpY2];
-        return { harbor, p1, p2, outerX: midX + perpX, outerY: midY + perpY };
+        const key = `${v1}-${v2}`;
+        return {
+          key,
+          harbor,
+          p1,
+          p2,
+          outerX: midX + perpX,
+          outerY: midY + perpY,
+        };
       })
       .filter(Boolean) as Array<{
+      key: string;
       harbor: (typeof gameState.board.harbors)[0];
       p1: { x: number; y: number };
       p2: { x: number; y: number };
@@ -158,6 +197,8 @@
     }>,
   );
 </script>
+
+<svelte:window onclick={() => (selectedHarborKey = null)} onkeydown={onWindowKeydown} />
 
 <div class="board-area">
   <svg
@@ -242,9 +283,9 @@
             {#each Array.from({ length: NUMBER_DOTS[hex.number] ?? 0 }, (_, d) => d) as d}
               {@const dots = NUMBER_DOTS[hex.number] ?? 0}
               <circle
-                cx={x + (d - (dots - 1) / 2) * 6}
-                cy={y + 18}
-                r="2.5"
+                cx={x + (d - (dots - 1) / 2) * NUMBER_DOT_SPACING}
+                cy={y + NUMBER_DOT_Y_OFFSET}
+                r={NUMBER_DOT_RADIUS}
                 fill={isRed ? "#cc2200" : "#2c1a0a"}
               />
             {/each}
@@ -256,44 +297,87 @@
     <!-- ── Harbors ── -->
     <g id="harbors">
       {#each harborPositions as hp}
-        <line
-          x1={hp.p1.x}
-          y1={hp.p1.y}
-          x2={hp.outerX}
-          y2={hp.outerY}
-          stroke="#5dade2"
-          stroke-width="1.5"
-          stroke-dasharray="4 3"
-          opacity="0.7"
-        />
-        <line
-          x1={hp.p2.x}
-          y1={hp.p2.y}
-          x2={hp.outerX}
-          y2={hp.outerY}
-          stroke="#5dade2"
-          stroke-width="1.5"
-          stroke-dasharray="4 3"
-          opacity="0.7"
-        />
-        <circle
-          cx={hp.outerX}
-          cy={hp.outerY}
-          r="17"
-          fill="#1a5276"
-          stroke="#5dade2"
-          stroke-width="1.5"
-        />
-        <text
-          x={hp.outerX}
-          y={hp.outerY + 1}
-          text-anchor="middle"
-          dominant-baseline="middle"
-          font-size="11"
-          fill="white"
+        {@const showDetail = selectedHarborKey === hp.key}
+        <g
+          role="button"
+          tabindex="0"
+          aria-label={`Harbor ${harborDescription(hp.harbor.type)}, ${harborRateLabel(hp.harbor.type)}`}
+          style="cursor:pointer"
+          onclick={(event) => {
+            event.stopPropagation();
+            toggleHarborDetail(hp.key);
+          }}
+          onkeydown={(event) =>
+            onKeyActivate(event, () => toggleHarborDetail(hp.key))}
         >
-          {HARBOR_ICONS[hp.harbor.type] ?? "?"}
-        </text>
+          <line
+            x1={hp.p1.x}
+            y1={hp.p1.y}
+            x2={hp.outerX}
+            y2={hp.outerY}
+            stroke="#5dade2"
+            stroke-width="1.8"
+            stroke-dasharray="4 3"
+            opacity="0.8"
+          />
+          <line
+            x1={hp.p2.x}
+            y1={hp.p2.y}
+            x2={hp.outerX}
+            y2={hp.outerY}
+            stroke="#5dade2"
+            stroke-width="1.8"
+            stroke-dasharray="4 3"
+            opacity="0.8"
+          />
+          <circle
+            cx={hp.outerX}
+            cy={hp.outerY}
+            r={HARBOR_MARKER_RADIUS}
+            fill="#1a5276"
+            stroke={showDetail ? "#f8d972" : "#8bd2ff"}
+            stroke-width={showDetail ? 3 : 2}
+          />
+          <text
+            x={hp.outerX}
+            y={hp.outerY + 1}
+            text-anchor="middle"
+            dominant-baseline="middle"
+            font-size={HARBOR_MARKER_FONT_SIZE}
+            fill="#ffffff"
+            stroke="#0f2e43"
+            stroke-width="1"
+            paint-order="stroke"
+          >
+            {HARBOR_ICONS[hp.harbor.type] ?? "?"}
+          </text>
+        </g>
+        {#if showDetail}
+          <g class="harbor-detail" style="pointer-events:none">
+            <rect
+              x={hp.outerX - 60}
+              y={hp.outerY - 52}
+              width="120"
+              height="32"
+              rx="8"
+              fill="#102f46"
+              stroke="#8bd2ff"
+              stroke-width="2"
+              opacity="0.95"
+            />
+            <text
+              x={hp.outerX}
+              y={hp.outerY - 36}
+              text-anchor="middle"
+              dominant-baseline="middle"
+              font-size="14"
+              fill="#ffffff"
+              font-weight="700"
+            >
+              {harborRateLabel(hp.harbor.type)} {harborDescription(hp.harbor.type)}
+            </text>
+          </g>
+        {/if}
       {/each}
     </g>
 
@@ -310,7 +394,7 @@
               x2={pts[1].x}
               y2={pts[1].y}
               stroke={color}
-              stroke-width="8"
+              stroke-width={ROAD_STROKE}
               stroke-linecap="round"
             />
           {/if}
@@ -329,53 +413,53 @@
             {#if building.type === "settlement"}
               <!-- Settlement: square base + triangle roof -->
               <rect
-                x={p.x - 8}
-                y={p.y - 4}
-                width="16"
-                height="12"
+                x={p.x - 10}
+                y={p.y - 5}
+                width="20"
+                height="14"
                 fill={color}
                 stroke="#fff"
-                stroke-width="1.5"
+                stroke-width="2"
               />
               <polygon
-                points={`${p.x},${p.y - 16} ${p.x + 10},${p.y - 4} ${p.x - 10},${p.y - 4}`}
+                points={`${p.x},${p.y - 20} ${p.x + 12},${p.y - 5} ${p.x - 12},${p.y - 5}`}
                 fill={color}
                 stroke="#fff"
-                stroke-width="1.5"
+                stroke-width="2"
               />
             {:else if building.type === "city"}
               <!-- City: wide base + tower -->
               <rect
-                x={p.x - 12}
-                y={p.y - 8}
-                width="24"
-                height="16"
+                x={p.x - 14}
+                y={p.y - 9}
+                width="28"
+                height="18"
                 fill={color}
                 stroke="#fff"
                 stroke-width="2"
               />
               <rect
-                x={p.x - 6}
-                y={p.y - 18}
-                width="12"
-                height="10"
+                x={p.x - 7}
+                y={p.y - 21}
+                width="14"
+                height="12"
                 fill={color}
                 stroke="#fff"
                 stroke-width="2"
               />
               {#if building.hasWall}
                 <rect
-                  x={p.x - 16}
-                  y={p.y + 8}
-                  width="32"
-                  height="5"
+                  x={p.x - 18}
+                  y={p.y + 9}
+                  width="36"
+                  height="6"
                   fill="#8b6914"
                   stroke="#fff"
                   stroke-width="1"
                 />
               {/if}
               {#if building.metropolis !== null}
-                <text x={p.x} y={p.y - 20} text-anchor="middle" font-size="12"
+                <text x={p.x} y={p.y - 24} text-anchor="middle" font-size="14"
                   >👑</text
                 >
               {/if}
@@ -392,19 +476,46 @@
           {@const p = getVertexPixel(vid as VertexId)}
           {#if p}
             {@const color = gameState.players[knight.playerId]?.color ?? "#999"}
-            {@const r = knight.strength === 1 ? 12 : knight.strength === 2 ? 16 : 20}
+            {@const r = knight.strength === 1 ? 15 : knight.strength === 2 ? 19 : 23}
             {@const fill = knight.active ? color : "#aaa"}
-            {@const stroke = knight.active ? "#fff" : color}
-            {@const fontSize = knight.strength === 1 ? 12 : knight.strength === 2 ? 14 : 18}
+            {@const stroke = knight.active ? "#fff" : "#4f4f4f"}
+            {@const ringStroke = knight.active ? "#ffffff" : "#3a3a3a"}
+            {@const fontSize = knight.strength === 1 ? 13 : knight.strength === 2 ? 16 : 19}
             <g>
+              <title>
+                {`${gameState.players[knight.playerId]?.name ?? knight.playerId} level ${knight.strength} knight (${knight.active ? "active" : "inactive"})`}
+              </title>
               <circle
                 cx={p.x}
                 cy={p.y}
                 {r}
                 {fill}
                 {stroke}
-                stroke-width="2"
+                stroke-width="3"
               />
+              {#if knight.strength >= 2}
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={r - 4}
+                  fill="none"
+                  stroke={ringStroke}
+                  stroke-width="1.6"
+                  opacity="0.9"
+                />
+              {/if}
+              {#if knight.strength === 3}
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={r - 7}
+                  fill="none"
+                  stroke={ringStroke}
+                  stroke-width="1.4"
+                  stroke-dasharray="2.5 2"
+                  opacity="0.95"
+                />
+              {/if}
               <text
                 x={p.x}
                 y={p.y + 2}
@@ -444,8 +555,8 @@
             x2={pts[1].x}
             y2={pts[1].y}
             stroke="#ffcc00"
-            stroke-width="12"
-            opacity="0.4"
+            stroke-width={TARGET_EDGE_CAPTURE_STROKE}
+            opacity="0.02"
             stroke-linecap="round"
             style="cursor:pointer"
             role="button"
@@ -453,6 +564,17 @@
             aria-label="Select road placement"
             onclick={() => onEdgeClick(eid)}
             onkeydown={(event) => onKeyActivate(event, () => onEdgeClick(eid))}
+          />
+          <line
+            x1={pts[0].x}
+            y1={pts[0].y}
+            x2={pts[1].x}
+            y2={pts[1].y}
+            stroke="#ffcc00"
+            stroke-width={TARGET_EDGE_VISIBLE_STROKE}
+            opacity="0.58"
+            stroke-linecap="round"
+            style="pointer-events:none"
           />
         {/if}
       {/each}
@@ -462,9 +584,11 @@
           <circle
             cx={p.x}
             cy={p.y}
-            r="14"
+            r={TARGET_VERTEX_RADIUS}
             fill="#ffcc00"
-            opacity="0.5"
+            opacity="0.58"
+            stroke="#fff3bf"
+            stroke-width="2"
             style="cursor:pointer"
             role="button"
             tabindex="0"
