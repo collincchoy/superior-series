@@ -28,21 +28,15 @@
     ore: "#7a7a7a",
     grain: "#d4b800",
     wool: "#6dbf6d",
-    cloth: "#5fbf9f",
-    coin: "#d2a93a",
-    paper: "#9bc7e8",
+    cloth: "#f1c232",
+    coin: "#2f6fe4",
+    paper: "#2e9e4f",
   };
 
   const TRACK_COLORS: Record<ImprovementTrack, string> = {
     science: "#2e9e4f",
     trade: "#f1c232",
     politics: "#2f6fe4",
-  };
-
-  const TRACK_LABEL: Record<ImprovementTrack, string> = {
-    science: "🔬",
-    trade: "🤝",
-    politics: "⚔️",
   };
 
   function progressCardColor(track: ImprovementTrack): string {
@@ -114,17 +108,6 @@
       {/each}
     </div>
   {/if}
-  <div class="improvements">
-    <span style={`color:${TRACK_COLORS.science}`}
-      >{TRACK_LABEL.science}{me.improvements.science}</span
-    >
-    <span style={`color:${TRACK_COLORS.trade}`}
-      >{TRACK_LABEL.trade}{me.improvements.trade}</span
-    >
-    <span style={`color:${TRACK_COLORS.politics}`}
-      >{TRACK_LABEL.politics}{me.improvements.politics}</span
-    >
-  </div>
 </div>
 
 <style>
@@ -191,10 +174,4 @@
     opacity: 1;
   }
 
-  .improvements {
-    display: flex;
-    gap: 0.55rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-  }
 </style>
