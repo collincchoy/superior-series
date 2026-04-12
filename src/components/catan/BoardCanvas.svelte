@@ -27,6 +27,7 @@
     hexId,
   } from "../../lib/catan/svgHelpers.js";
   import { buildGraph } from "../../lib/catan/board.js";
+  import CatanPopover from "./CatanPopover.svelte";
 
   let {
     gameState,
@@ -59,22 +60,51 @@
   const TARGET_EDGE_VISIBLE_STROKE = 14;
   const TARGET_VERTEX_RADIUS = 20;
 
-  let selectedHarborKey = $state<string | null>(null);
+  type HarborType = (typeof gameState.board.harbors)[0]["type"];
 
-  function harborRateLabel(type: (typeof gameState.board.harbors)[0]["type"]) {
+  type HarborPopoverState = {
+    key: string;
+    type: HarborType;
+    x: number;
+    y: number;
+  };
+
+  let harborPopover = $state<HarborPopoverState | null>(null);
+
+  function harborRateLabel(type: HarborType) {
     return type === "generic" ? "3:1" : "2:1";
   }
 
-  function harborDescription(type: (typeof gameState.board.harbors)[0]["type"]) {
+  function harborDescription(type: HarborType) {
     return type === "generic" ? "any resource" : type;
   }
 
-  function toggleHarborDetail(key: string) {
-    selectedHarborKey = selectedHarborKey === key ? null : key;
+  function closeHarborPopover() {
+    harborPopover = null;
   }
 
-  function onWindowKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") selectedHarborKey = null;
+  function toggleHarborDetail(
+    event: MouseEvent | KeyboardEvent,
+    key: string,
+    type: HarborType,
+  ) {
+    event.stopPropagation();
+    if (harborPopover?.key === key) {
+      harborPopover = null;
+      return;
+    }
+
+    const trigger = event.currentTarget as Element | null;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const width = 148;
+    const x = Math.max(
+      8,
+      Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - 8),
+    );
+    const y = Math.max(8, rect.top - 46);
+    harborPopover = { key, type, x, y };
   }
 
   function onKeyActivate(event: KeyboardEvent, action: () => void) {
@@ -198,8 +228,6 @@
   );
 </script>
 
-<svelte:window onclick={() => (selectedHarborKey = null)} onkeydown={onWindowKeydown} />
-
 <div class="board-area">
   <svg
     class="board-svg"
@@ -297,18 +325,18 @@
     <!-- ── Harbors ── -->
     <g id="harbors">
       {#each harborPositions as hp}
-        {@const showDetail = selectedHarborKey === hp.key}
+        {@const showDetail = harborPopover?.key === hp.key}
         <g
           role="button"
           tabindex="0"
           aria-label={`Harbor ${harborDescription(hp.harbor.type)}, ${harborRateLabel(hp.harbor.type)}`}
           style="cursor:pointer"
           onclick={(event) => {
-            event.stopPropagation();
-            toggleHarborDetail(hp.key);
+            toggleHarborDetail(event, hp.key, hp.harbor.type);
           }}
           onkeydown={(event) =>
-            onKeyActivate(event, () => toggleHarborDetail(hp.key))}
+            onKeyActivate(event, () =>
+              toggleHarborDetail(event, hp.key, hp.harbor.type))}
         >
           <line
             x1={hp.p1.x}
@@ -352,32 +380,6 @@
             {HARBOR_ICONS[hp.harbor.type] ?? "?"}
           </text>
         </g>
-        {#if showDetail}
-          <g class="harbor-detail" style="pointer-events:none">
-            <rect
-              x={hp.outerX - 60}
-              y={hp.outerY - 52}
-              width="120"
-              height="32"
-              rx="8"
-              fill="#102f46"
-              stroke="#8bd2ff"
-              stroke-width="2"
-              opacity="0.95"
-            />
-            <text
-              x={hp.outerX}
-              y={hp.outerY - 36}
-              text-anchor="middle"
-              dominant-baseline="middle"
-              font-size="14"
-              fill="#ffffff"
-              font-weight="700"
-            >
-              {harborRateLabel(hp.harbor.type)} {harborDescription(hp.harbor.type)}
-            </text>
-          </g>
-        {/if}
       {/each}
     </g>
 
@@ -601,6 +603,20 @@
       {/each}
     </g>
   </svg>
+
+  <CatanPopover
+    open={!!harborPopover}
+    x={harborPopover?.x ?? 0}
+    y={harborPopover?.y ?? 0}
+    ariaLabel="Close harbor details"
+    onClose={closeHarborPopover}
+  >
+    {#if harborPopover}
+      <div class="harbor-popover">
+        {harborRateLabel(harborPopover.type)} {harborDescription(harborPopover.type)}
+      </div>
+    {/if}
+  </CatanPopover>
 </div>
 
 <style>
@@ -629,6 +645,20 @@
   .board-svg :global(#hexes text),
   .board-svg :global(#numbers) {
     pointer-events: none;
+  }
+
+  .harbor-popover {
+    min-width: 120px;
+    border-radius: 8px;
+    border: 2px solid #8bd2ff;
+    background: rgba(16, 47, 70, 0.96);
+    color: #ffffff;
+    font-size: 0.88rem;
+    font-weight: 700;
+    text-align: center;
+    padding: 0.36rem 0.52rem;
+    white-space: nowrap;
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.35);
   }
 
   @media (min-width: 700px) {

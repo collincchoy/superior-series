@@ -392,6 +392,32 @@ describe("canRecruitKnight", () => {
   });
 });
 
+// ─── canPromoteKnight ────────────────────────────────────────────────────────
+
+describe("canPromoteKnight", () => {
+  it("succeeds with ore + wool", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      resources: { ...emptyResources(), ore: 1, wool: 1 },
+    });
+    const vid = getFirstVertex();
+    board.knights[vid] = { playerId: "p1", strength: 1, active: false };
+
+    expect(canPromoteKnight(board, player, vid)).toBe(true);
+  });
+
+  it("fails with ore + grain but no wool", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      resources: { ...emptyResources(), ore: 1, grain: 1 },
+    });
+    const vid = getFirstVertex();
+    board.knights[vid] = { playerId: "p1", strength: 1, active: false };
+
+    expect(canPromoteKnight(board, player, vid)).toBe(false);
+  });
+});
+
 // ─── canDisplaceKnight ────────────────────────────────────────────────────────
 
 describe("canDisplaceKnight", () => {

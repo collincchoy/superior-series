@@ -24,6 +24,7 @@
   } from "../../lib/catan/rules.js";
   import { buildGraph } from "../../lib/catan/board.js";
   import { TRACK_COMMODITY } from "../../lib/catan/constants.js";
+  import CatanPopover from "./CatanPopover.svelte";
   let {
     gameState,
     localPid,
@@ -143,6 +144,10 @@
     reason?: string;
   };
   let popover = $state<PopoverState | null>(null);
+
+  function closeUnavailablePopover() {
+    popover = null;
+  }
 
   function showUnavailablePopover(
     event: MouseEvent,
@@ -419,7 +424,7 @@
                 : showUnavailablePopover(
                     e,
                     "⬆️ Promote Knight",
-                    { ore: 1, grain: 1 },
+                    { ore: 1, wool: 1 },
                     promoteKnightReason(),
                   )}
           >⬆️ Promote</button
@@ -487,42 +492,38 @@
   {/if}
 </div>
 
-{#if popover}
-  <div
-    class="unavailable-backdrop"
-    role="button"
-    tabindex="0"
-    aria-label="Close unavailable action details"
-    onclick={() => (popover = null)}
-    onkeydown={(event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      popover = null;
-    }}
-  ></div>
-  <div class="unavailable-popover" style={`left:${popover.x}px;top:${popover.y}px`}>
-    <div class="unavailable-title">{popover.title}</div>
-    {#if Object.keys(popover.cost).length > 0}
-      <div class="cost-chips">
-        {#each Object.entries(popover.cost) as [k, v]}
-          {@const key = k as keyof Resources}
-          {@const have = me.resources[key] ?? 0}
-          <span
-            class="cost-chip"
-            class:lacking={have < (v ?? 0)}
-            style={`background:${RESOURCE_COLORS[key]}`}
-          >
-            {CARD_EMOJI[key]}x{v}
-            <span class="have-count">({have})</span>
-          </span>
-        {/each}
-      </div>
-    {/if}
-    {#if popover.reason}
-      <p class="reason-text">{popover.reason}</p>
-    {/if}
-  </div>
-{/if}
+<CatanPopover
+  open={!!popover}
+  x={popover?.x ?? 0}
+  y={popover?.y ?? 0}
+  ariaLabel="Close unavailable action details"
+  onClose={closeUnavailablePopover}
+>
+  {#if popover}
+    <div class="unavailable-popover">
+      <div class="unavailable-title">{popover.title}</div>
+      {#if Object.keys(popover.cost).length > 0}
+        <div class="cost-chips">
+          {#each Object.entries(popover.cost) as [k, v]}
+            {@const key = k as keyof Resources}
+            {@const have = me.resources[key] ?? 0}
+            <span
+              class="cost-chip"
+              class:lacking={have < (v ?? 0)}
+              style={`background:${RESOURCE_COLORS[key]}`}
+            >
+              {CARD_EMOJI[key]}x{v}
+              <span class="have-count">({have})</span>
+            </span>
+          {/each}
+        </div>
+      {/if}
+      {#if popover.reason}
+        <p class="reason-text">{popover.reason}</p>
+      {/if}
+    </div>
+  {/if}
+</CatanPopover>
 
 <style>
   .action-panel {
@@ -634,14 +635,7 @@
     color: #f5c842;
     line-height: 1.4;
   }
-  .unavailable-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 300;
-  }
   .unavailable-popover {
-    position: fixed;
-    z-index: 301;
     min-width: 165px;
     max-width: 230px;
     border: 1px solid rgba(255, 255, 255, 0.22);

@@ -446,7 +446,7 @@ export const BUILD_COST_HINTS: Array<{
   { label: "City", cost: { grain: 2, ore: 3 } },
   { label: "City Wall", cost: { brick: 2 } },
   { label: "Recruit Knight", cost: { ore: 1, wool: 1 } },
-  { label: "Promote Knight", cost: { ore: 1, grain: 1 } },
+  { label: "Promote Knight", cost: { ore: 1, wool: 1 } },
   { label: "Activate Knight", cost: { grain: 1 } },
 ];
 
@@ -460,7 +460,7 @@ export const KNIGHT_LEVEL_HINTS: Record<
   },
   2: {
     name: "Strong Knight",
-    text: "Strength 2. Promote from basic using ore+grain.",
+    text: "Strength 2. Promote from basic using ore+wool.",
   },
   3: {
     name: "Mighty Knight",

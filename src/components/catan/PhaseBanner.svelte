@@ -2,16 +2,19 @@
   import type { GameState, PlayerId } from "../../lib/catan/types.js";
   import { isPlayerActing } from "../../lib/catan/turnActors.js";
   import { phaseLabel } from "./phaseLabel.js";
+  import CatanPopover from "./CatanPopover.svelte";
 
   let { gameState, localPid }: { gameState: GameState; localPid: PlayerId } =
     $props();
 
+  const BARBARIAN_MAX = 7;
   const TRACK_STEPS = [1, 2, 3, 4, 5, 6, 7] as const;
 
   let isMyTurn = $derived(isPlayerActing(gameState, localPid));
   let label = $derived(phaseLabel(gameState, localPid));
   let pulseState = $state<"advance" | "reset" | null>(null);
   let lastPos = $state<number | null>(null);
+  let numericPopover = $state<{ x: number; y: number } | null>(null);
 
   function threatLevel(position: number): "calm" | "warning" | "danger" {
     if (position >= 6) return "danger";
@@ -19,10 +22,38 @@
     return "calm";
   }
 
+  function isNearLanding(position: number): boolean {
+    return position >= BARBARIAN_MAX - 2 && position < BARBARIAN_MAX;
+  }
+
   function statusLabel(position: number, robberActive: boolean): string {
     const threat = threatLevel(position);
     const robberText = robberActive ? "Robber active." : "Robber inactive.";
-    return `Barbarians ${position} of 7. Threat ${threat}. ${robberText}`;
+    return `Barbarians ${position} of ${BARBARIAN_MAX}. Threat ${threat}. ${robberText}`;
+  }
+
+  function closeNumericPopover() {
+    numericPopover = null;
+  }
+
+  function toggleNumericPopover(event: MouseEvent | KeyboardEvent) {
+    const trigger = event.currentTarget as Element | null;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const width = 64;
+    const x = Math.max(
+      8,
+      Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - 8),
+    );
+    const y = rect.bottom + 8;
+
+    if (numericPopover && Math.abs(numericPopover.x - x) < 1 && Math.abs(numericPopover.y - y) < 1) {
+      numericPopover = null;
+      return;
+    }
+
+    numericPopover = { x, y };
   }
 
   $effect(() => {
@@ -42,23 +73,37 @@
 
 <div class="phase-banner{isMyTurn ? ' my-turn' : ''}">
   <span class="phase-label">{label}</span>
-  <div
-    class="barbarian-indicator {threatLevel(gameState.barbarian.position)} {pulseState ? `pulse-${pulseState}` : ''}"
+  <button
+    type="button"
+    class="barbarian-indicator {threatLevel(gameState.barbarian.position)} {isNearLanding(gameState.barbarian.position) ? 'near-landing' : ''} {pulseState ? `pulse-${pulseState}` : ''}"
     aria-label={statusLabel(
       gameState.barbarian.position,
       gameState.barbarian.robberActive,
     )}
     title={statusLabel(gameState.barbarian.position, gameState.barbarian.robberActive)}
+    onclick={toggleNumericPopover}
   >
-    <span class="barbarian-count">⛵ {gameState.barbarian.position}/7</span>
-    <span class="barbarian-track" aria-hidden="true">
+    <span class="barbarian-ship" aria-hidden="true">⛵</span>
+    <span class="barbarian-gauge" aria-hidden="true">
       {#each TRACK_STEPS as step}
         <span
-          class="barbarian-step {gameState.barbarian.position >= step ? 'filled' : ''} {gameState.barbarian.position === step ? 'current' : ''}"
+          class="barbarian-step step-{step} {gameState.barbarian.position >= step ? 'filled' : ''}"
         ></span>
       {/each}
     </span>
-  </div>
+  </button>
+
+  <CatanPopover
+    open={!!numericPopover}
+    x={numericPopover?.x ?? 0}
+    y={numericPopover?.y ?? 0}
+    ariaLabel="Close barbarian progress"
+    onClose={closeNumericPopover}
+  >
+    {#if numericPopover}
+      <div class="barbarian-popover">{gameState.barbarian.position}/{BARBARIAN_MAX}</div>
+    {/if}
+  </CatanPopover>
 </div>
 
 <style>
@@ -86,9 +131,12 @@
 
   .barbarian-indicator {
     flex: 0 0 auto;
+    position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 0.32rem;
+    gap: 0.28rem;
+    border: 0;
+    cursor: pointer;
     padding: 0.14rem 0.34rem;
     border-radius: 999px;
     border: 1px solid rgba(122, 143, 160, 0.65);
@@ -96,37 +144,77 @@
     transition: border-color 180ms ease, background 180ms ease;
   }
 
-  .barbarian-count {
-    font-size: 0.66rem;
-    font-weight: 700;
-    color: #d6e3ee;
-    letter-spacing: 0.01em;
-    line-height: 1;
-    white-space: nowrap;
+  .barbarian-indicator.near-landing::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    border: 1.5px solid rgba(242, 155, 53, 0.72);
+    box-shadow: 0 0 0 0 rgba(242, 155, 53, 0.32);
+    pointer-events: none;
+    animation: near-landing-ring 1.6s ease-in-out infinite;
   }
 
-  .barbarian-track {
-    display: inline-flex;
-    gap: 0.11rem;
+  .barbarian-indicator.near-landing.danger::after {
+    border-color: rgba(231, 76, 60, 0.76);
+    box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.34);
+  }
+
+  .barbarian-indicator:focus-visible {
+    outline: 2px solid #f5c842;
+    outline-offset: 2px;
+  }
+
+  .barbarian-ship {
+    font-size: 0.72rem;
+    line-height: 1;
+    transform: translateY(-1px);
+  }
+
+  .barbarian-gauge {
+    width: 5rem;
+    height: 0.5rem;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 1px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(7, 14, 22, 0.48);
+    border: 1px solid rgba(214, 227, 238, 0.16);
   }
 
   .barbarian-step {
-    width: 0.23rem;
-    height: 0.4rem;
-    border-radius: 2px;
+    height: 100%;
     background: rgba(214, 227, 238, 0.2);
-    border: 1px solid rgba(214, 227, 238, 0.12);
-    transition: transform 150ms ease, background 150ms ease, border-color 150ms ease;
+    transition: background 180ms ease;
   }
 
-  .barbarian-step.filled {
-    background: rgba(183, 219, 245, 0.9);
-    border-color: rgba(214, 238, 255, 0.8);
+  .barbarian-step.filled.step-1 {
+    background: rgba(246, 249, 252, 0.96);
   }
 
-  .barbarian-step.current {
-    transform: translateY(-1px);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+  .barbarian-step.filled.step-2 {
+    background: rgba(235, 232, 214, 0.95);
+  }
+
+  .barbarian-step.filled.step-3 {
+    background: rgba(241, 194, 50, 0.92);
+  }
+
+  .barbarian-step.filled.step-4 {
+    background: rgba(242, 155, 53, 0.92);
+  }
+
+  .barbarian-step.filled.step-5 {
+    background: rgba(233, 112, 66, 0.93);
+  }
+
+  .barbarian-step.filled.step-6 {
+    background: rgba(231, 92, 66, 0.94);
+  }
+
+  .barbarian-step.filled.step-7 {
+    background: rgba(231, 76, 60, 0.95);
   }
 
   .barbarian-indicator.warning {
@@ -134,27 +222,30 @@
     background: rgba(44, 37, 6, 0.45);
   }
 
-  .barbarian-indicator.warning .barbarian-count {
-    color: #f7dd8b;
-  }
-
-  .barbarian-indicator.warning .barbarian-step.filled {
-    background: rgba(241, 194, 50, 0.9);
-    border-color: rgba(255, 232, 153, 0.85);
-  }
-
   .barbarian-indicator.danger {
     border-color: rgba(231, 76, 60, 0.8);
     background: rgba(60, 20, 20, 0.45);
   }
 
-  .barbarian-indicator.danger .barbarian-count {
-    color: #ffd0c7;
+  .barbarian-indicator.warning .barbarian-step.filled.step-4 {
+    box-shadow: inset 0 0 0 1px rgba(255, 232, 153, 0.5);
   }
 
-  .barbarian-indicator.danger .barbarian-step.filled {
-    background: rgba(231, 76, 60, 0.92);
-    border-color: rgba(255, 196, 186, 0.9);
+  .barbarian-indicator.danger .barbarian-step.filled.step-7 {
+    box-shadow: inset 0 0 0 1px rgba(255, 196, 186, 0.55);
+  }
+
+  .barbarian-popover {
+    min-width: 64px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: #1a2a1a;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.65);
+    padding: 0.38rem 0.46rem;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #f5c842;
   }
 
   .barbarian-indicator.pulse-advance {
@@ -186,9 +277,20 @@
     100% { transform: scale(1); }
   }
 
+  @keyframes near-landing-ring {
+    0%, 100% {
+      opacity: 0.5;
+      box-shadow: 0 0 0 0 rgba(242, 155, 53, 0.24);
+    }
+    50% {
+      opacity: 0.95;
+      box-shadow: 0 0 10px 2px rgba(242, 155, 53, 0.36);
+    }
+  }
+
   @media (max-width: 420px) {
-    .barbarian-track {
-      display: none;
+    .barbarian-gauge {
+      width: 4rem;
     }
   }
 
@@ -205,6 +307,12 @@
     .barbarian-step {
       animation: none;
       transition: none;
+    }
+
+    .barbarian-indicator.near-landing::after {
+      animation: none;
+      opacity: 0.85;
+      box-shadow: 0 0 8px 1px rgba(242, 155, 53, 0.32);
     }
   }
 </style>

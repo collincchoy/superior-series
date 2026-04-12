@@ -801,7 +801,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             ...player,
             resources: subtractResources(player.resources, {
               ore: 1,
-              grain: 1,
+              wool: 1,
             }),
             supply: {
               ...player.supply,

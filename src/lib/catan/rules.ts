@@ -19,7 +19,7 @@ export const BUILD_COSTS = {
   city: { ore: 3, grain: 2 } as Partial<Resources>,
   cityWall: { brick: 2 } as Partial<Resources>, // 2 brick per rulebook
   knightRecruit: { ore: 1, wool: 1 } as Partial<Resources>,
-  knightPromote: { ore: 1, grain: 1 } as Partial<Resources>,
+  knightPromote: { ore: 1, wool: 1 } as Partial<Resources>,
   knightActivate: { grain: 1 } as Partial<Resources>,
 };
 
