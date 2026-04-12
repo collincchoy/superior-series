@@ -257,7 +257,7 @@
 
   .pending-overlay {
     position: fixed;
-    bottom: 1rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     background: #2c5f2e;

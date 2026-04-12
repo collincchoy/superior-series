@@ -79,6 +79,12 @@
     line-height: 1;
   }
 
+  @media (max-width: 699px) {
+    .side-panel {
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+  }
+
   @media (min-width: 700px) {
     .side-panel {
       width: 260px;
