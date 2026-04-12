@@ -11,7 +11,19 @@ Astro 6.1 static site deployed to GitHub Pages (`https://collincchoy.github.io/s
 - **Package manager**: pnpm
 - **Testing**: Vitest — `pnpm test` (run before committing)
 - **Multiplayer**: PeerJS (WebRTC P2P, host-authoritative)
-- **Board rendering**: Vanilla SVG (no canvas library)
+- **Board rendering**: SVG via `BoardCanvas.svelte` + `svgHelpers.ts`
+- **QR code**: `qrcode` (generation) + `@zxing/browser` (scanning) for room-code join flow
+
+## Test-Driven Development
+
+**Always write tests before implementation.** This is not optional — treat failing tests as the spec.
+
+1. Write a failing test in `src/test/catan/` that captures the expected behavior.
+2. Run `pnpm test` to confirm it fails for the right reason.
+3. Implement the minimum code to make it pass.
+4. Refactor if needed, keeping tests green.
+
+Tests cover all pure logic in `src/lib/catan/`. Svelte components are not unit-tested — verify visually with `pnpm dev`.
 
 ## Adding Pages
 
@@ -20,21 +32,34 @@ Use `import.meta.env.BASE_URL` for internal links (see Navigation.astro).
 
 ## Catan Game Architecture
 
-All game logic lives in `src/lib/catan/`:
+### Core logic — `src/lib/catan/`
 
-| File           | Purpose                                            |
-| -------------- | -------------------------------------------------- |
-| `types.ts`     | All TS interfaces — single source of truth         |
-| `constants.ts` | Board layout, card decks, build costs, draw ranges |
-| `board.ts`     | Hex grid math, adjacency tables, longest road      |
-| `rules.ts`     | `canXxx()` validators — pure, no side effects      |
-| `game.ts`      | `applyAction()` reducer + `createInitialState()`   |
-| `ai.ts`        | Rule-based bot: `chooseBotAction()`                |
-| `network.ts`   | PeerJS host/client wrapper                         |
-| `render.ts`    | SVG board renderer (DOM-touching, not unit-tested) |
-| `ui.ts`        | Lobby + game UI event wiring                       |
+| File               | Purpose                                                        |
+| ------------------ | -------------------------------------------------------------- |
+| `types.ts`         | All TS interfaces — single source of truth                     |
+| `constants.ts`     | Board layout, card decks, build costs, draw ranges             |
+| `board.ts`         | Hex grid math, adjacency tables, longest road                  |
+| `rules.ts`         | `canXxx()` validators — pure, no side effects                  |
+| `game.ts`          | `applyAction()` reducer + `createInitialState()`               |
+| `ai.ts`            | Rule-based bot: `chooseBotAction()`                            |
+| `network.ts`       | PeerJS host/client wrapper                                     |
+| `store.svelte.ts`  | Reactive UI state (`$state`); singleton `store`; `net` must NOT be `$state` (PeerJS circular refs) |
+| `validTargets.ts`  | Compute valid click targets (vertices/edges/hexes) for current game state |
+| `svgHelpers.ts`    | Pure SVG coordinate math (unit-tested in `svgHelpers.test.ts`) |
+| `turnActors.ts`    | Determine which player(s) can act in a given phase             |
 
-Tests live in `src/test/catan/`. **Always write tests before implementation (TDD).**
+### UI components — `src/components/catan/`
+
+28 Svelte 5 components replace the old `render.ts`/`ui.ts` layer:
+
+- **`CatanApp.svelte`** — root; routes between `lobby / waiting / game` screens
+- **`BoardCanvas.svelte`** — SVG board rendering + `onVertexClick` / `onEdgeClick` / `onHexClick` handlers
+- **`LobbyView.svelte`**, **`WaitingView.svelte`**, **`GameView.svelte`** — top-level screen views
+- **`ActionPanel.svelte`**, **`SidePanel.svelte`**, **`PlayersPanel.svelte`**, **`HandPanel.svelte`** — game HUD
+- Modals: `DiscardModal.svelte`, `TradeBankModal.svelte`, `CommercialHarborModal.svelte`, `InfoModal.svelte`
+- Feedback: `Toast.svelte`, `LogPanel.svelte`, `PhaseBanner.svelte`
+
+All reactive state flows through `store.svelte.ts`; components read from `store` and dispatch actions via `applyAction`.
 
 ## Key C&K Rules (differs from base Catan)
 
@@ -51,11 +76,10 @@ Full rules in `catan_base_rules.txt` and `catan_ck_rules.txt` (converted from PD
 
 ## UI / UX
 
-- **Lobby**: configure 2–4 player slots (human or bot); host creates a room, clients join by room code
+- **Lobby**: configure 2–4 player slots (human or bot); host creates a room, clients join by room code or QR scan
 - **Setup phases**: yellow dots = valid settlement/city spots; yellow lines = valid road spots — click directly to place
 - **Action phase**: action buttons in side panel; clicking a build button highlights valid targets on board, then click a target to confirm
 - **Modals**: discard (7-card rule) and bank trade use in-panel modals
-- Board callbacks (`onVertexClick`, `onEdgeClick`, `onHexClick`) must be set via `renderer.setCallbacks()` **before** `renderer.render()` — event listeners capture the callback reference at render time
 
 ## AI Players
 
@@ -82,4 +106,4 @@ Full rules in `catan_base_rules.txt` and `catan_ck_rules.txt` (converted from PD
 
 - `pnpm dev` may pick port 4322 if 4321 is occupied — HMR websocket will fail in that case; use hard-refresh (Cmd+Shift+R) or kill stale servers first
 - Errors from `applyAction` on the host are surfaced via toast and `console.error`; check browser console if actions appear to do nothing
-- `render.ts` has no unit tests — verify visually with `pnpm dev`
+- Svelte components have no unit tests — verify visually with `pnpm dev`
