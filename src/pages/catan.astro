@@ -1,0 +1,78 @@
+---
+import CatanApp from "../components/catan/CatanApp.svelte";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <meta name="theme-color" content="#8b6914" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <link rel="manifest" href="/superior-series/catan-manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="/superior-series/catan-icons/icon-192.svg"
+    />
+    <title>Catan: Cities &amp; Knights</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        height: 100%;
+        font-family: system-ui, sans-serif;
+        background: #1a3a1a;
+        color: #f0e8d0;
+        --font-display: 'MedievalSharp', cursive;
+      }
+
+      #app {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <CatanApp client:only="svelte" />
+    </div>
+    <script>
+      if ("serviceWorker" in navigator) {
+        if (import.meta.env.DEV) {
+          // Unregister SW in dev to prevent stale cache issues (assets aren't hashed)
+          navigator.serviceWorker.getRegistrations().then((regs) => {
+            regs.forEach((r) => r.unregister());
+          });
+        } else {
+          navigator.serviceWorker
+            .register("/superior-series/catan-sw.js", {
+              updateViaCache: "none",
+            })
+            .catch(() => {});
+        }
+      }
+    </script>
+  </body>
+</html>

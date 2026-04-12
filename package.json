@@ -10,11 +10,26 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write ."
   },
   "dependencies": {
+    "@astrojs/svelte": "^8.0.4",
     "@zxing/browser": "^0.1.5",
     "@zxing/library": "^0.21.3",
-    "astro": "^6.1.1"
+    "astro": "^6.1.1",
+    "peerjs": "^1.5.5",
+    "qrcode": "^1.5.4",
+    "svelte": "^5.55.1"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "@vitest/coverage-v8": "^4.1.2",
+    "prettier": "^3.8.2",
+    "prettier-plugin-astro": "^0.14.1",
+    "prettier-plugin-svelte": "^3.5.1",
+    "vitest": "^4.1.2"
   }
 }

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <!-- Background -->
+  <rect width="192" height="192" rx="24" fill="#1a3a6e"/>
+  <!-- Hex shape -->
+  <polygon points="96,20 162,58 162,134 96,172 30,134 30,58" fill="#8b6914" stroke="#f5c842" stroke-width="4"/>
+  <!-- City silhouette -->
+  <g fill="#f5c842">
+    <!-- Left tower -->
+    <rect x="60" y="90" width="28" height="48"/>
+    <rect x="58" y="82" width="32" height="12"/>
+    <!-- Battlements left -->
+    <rect x="58" y="76" width="7" height="8"/>
+    <rect x="69" y="76" width="7" height="8"/>
+    <rect x="80" y="76" width="7" height="8"/>
+    <!-- Right tower -->
+    <rect x="104" y="82" width="28" height="56"/>
+    <rect x="102" y="72" width="32" height="12"/>
+    <!-- Battlements right -->
+    <rect x="102" y="66" width="7" height="8"/>
+    <rect x="113" y="66" width="7" height="8"/>
+    <rect x="124" y="66" width="7" height="8"/>
+    <!-- Door -->
+    <rect x="108" y="118" width="16" height="20" fill="#1a3a6e"/>
+  </g>
+</svg>

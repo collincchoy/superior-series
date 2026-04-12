@@ -1,0 +1,2440 @@
+import type {
+  GameState,
+  GameAction,
+  Player,
+  PlayerId,
+  BoardState,
+  VertexId,
+  EdgeId,
+  HexId,
+  TurnPhase,
+  ImprovementTrack,
+  Resources,
+  ResourceType,
+  CommodityType,
+  ProgressCard,
+  KnightStrength,
+  EventDieFace,
+  ProgressCardName,
+} from "./types.js";
+import { emptyResources } from "./types.js";
+import {
+  buildGraph,
+  hexId,
+  computeLongestRoad,
+  CATAN_HEX_COORDS,
+} from "./board.js";
+import {
+  STANDARD_BOARD,
+  HARBOR_SETUPS,
+  SCIENCE_DECK,
+  TRADE_DECK,
+  POLITICS_DECK,
+  INITIAL_SUPPLY,
+  PLAYER_COLORS,
+  TRACK_COMMODITY,
+  DRAW_MAX,
+  EVENT_DIE_FACES,
+  rollEventDie,
+  rollProductionDie,
+} from "./constants.js";
+import { discardCount, isOpenRoad, isOnPlayerNetwork } from "./rules.js";
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j]!, a[i]!];
+  }
+  return a;
+}
+
+function drawRandomProgressCard(state: GameState, pid: PlayerId): GameState {
+  const tracks: ImprovementTrack[] = ["science", "trade", "politics"];
+  const availableTracks = tracks.filter(
+    (track) => state.decks[track].length > 0,
+  );
+  if (availableTracks.length === 0) return state;
+
+  const track =
+    availableTracks[Math.floor(Math.random() * availableTracks.length)]!;
+  const deck = [...state.decks[track]];
+  const card = deck.shift();
+  if (!card) return state;
+
+  return {
+    ...state,
+    decks: { ...state.decks, [track]: deck },
+    players: {
+      ...state.players,
+      [pid]: {
+        ...state.players[pid]!,
+        progressCards: [...state.players[pid]!.progressCards, card],
+      },
+    },
+  };
+}
+
+function addResources(r: Resources, delta: Partial<Resources>): Resources {
+  const result = { ...r };
+  for (const [k, v] of Object.entries(delta) as [keyof Resources, number][]) {
+    result[k] = (result[k] ?? 0) + v;
+  }
+  return result;
+}
+
+function subtractResources(r: Resources, delta: Partial<Resources>): Resources {
+  const result = { ...r };
+  for (const [k, v] of Object.entries(delta) as [keyof Resources, number][]) {
+    result[k] = Math.max(0, (result[k] ?? 0) - v);
+  }
+  return result;
+}
+
+function log(state: GameState, msg: string): GameState {
+  return { ...state, log: [...state.log, msg] };
+}
+
+// ─── createInitialState ───────────────────────────────────────────────────────
+
+export function createInitialState(
+  players: { id: PlayerId; name: string; color: string; isBot: boolean }[],
+): GameState {
+  const graph = buildGraph();
+
+  // Build board hexes from standard layout
+  const hexes: BoardState["hexes"] = {};
+  for (const setup of STANDARD_BOARD) {
+    const id = hexId(setup.coord);
+    hexes[id] = {
+      id,
+      coord: setup.coord,
+      terrain: setup.terrain,
+      number: setup.number,
+      hasRobber: false,
+    };
+  }
+
+  // Build vertex/edge/knight maps (all null)
+  const vertices: BoardState["vertices"] = Object.fromEntries(
+    Object.keys(graph.vertices).map((v) => [v, null]),
+  );
+  const edges: BoardState["edges"] = Object.fromEntries(
+    Object.keys(graph.edges).map((e) => [e, null]),
+  );
+  const knights: BoardState["knights"] = Object.fromEntries(
+    Object.keys(graph.vertices).map((v) => [v, null]),
+  );
+
+  // Compute harbor vertices from edge positions
+  const harbors: BoardState["harbors"] = HARBOR_SETUPS.map((setup) => {
+    const hid = hexId(setup.hexCoord);
+    const hexVerts = graph.verticesOfHex[hid] ?? [];
+    // Edge e connects vertices e and (e+1)%6
+    const vA = hexVerts[setup.edgeIndex] ?? hexVerts[0]!;
+    const vB = hexVerts[(setup.edgeIndex + 1) % 6] ?? hexVerts[1]!;
+    return { type: setup.type, vertices: [vA, vB] as [VertexId, VertexId] };
+  });
+
+  // Build player records
+  const playerRecords: Record<PlayerId, Player> = {};
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i]!;
+    playerRecords[p.id] = {
+      id: p.id,
+      name: p.name,
+      color: p.color || PLAYER_COLORS[i] || "#999",
+      isBot: p.isBot,
+      resources: emptyResources(),
+      progressCards: [],
+      vpTokens: 0,
+      improvements: { science: 0, trade: 0, politics: 0 },
+      supply: { ...INITIAL_SUPPLY, knights: { ...INITIAL_SUPPLY.knights } },
+      knightsActivatedTotal: 0,
+    };
+  }
+
+  const playerOrder = players.map((p) => p.id);
+
+  return {
+    version: 0,
+    phase: "SETUP_R1_SETTLEMENT",
+    currentPlayerId: playerOrder[0]!,
+    playerOrder,
+    players: playerRecords,
+    board: {
+      hexes,
+      vertices,
+      edges,
+      knights,
+      harbors,
+      merchantHex: null,
+      merchantOwner: null,
+    },
+    barbarian: { position: 0, robberActive: false },
+    decks: {
+      science: shuffle([...SCIENCE_DECK]),
+      trade: shuffle([...TRADE_DECK]),
+      politics: shuffle([...POLITICS_DECK]),
+    },
+    longestRoadOwner: null,
+    longestRoadLength: 0,
+    largestArmyOwner: null,
+    largestArmySize: 0,
+    metropolisOwner: { science: null, trade: null, politics: null },
+    lastRoll: null,
+    setupQueue: [...playerOrder],
+    setupLastPlacedVertex: null,
+    pendingDisplace: null,
+    pendingProgressDraw: null,
+    pendingDiscard: null,
+    pendingFreeRoads: null,
+    pendingKnightPromotions: null,
+    pendingCommercialHarbor: null,
+    progressEffects: {
+      craneDiscountPlayerId: null,
+      merchantFleet: null,
+    },
+    winner: null,
+    log: [],
+  };
+}
+
+// ─── computeVP ────────────────────────────────────────────────────────────────
+
+export function computeVP(state: GameState, playerId: PlayerId): number {
+  let vp = 0;
+  const player = state.players[playerId];
+  if (!player) return 0;
+
+  // Buildings on board
+  for (const building of Object.values(state.board.vertices)) {
+    if (!building || building.playerId !== playerId) continue;
+    if (building.type === "settlement") {
+      vp += 1;
+    } else if (building.type === "city") {
+      vp += building.metropolis ? 4 : 2;
+    }
+  }
+
+  // Special cards
+  if (state.longestRoadOwner === playerId) vp += 2;
+  if (state.largestArmyOwner === playerId) vp += 2;
+
+  // VP tokens (from barbarian defense)
+  vp += player.vpTokens;
+
+  // VP progress cards (face-up, already counted separately)
+  vp += player.progressCards.filter((c) => c.isVP).length;
+
+  // Merchant
+  if (state.board.merchantOwner === playerId) vp += 1;
+
+  return vp;
+}
+
+// ─── applyAction ──────────────────────────────────────────────────────────────
+
+export function applyAction(state: GameState, action: GameAction): GameState {
+  let s = { ...state, version: state.version + 1 };
+  const graph = buildGraph();
+
+  switch (action.type) {
+    // ── Setup ──────────────────────────────────────────────────────────────────
+    case "PLACE_BUILDING": {
+      const { pid, vid, building } = action;
+      const b =
+        building === "settlement"
+          ? { type: "settlement" as const, playerId: pid }
+          : {
+              type: "city" as const,
+              playerId: pid,
+              hasWall: false,
+              metropolis: null,
+            };
+
+      s = {
+        ...s,
+        board: { ...s.board, vertices: { ...s.board.vertices, [vid]: b } },
+      };
+
+      // In SETUP_R2_CITY: grant starting resources (1 per adjacent hex)
+      if (s.phase === "SETUP_R2_CITY" && building === "city") {
+        const adjacentHexIds = graph.hexesOfVertex[vid] ?? [];
+        const gained: Partial<Resources> = {};
+        for (const hid of adjacentHexIds) {
+          const hex = s.board.hexes[hid];
+          if (!hex || hex.terrain === "desert") continue;
+          const resourceType = terrainToResource(hex.terrain);
+          if (resourceType) {
+            gained[resourceType] = (gained[resourceType] ?? 0) + 1;
+          }
+        }
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [pid]: {
+              ...s.players[pid]!,
+              resources: addResources(s.players[pid]!.resources, gained),
+            },
+          },
+        };
+      }
+
+      // Advance to road placement
+      s = {
+        ...s,
+        phase:
+          s.phase === "SETUP_R1_SETTLEMENT" ? "SETUP_R1_ROAD" : "SETUP_R2_ROAD",
+        setupLastPlacedVertex: vid,
+      };
+      return s;
+    }
+
+    case "PLACE_ROAD": {
+      const { pid, eid } = action;
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          edges: { ...s.board.edges, [eid]: { playerId: pid } },
+        },
+        setupLastPlacedVertex: null,
+      };
+
+      // Advance setup queue
+      const isR1 = s.phase === "SETUP_R1_ROAD";
+      const isR2 = s.phase === "SETUP_R2_ROAD";
+      const queue = [...s.setupQueue];
+      queue.shift(); // remove current player
+
+      if (isR1) {
+        if (queue.length === 0) {
+          // R1 done → start R2 in REVERSE order
+          const r2Queue = [...s.playerOrder].reverse();
+          s = {
+            ...s,
+            setupQueue: r2Queue,
+            currentPlayerId: r2Queue[0]!,
+            phase: "SETUP_R2_CITY",
+          };
+        } else {
+          s = {
+            ...s,
+            setupQueue: queue,
+            currentPlayerId: queue[0]!,
+            phase: "SETUP_R1_SETTLEMENT",
+          };
+        }
+      } else if (isR2) {
+        if (queue.length === 0) {
+          // Setup complete → first player rolls
+          s = {
+            ...s,
+            setupQueue: [],
+            currentPlayerId: s.playerOrder[0]!,
+            phase: "ROLL_DICE",
+          };
+        } else {
+          s = {
+            ...s,
+            setupQueue: queue,
+            currentPlayerId: queue[0]!,
+            phase: "SETUP_R2_CITY",
+          };
+        }
+      }
+
+      return s;
+    }
+
+    // ── Roll Dice ──────────────────────────────────────────────────────────────
+    case "ROLL_DICE": {
+      const { pid } = action;
+      let [d1, d2, event] = action.result ?? [
+        rollProductionDie(),
+        rollProductionDie(),
+        rollEventDie(),
+      ];
+      const yellowDie = d1;
+      const redDie = d2;
+      const production = yellowDie + redDie;
+
+      s = { ...s, lastRoll: [d1, d2, event] };
+      s = log(
+        s,
+        `${s.players[pid]?.name} rolled Y${yellowDie} R${redDie} = ${production} (${event})`,
+      );
+
+      // 1. Handle event die
+      if (event === "ship") {
+        const newPos = s.barbarian.position + 1;
+        if (newPos >= 7) {
+          // Barbarian attack
+          s = resolveBarbarianAttack({
+            ...s,
+            barbarian: { ...s.barbarian, position: 7 },
+          });
+        } else {
+          s = { ...s, barbarian: { ...s.barbarian, position: newPos } };
+        }
+      } else {
+        // Progress card draw opportunity for players with matching track level
+        const track = event as ImprovementTrack;
+        const drawPlayers = s.playerOrder.filter((p) => {
+          const level = s.players[p]?.improvements[track] ?? 0;
+          const maxRoll = DRAW_MAX[level] ?? 0;
+          return level > 0 && redDie <= maxRoll;
+        });
+        if (drawPlayers.length > 0) {
+          s = { ...s, pendingProgressDraw: { remaining: drawPlayers, track } };
+        }
+      }
+
+      // 2. Handle production
+      if (production === 7) {
+        // Check for discards
+        const needDiscard: Record<PlayerId, number> = {};
+        for (const [ppid, player] of Object.entries(s.players)) {
+          const amount = discardCount(player, s.board);
+          if (amount > 0) needDiscard[ppid] = amount;
+        }
+        if (Object.keys(needDiscard).length > 0) {
+          s = {
+            ...s,
+            phase: "DISCARD",
+            pendingDiscard: { remaining: needDiscard },
+          };
+        } else if (s.barbarian.robberActive) {
+          s = { ...s, phase: "ROBBER_MOVE" };
+        } else {
+          s = { ...s, phase: "ACTION" };
+        }
+      } else {
+        // Distribute resources
+        s = distributeResources(s, production, graph);
+        // Handle progress draw queue or go to action
+        if (
+          s.pendingProgressDraw &&
+          s.pendingProgressDraw.remaining.length > 0
+        ) {
+          s = { ...s, phase: "RESOLVE_PROGRESS_DRAW" };
+        } else {
+          s = { ...s, phase: "ACTION" };
+        }
+      }
+
+      return s;
+    }
+
+    // ── Discard ────────────────────────────────────────────────────────────────
+    case "DISCARD": {
+      const { pid, cards } = action;
+      const player = s.players[pid]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            resources: subtractResources(player.resources, cards),
+          },
+        },
+      };
+
+      const pending = { ...s.pendingDiscard! };
+      const newRemaining = { ...pending.remaining };
+      delete newRemaining[pid];
+
+      if (Object.keys(newRemaining).length === 0) {
+        // All discards done
+        s = { ...s, pendingDiscard: null };
+        if (s.barbarian.robberActive) {
+          s = { ...s, phase: "ROBBER_MOVE" };
+        } else {
+          s = { ...s, phase: "ACTION" };
+        }
+      } else {
+        s = { ...s, pendingDiscard: { remaining: newRemaining } };
+      }
+      return s;
+    }
+
+    // ── Move Robber ────────────────────────────────────────────────────────────
+    case "MOVE_ROBBER": {
+      const { pid, hid, stealFrom } = action;
+
+      // Clear old robber
+      const hexes = Object.fromEntries(
+        Object.entries(s.board.hexes).map(([k, v]) => [
+          k,
+          { ...v, hasRobber: false },
+        ]),
+      );
+      hexes[hid] = { ...hexes[hid]!, hasRobber: true };
+
+      s = { ...s, board: { ...s.board, hexes } };
+
+      // Steal a card
+      if (stealFrom) {
+        s = stealRandomCard(s, pid, stealFrom);
+      }
+
+      s = { ...s, phase: "ACTION" };
+      return s;
+    }
+
+    // ── Build ──────────────────────────────────────────────────────────────────
+    case "BUILD_ROAD": {
+      const { pid, eid } = action;
+      const player = s.players[pid]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            resources: subtractResources(player.resources, {
+              brick: 1,
+              lumber: 1,
+            }),
+            supply: { ...player.supply, roads: player.supply.roads - 1 },
+          },
+        },
+        board: {
+          ...s.board,
+          edges: { ...s.board.edges, [eid]: { playerId: pid } },
+        },
+      };
+      s = updateLongestRoad(s);
+      return s;
+    }
+
+    case "BUILD_SETTLEMENT": {
+      const { pid, vid } = action;
+      const player = s.players[pid]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            resources: subtractResources(player.resources, {
+              brick: 1,
+              lumber: 1,
+              wool: 1,
+              grain: 1,
+            }),
+            supply: {
+              ...player.supply,
+              settlements: player.supply.settlements - 1,
+            },
+          },
+        },
+        board: {
+          ...s.board,
+          vertices: {
+            ...s.board.vertices,
+            [vid]: { type: "settlement", playerId: pid },
+          },
+        },
+      };
+      return checkWin(s);
+    }
+
+    case "BUILD_CITY": {
+      const { pid, vid } = action;
+      const player = s.players[pid]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            resources: subtractResources(player.resources, {
+              ore: 3,
+              grain: 2,
+            }),
+            supply: {
+              ...player.supply,
+              settlements: player.supply.settlements + 1,
+              cities: player.supply.cities - 1,
+            },
+          },
+        },
+        board: {
+          ...s.board,
+          vertices: {
+            ...s.board.vertices,
+            [vid]: {
+              type: "city",
+              playerId: pid,
+              hasWall: false,
+              metropolis: null,
+            },
+          },
+        },
+      };
+      return checkWin(s);
+    }
+
+    case "BUILD_CITY_WALL": {
+      const { pid, vid } = action;
+      const player = s.players[pid]!;
+      const city = s.board.vertices[vid] as {
+        type: "city";
+        playerId: PlayerId;
+        hasWall: boolean;
+        metropolis: ImprovementTrack | null;
+      };
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            resources: subtractResources(player.resources, { brick: 2 }),
+            supply: {
+              ...player.supply,
+              cityWalls: player.supply.cityWalls - 1,
+            },
+          },
+        },
+        board: {
+          ...s.board,
+          vertices: { ...s.board.vertices, [vid]: { ...city, hasWall: true } },
+        },
+      };
+      return s;
+    }
+
+    case "IMPROVE_CITY": {
+      const { pid, track } = action;
+      const player = s.players[pid]!;
+      const currentLevel = player.improvements[track];
+      const targetLevel = currentLevel + 1;
+      const commodity = TRACK_COMMODITY[track];
+      const craneDiscount =
+        s.progressEffects.craneDiscountPlayerId === pid ? 1 : 0;
+      const cost = Math.max(0, targetLevel - craneDiscount);
+
+      const newImprovements = { ...player.improvements, [track]: targetLevel };
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            resources: subtractResources(player.resources, {
+              [commodity]: cost,
+            } as Partial<Resources>),
+            improvements: newImprovements,
+          },
+        },
+        progressEffects:
+          craneDiscount > 0
+            ? {
+                ...s.progressEffects,
+                craneDiscountPlayerId: null,
+              }
+            : s.progressEffects,
+      };
+
+      // Check metropolis thresholds
+      s = checkMetropolis(s, pid, track, targetLevel);
+      return checkWin(s);
+    }
+
+    // ── Knights ────────────────────────────────────────────────────────────────
+    case "RECRUIT_KNIGHT": {
+      const { pid, vid } = action;
+      const player = s.players[pid]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            resources: subtractResources(player.resources, { ore: 1, wool: 1 }),
+            supply: {
+              ...player.supply,
+              knights: {
+                ...player.supply.knights,
+                1: player.supply.knights[1] - 1,
+              },
+            },
+          },
+        },
+        board: {
+          ...s.board,
+          knights: {
+            ...s.board.knights,
+            [vid]: { playerId: pid, strength: 1, active: false },
+          },
+        },
+      };
+      return s;
+    }
+
+    case "PROMOTE_KNIGHT": {
+      const { pid, vid } = action;
+      const player = s.players[pid]!;
+      const knight = s.board.knights[vid]!;
+      const newStrength = (knight.strength + 1) as KnightStrength;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            resources: subtractResources(player.resources, {
+              ore: 1,
+              grain: 1,
+            }),
+            supply: {
+              ...player.supply,
+              knights: {
+                ...player.supply.knights,
+                [knight.strength]: player.supply.knights[knight.strength] + 1,
+                [newStrength]: player.supply.knights[newStrength] - 1,
+              },
+            },
+          },
+        },
+        board: {
+          ...s.board,
+          knights: {
+            ...s.board.knights,
+            [vid]: { ...knight, strength: newStrength },
+          },
+        },
+      };
+      return s;
+    }
+
+    case "ACTIVATE_KNIGHT": {
+      const { pid, vid } = action;
+      const player = s.players[pid]!;
+      const knight = s.board.knights[vid]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            resources: subtractResources(player.resources, { grain: 1 }),
+            knightsActivatedTotal: player.knightsActivatedTotal + 1,
+          },
+        },
+        board: {
+          ...s.board,
+          knights: { ...s.board.knights, [vid]: { ...knight, active: true } },
+        },
+      };
+      s = updateLargestArmy(s);
+      return s;
+    }
+
+    case "MOVE_KNIGHT": {
+      const { pid, from, to } = action;
+      const knight = s.board.knights[from]!;
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          knights: {
+            ...s.board.knights,
+            [from]: null,
+            [to]: { ...knight, active: false },
+          },
+        },
+      };
+      s = updateLongestRoad(s); // knight movement may affect road traversal
+      return s;
+    }
+
+    case "DISPLACE_KNIGHT": {
+      const { pid, from, target } = action;
+      const myKnight = s.board.knights[from]!;
+      const theirKnight = s.board.knights[target]!;
+
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          knights: {
+            ...s.board.knights,
+            [from]: null,
+            [target]: { ...myKnight, active: false },
+          },
+        },
+        pendingDisplace: {
+          displacerPlayerId: pid,
+          displacedPlayerId: theirKnight.playerId,
+          displacedKnightVertex: target,
+          displacedKnightStrength: theirKnight.strength,
+        },
+        phase: "KNIGHT_DISPLACE_RESPONSE",
+      };
+      return s;
+    }
+
+    case "DISPLACED_MOVE": {
+      const { pid, to } = action;
+      const pending = s.pendingDisplace!;
+      const from = pending.displacedKnightVertex;
+
+      if (to === null) {
+        // Can't move — knight returned to supply
+        const player = s.players[pid]!;
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [pid]: {
+              ...player,
+              supply: {
+                ...player.supply,
+                knights: {
+                  ...player.supply.knights,
+                  [pending.displacedKnightStrength]:
+                    player.supply.knights[pending.displacedKnightStrength] + 1,
+                },
+              },
+            },
+          },
+        };
+      } else {
+        s = {
+          ...s,
+          board: {
+            ...s.board,
+            knights: {
+              ...s.board.knights,
+              [to]: {
+                playerId: pid,
+                strength: pending.displacedKnightStrength,
+                active: false,
+              },
+            },
+          },
+        };
+      }
+      s = { ...s, pendingDisplace: null, phase: "ACTION" };
+      return s;
+    }
+
+    case "CHASE_ROBBER": {
+      const { pid, knight, hid, stealFrom } = action;
+      const knightPiece = s.board.knights[knight]!;
+      // Deactivate knight
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          knights: {
+            ...s.board.knights,
+            [knight]: { ...knightPiece, active: false },
+          },
+        },
+      };
+      // Move robber
+      const hexes = Object.fromEntries(
+        Object.entries(s.board.hexes).map(([k, v]) => [
+          k,
+          { ...v, hasRobber: false },
+        ]),
+      );
+      hexes[hid] = { ...hexes[hid]!, hasRobber: true };
+      s = { ...s, board: { ...s.board, hexes } };
+      if (stealFrom) s = stealRandomCard(s, pid, stealFrom);
+      return s;
+    }
+
+    // ── Progress Cards ─────────────────────────────────────────────────────────
+    case "DRAW_PROGRESS": {
+      const { pid, track } = action;
+      const deck = [...s.decks[track]];
+      if (deck.length === 0) return s;
+      const card = deck.shift()!;
+      const player = s.players[pid]!;
+
+      // VP cards go face-up immediately
+      s = {
+        ...s,
+        decks: { ...s.decks, [track]: deck },
+        players: {
+          ...s.players,
+          [pid]: { ...player, progressCards: [...player.progressCards, card] },
+        },
+      };
+
+      // Remove from pending
+      if (s.pendingProgressDraw) {
+        const remaining = s.pendingProgressDraw.remaining.filter(
+          (p) => p !== pid,
+        );
+        if (remaining.length === 0) {
+          s = { ...s, pendingProgressDraw: null, phase: "ACTION" };
+        } else {
+          s = {
+            ...s,
+            pendingProgressDraw: { ...s.pendingProgressDraw, remaining },
+          };
+        }
+      }
+      return checkWin(s);
+    }
+
+    case "PLAY_PROGRESS": {
+      return applyProgressCard(s, action.pid, action.card, action.params);
+    }
+
+    // ── Progress multi-step actions ───────────────────────────────────────────
+    case "PROGRESS_PLACE_FREE_ROAD": {
+      const { pid, eid } = action;
+      const pending = s.pendingFreeRoads;
+      if (!pending || pending.pid !== pid) return s;
+      if (s.players[pid]!.supply.roads <= 0) return s;
+      if (s.board.edges[eid] !== null) return s;
+      const player = s.players[pid]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            supply: { ...player.supply, roads: player.supply.roads - 1 },
+          },
+        },
+        board: {
+          ...s.board,
+          edges: { ...s.board.edges, [eid]: { playerId: pid } },
+        },
+      };
+      s = updateLongestRoad(s);
+      const roadsLeft = (pending.remaining - 1) as 0 | 1 | 2;
+      if (roadsLeft <= 0 || s.players[pid]!.supply.roads <= 0) {
+        s = { ...s, pendingFreeRoads: null };
+      } else {
+        s = { ...s, pendingFreeRoads: { pid, remaining: roadsLeft as 1 | 2 } };
+      }
+      return s;
+    }
+
+    case "PROGRESS_SKIP_FREE_ROADS": {
+      const { pid } = action;
+      if (s.pendingFreeRoads?.pid !== pid) return s;
+      return { ...s, pendingFreeRoads: null };
+    }
+
+    case "PROGRESS_PROMOTE_FREE_KNIGHT": {
+      const { pid, vid } = action;
+      const pending = s.pendingKnightPromotions;
+      if (!pending || pending.pid !== pid) return s;
+      const knight = s.board.knights[vid];
+      if (!knight || knight.playerId !== pid) return s;
+      if (knight.strength >= 3) return s;
+      if (knight.strength === 2 && s.players[pid]!.improvements.politics < 3)
+        return s;
+      const newStrength = (knight.strength + 1) as KnightStrength;
+      if (s.players[pid]!.supply.knights[newStrength] <= 0) return s;
+      const player = s.players[pid]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            supply: {
+              ...player.supply,
+              knights: {
+                ...player.supply.knights,
+                [knight.strength]: player.supply.knights[knight.strength] + 1,
+                [newStrength]: player.supply.knights[newStrength] - 1,
+              },
+            },
+          },
+        },
+        board: {
+          ...s.board,
+          knights: {
+            ...s.board.knights,
+            [vid]: { ...knight, strength: newStrength },
+          },
+        },
+      };
+      const promsLeft = (pending.remaining - 1) as 0 | 1 | 2;
+      if (promsLeft <= 0) {
+        s = { ...s, pendingKnightPromotions: null };
+      } else {
+        s = {
+          ...s,
+          pendingKnightPromotions: { pid, remaining: promsLeft as 1 | 2 },
+        };
+      }
+      return s;
+    }
+
+    case "PROGRESS_SKIP_FREE_PROMOTIONS": {
+      const { pid } = action;
+      if (s.pendingKnightPromotions?.pid !== pid) return s;
+      return { ...s, pendingKnightPromotions: null };
+    }
+
+    case "PROGRESS_RESPOND_COMMERCIAL_HARBOR": {
+      const { pid, commodity } = action;
+      const pending = s.pendingCommercialHarbor;
+      if (!pending || !pending.remainingPids.includes(pid)) return s;
+      const initiatorPid = pending.initiatorPid;
+      const resource = pending.offeredResource;
+      if (commodity) {
+        const responder = s.players[pid]!;
+        const initiator = s.players[initiatorPid]!;
+        if ((responder.resources[commodity] ?? 0) < 1) return s;
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [pid]: {
+              ...responder,
+              resources: addResources(
+                subtractResources(responder.resources, {
+                  [commodity]: 1,
+                } as any),
+                { [resource]: 1 } as any,
+              ),
+            },
+            [initiatorPid]: {
+              ...initiator,
+              resources: addResources(
+                subtractResources(initiator.resources, {
+                  [resource]: 1,
+                } as any),
+                { [commodity]: 1 } as any,
+              ),
+            },
+          },
+        };
+      }
+      const newRemaining = pending.remainingPids.filter((p) => p !== pid);
+      s = {
+        ...s,
+        pendingCommercialHarbor:
+          newRemaining.length > 0
+            ? { ...pending, remainingPids: newRemaining }
+            : null,
+      };
+      return s;
+    }
+
+    // ── Trading ────────────────────────────────────────────────────────────────
+    case "TRADE_BANK": {
+      const { pid, give, get } = action;
+      const player = s.players[pid]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            resources: addResources(
+              subtractResources(player.resources, give),
+              get,
+            ),
+          },
+        },
+      };
+      return s;
+    }
+
+    case "TRADE_ACCEPT": {
+      const { from, to } = action;
+      const pending = s.pendingDisplace; // TODO: proper pending trade
+      return s;
+    }
+
+    // ── Host Master Controls ─────────────────────────────────────────────────
+    case "ADMIN_MOVE_ROAD": {
+      const { pid, fromEid, toEid, unsafe = false, reason } = action;
+      const source = s.board.edges[fromEid];
+      if (!source || source.playerId !== pid) return s;
+      if (s.board.edges[toEid] !== null) return s;
+      if (!unsafe && !isOnPlayerNetwork(s.board, graph, pid, toEid)) return s;
+
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          edges: {
+            ...s.board.edges,
+            [fromEid]: null,
+            [toEid]: source,
+          },
+        },
+      };
+      s = updateLongestRoad(s);
+      return log(
+        s,
+        `[MASTER] ${s.players[pid]?.name} road moved ${fromEid} -> ${toEid}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_MOVE_BUILDING": {
+      const { pid, fromVid, toVid, unsafe = false, reason } = action;
+      const source = s.board.vertices[fromVid];
+      if (!source || source.playerId !== pid) return s;
+      if (s.board.vertices[toVid] !== null) return s;
+      if (s.board.knights[toVid] !== null) return s;
+
+      if (!unsafe) {
+        const adjacent = graph.adjacentVertices[toVid] ?? [];
+        const blockedByDistance = adjacent.some(
+          (adj: VertexId) => !!s.board.vertices[adj],
+        );
+        if (blockedByDistance) return s;
+      }
+
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          vertices: {
+            ...s.board.vertices,
+            [fromVid]: null,
+            [toVid]: source,
+          },
+        },
+      };
+      return log(
+        s,
+        `[MASTER] ${s.players[pid]?.name} ${source.type} moved ${fromVid} -> ${toVid}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_MOVE_KNIGHT": {
+      const { pid, fromVid, toVid, unsafe = false, reason } = action;
+      const source = s.board.knights[fromVid];
+      if (!source || source.playerId !== pid) return s;
+      if (s.board.vertices[toVid] !== null) return s;
+      if (s.board.knights[toVid] !== null) return s;
+      if (
+        !unsafe &&
+        !isKnightMoveReachable(s.board, graph, pid, fromVid, toVid)
+      ) {
+        return s;
+      }
+
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          knights: {
+            ...s.board.knights,
+            [fromVid]: null,
+            [toVid]: source,
+          },
+        },
+      };
+      s = updateLongestRoad(s);
+      return log(
+        s,
+        `[MASTER] ${s.players[pid]?.name} knight moved ${fromVid} -> ${toVid}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_SWAP_NUMBER_TOKENS": {
+      const { hidA, hidB, reason } = action;
+      const a = s.board.hexes[hidA];
+      const b = s.board.hexes[hidB];
+      if (!a || !b) return s;
+      if (a.number === null || b.number === null) return s;
+
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          hexes: {
+            ...s.board.hexes,
+            [hidA]: { ...a, number: b.number },
+            [hidB]: { ...b, number: a.number },
+          },
+        },
+      };
+      return log(
+        s,
+        `[MASTER] Number tokens swapped ${hidA} <-> ${hidB}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_SWAP_HEXES": {
+      const { hidA, hidB, reason } = action;
+      const a = s.board.hexes[hidA];
+      const b = s.board.hexes[hidB];
+      if (!a || !b) return s;
+
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          hexes: {
+            ...s.board.hexes,
+            [hidA]: {
+              ...a,
+              terrain: b.terrain,
+              number: b.number,
+              hasRobber: b.hasRobber,
+            },
+            [hidB]: {
+              ...b,
+              terrain: a.terrain,
+              number: a.number,
+              hasRobber: a.hasRobber,
+            },
+          },
+        },
+      };
+      return log(
+        s,
+        `[MASTER] Hexes swapped ${hidA} <-> ${hidB}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_GRANT_PROGRESS_CARD": {
+      const { pid, track, cardName, reason } = action;
+      const deck = [...s.decks[track]];
+      let idx = 0;
+      if (cardName) {
+        idx = deck.findIndex((c) => c.name === cardName);
+        if (idx === -1) return s;
+      }
+      const [card] = deck.splice(idx, 1);
+      if (!card) return s;
+
+      s = {
+        ...s,
+        decks: { ...s.decks, [track]: deck },
+        players: {
+          ...s.players,
+          [pid]: {
+            ...s.players[pid]!,
+            progressCards: [...s.players[pid]!.progressCards, card],
+          },
+        },
+      };
+      return log(
+        s,
+        `[MASTER] ${s.players[pid]?.name} receives ${card.name}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_SET_PLAYER_BOT": {
+      const { pid, isBot, reason } = action;
+      const player = s.players[pid];
+      if (!player || player.isBot === isBot) return s;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: { ...player, isBot },
+        },
+      };
+      return log(
+        s,
+        `[MASTER] ${player.name} ${isBot ? "converted to bot" : "restored to human"}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_END_GAME": {
+      return {
+        ...s,
+        phase: "GAME_OVER",
+        winner: action.winner,
+        log: [
+          ...s.log,
+          `[MASTER] Game ended${action.reason ? ` (${action.reason})` : ""}`,
+        ],
+      };
+    }
+
+    case "ADMIN_UNDO_LAST": {
+      // Host-managed in network.ts by restoring pre-admin snapshot.
+      return s;
+    }
+
+    case "END_TURN": {
+      const { pid } = action;
+      const idx = s.playerOrder.indexOf(pid);
+      const nextIdx = (idx + 1) % s.playerOrder.length;
+      s = {
+        ...s,
+        currentPlayerId: s.playerOrder[nextIdx]!,
+        phase: "ROLL_DICE",
+        progressEffects: {
+          craneDiscountPlayerId:
+            s.progressEffects.craneDiscountPlayerId === pid
+              ? null
+              : s.progressEffects.craneDiscountPlayerId,
+          merchantFleet:
+            s.progressEffects.merchantFleet?.playerId === pid
+              ? null
+              : s.progressEffects.merchantFleet,
+        },
+      };
+      return s;
+    }
+
+    default:
+      return s;
+  }
+}
+
+// ─── Resource Distribution ────────────────────────────────────────────────────
+
+function distributeResources(
+  state: GameState,
+  production: number,
+  graph: ReturnType<typeof buildGraph>,
+): GameState {
+  let s = state;
+
+  // Collect what each player produces
+  const gains: Record<PlayerId, Partial<Resources>> = {};
+  const supplyUsed: Record<keyof Resources, number> = emptyResources();
+
+  for (const [hid, hex] of Object.entries(s.board.hexes)) {
+    if (hex.number !== production) continue;
+    if (hex.hasRobber) continue;
+    if (hex.terrain === "desert") continue;
+
+    for (const vid of graph.verticesOfHex[hid] ?? []) {
+      const building = s.board.vertices[vid];
+      if (!building) continue;
+
+      const pid = building.playerId;
+      if (!gains[pid]) gains[pid] = {};
+
+      if (building.type === "settlement") {
+        const res = terrainToResource(hex.terrain);
+        if (res) {
+          gains[pid]![res] = (gains[pid]![res] ?? 0) + 1;
+          supplyUsed[res] = (supplyUsed[res] ?? 0) + 1;
+        }
+      } else if (building.type === "city") {
+        // City produces based on terrain
+        const prod = cityTerrainProduction(hex.terrain);
+        if (prod.resource) {
+          gains[pid]![prod.resource] =
+            (gains[pid]![prod.resource] ?? 0) + prod.resourceCount;
+          supplyUsed[prod.resource] =
+            (supplyUsed[prod.resource] ?? 0) + prod.resourceCount;
+        }
+        if (prod.commodity) {
+          gains[pid]![prod.commodity] = (gains[pid]![prod.commodity] ?? 0) + 1;
+          supplyUsed[prod.commodity] = (supplyUsed[prod.commodity] ?? 0) + 1;
+        }
+      }
+    }
+  }
+
+  // Apply (supply shortage: if multiple players compete for same resource and supply runs out, no one gets it)
+  // Simplified: apply all gains (in a real game, supply is 19 per resource)
+  const newPlayers = { ...s.players };
+  for (const [pid, gain] of Object.entries(gains)) {
+    const player = newPlayers[pid]!;
+    newPlayers[pid] = {
+      ...player,
+      resources: addResources(player.resources, gain),
+    };
+  }
+
+  return { ...s, players: newPlayers };
+}
+
+function terrainToResource(terrain: string): keyof Resources | null {
+  const map: Record<string, keyof Resources> = {
+    hills: "brick",
+    forest: "lumber",
+    mountains: "ore",
+    fields: "grain",
+    pasture: "wool",
+  };
+  return map[terrain] ?? null;
+}
+
+function cityTerrainProduction(terrain: string): {
+  resource: keyof Resources | null;
+  resourceCount: number;
+  commodity: keyof Resources | null;
+} {
+  switch (terrain) {
+    case "forest":
+      return { resource: "lumber", resourceCount: 1, commodity: "paper" };
+    case "mountains":
+      return { resource: "ore", resourceCount: 1, commodity: "coin" };
+    case "pasture":
+      return { resource: "wool", resourceCount: 1, commodity: "cloth" };
+    case "hills":
+      return { resource: "brick", resourceCount: 2, commodity: null };
+    case "fields":
+      return { resource: "grain", resourceCount: 2, commodity: null };
+    default:
+      return { resource: null, resourceCount: 0, commodity: null };
+  }
+}
+
+// ─── Barbarian Attack ─────────────────────────────────────────────────────────
+
+function resolveBarbarianAttack(state: GameState): GameState {
+  let s = state;
+
+  // Count cities on board (each city = 1 barbarian strength)
+  const allCities = Object.entries(s.board.vertices).filter(
+    ([, b]) => b?.type === "city",
+  );
+  const barbarianStrength = allCities.length;
+
+  // Sum active knight strengths per player
+  const knightContrib: Record<PlayerId, number> = {};
+  let totalDefense = 0;
+  for (const [vid, knight] of Object.entries(s.board.knights)) {
+    if (!knight || !knight.active) continue;
+    knightContrib[knight.playerId] =
+      (knightContrib[knight.playerId] ?? 0) + knight.strength;
+    totalDefense += knight.strength;
+  }
+
+  // After attack: all active knights become inactive and track resets
+  const newKnights = Object.fromEntries(
+    Object.entries(s.board.knights).map(([k, v]) =>
+      v ? [k, { ...v, active: false }] : [k, null],
+    ),
+  );
+  s = {
+    ...s,
+    board: { ...s.board, knights: newKnights },
+    barbarian: { ...s.barbarian, position: 0 },
+  };
+
+  // First attack: activate robber, place on desert
+  if (!s.barbarian.robberActive) {
+    s = { ...s, barbarian: { ...s.barbarian, robberActive: true } };
+    const desertHex = Object.values(s.board.hexes).find(
+      (h) => h.terrain === "desert",
+    );
+    if (desertHex) {
+      const hexes = Object.fromEntries(
+        Object.entries(s.board.hexes).map(([k, v]) => [
+          k,
+          { ...v, hasRobber: false },
+        ]),
+      );
+      hexes[desertHex.id] = { ...hexes[desertHex.id]!, hasRobber: true };
+      s = { ...s, board: { ...s.board, hexes } };
+    }
+  }
+
+  s = log(
+    s,
+    `Barbarians attack! Strength: ${barbarianStrength}, Defense: ${totalDefense}`,
+  );
+
+  if (totalDefense >= barbarianStrength) {
+    // Defenders win
+    const maxContrib = Math.max(0, ...Object.values(knightContrib));
+    const winners = Object.entries(knightContrib)
+      .filter(([, v]) => v === maxContrib && v > 0)
+      .map(([pid]) => pid);
+
+    if (winners.length === 1) {
+      const winnerId = winners[0]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [winnerId]: {
+            ...s.players[winnerId]!,
+            vpTokens: s.players[winnerId]!.vpTokens + 1,
+          },
+        },
+      };
+      s = log(
+        s,
+        `${s.players[winnerId]?.name} gets 1 VP token for defending Catan!`,
+      );
+    } else if (winners.length > 1) {
+      s = log(s, "Tied defenders each draw a progress card!");
+      for (const winnerId of winners) {
+        const before = s.players[winnerId]!.progressCards.length;
+        s = drawRandomProgressCard(s, winnerId);
+        if (s.players[winnerId]!.progressCards.length > before) {
+          s = log(s, `${s.players[winnerId]?.name} draws a progress card.`);
+        }
+      }
+    }
+    s = checkWin(s);
+  } else {
+    // Barbarians win: pillage
+    // Find player(s) with lowest knight contribution
+    const allPlayerIds = s.playerOrder;
+    const contributions = allPlayerIds.map((pid) => ({
+      pid,
+      contrib: knightContrib[pid] ?? 0,
+    }));
+    contributions.sort((a, b) => a.contrib - b.contrib);
+
+    let pillageNeeded = barbarianStrength - totalDefense;
+    let tierIdx = 0;
+    const minContrib = contributions[0]?.contrib ?? 0;
+    const lowestTier = contributions
+      .filter((c) => c.contrib === minContrib)
+      .map((c) => c.pid);
+
+    for (const pid of lowestTier) {
+      if (pillageNeeded <= 0) break;
+      // Find a non-metropolis city for this player
+      const cityEntry = Object.entries(s.board.vertices).find(
+        ([, b]) =>
+          b?.type === "city" && b.playerId === pid && b.metropolis === null,
+      );
+      if (!cityEntry) continue;
+      const [cityVid, cityBuilding] = cityEntry as [
+        VertexId,
+        {
+          type: "city";
+          playerId: PlayerId;
+          hasWall: boolean;
+          metropolis: ImprovementTrack | null;
+        },
+      ];
+
+      // Pillage: city → settlement, wall removed
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          vertices: {
+            ...s.board.vertices,
+            [cityVid]: { type: "settlement", playerId: pid },
+          },
+        },
+        players: {
+          ...s.players,
+          [pid]: {
+            ...s.players[pid]!,
+            supply: {
+              ...s.players[pid]!.supply,
+              settlements: s.players[pid]!.supply.settlements - 1,
+              cities: s.players[pid]!.supply.cities + 1,
+              cityWalls: cityBuilding.hasWall
+                ? s.players[pid]!.supply.cityWalls + 1
+                : s.players[pid]!.supply.cityWalls,
+            },
+          },
+        },
+      };
+      pillageNeeded--;
+      s = log(s, `${s.players[pid]?.name}'s city was pillaged!`);
+    }
+  }
+
+  return s;
+}
+
+// ─── Metropolis ───────────────────────────────────────────────────────────────
+
+function checkMetropolis(
+  state: GameState,
+  pid: PlayerId,
+  track: ImprovementTrack,
+  level: number,
+): GameState {
+  let s = state;
+  if (level < 4) return s;
+
+  const currentOwner = s.metropolisOwner[track];
+
+  // If no owner or we beat level 4 (permanent ownership at 5)
+  const ownerLevel = currentOwner
+    ? (s.players[currentOwner]?.improvements[track] ?? 0)
+    : 0;
+
+  if (!currentOwner || level > ownerLevel) {
+    // Transfer metropolis
+    s = { ...s, metropolisOwner: { ...s.metropolisOwner, [track]: pid } };
+
+    // Update vertices: remove metropolis from old owner, add to a city of new owner
+    let newVertices = { ...s.board.vertices };
+
+    // Remove old metropolis
+    if (currentOwner) {
+      for (const [vid, b] of Object.entries(newVertices)) {
+        if (b?.type === "city" && b.metropolis === track) {
+          newVertices[vid as VertexId] = { ...b, metropolis: null };
+          break;
+        }
+      }
+    }
+
+    // Add metropolis to new owner's city
+    for (const [vid, b] of Object.entries(newVertices)) {
+      if (b?.type === "city" && b.playerId === pid && b.metropolis === null) {
+        newVertices[vid as VertexId] = { ...b, metropolis: track };
+        break;
+      }
+    }
+
+    s = { ...s, board: { ...s.board, vertices: newVertices } };
+    s = log(s, `${s.players[pid]?.name} claims the ${track} metropolis!`);
+  }
+
+  return s;
+}
+
+// ─── Largest Army / Longest Road ──────────────────────────────────────────────
+
+function updateLargestArmy(state: GameState): GameState {
+  let s = state;
+  let best = s.largestArmySize;
+  let bestOwner = s.largestArmyOwner;
+
+  for (const [pid, player] of Object.entries(s.players)) {
+    if (
+      player.knightsActivatedTotal >= 3 &&
+      player.knightsActivatedTotal > best
+    ) {
+      best = player.knightsActivatedTotal;
+      bestOwner = pid;
+    }
+  }
+
+  if (bestOwner !== s.largestArmyOwner) {
+    s = { ...s, largestArmyOwner: bestOwner, largestArmySize: best };
+    s = log(s, `${s.players[bestOwner!]?.name} takes the Largest Army!`);
+  }
+
+  return s;
+}
+
+function updateLongestRoad(state: GameState): GameState {
+  const graph = buildGraph();
+  let s = state;
+  let bestLen = 4; // must be at least 5 to claim
+  let bestOwner: PlayerId | null = null;
+
+  for (const pid of s.playerOrder) {
+    const len = computeLongestRoad(s.board, graph, pid);
+    if (len >= 5 && len > bestLen) {
+      bestLen = len;
+      bestOwner = pid;
+    }
+  }
+
+  // If current owner is tied or still leads, they keep it
+  if (s.longestRoadOwner && !bestOwner) {
+    const ownerLen = computeLongestRoad(s.board, graph, s.longestRoadOwner);
+    if (ownerLen >= 5) return s; // still has valid road
+    // Lost it — no new owner
+    s = { ...s, longestRoadOwner: null, longestRoadLength: 0 };
+  } else if (bestOwner && bestOwner !== s.longestRoadOwner) {
+    s = { ...s, longestRoadOwner: bestOwner, longestRoadLength: bestLen };
+    s = log(s, `${s.players[bestOwner]?.name} takes the Longest Road!`);
+  }
+
+  return s;
+}
+
+function isKnightMoveReachable(
+  board: BoardState,
+  graph: ReturnType<typeof buildGraph>,
+  playerId: PlayerId,
+  from: VertexId,
+  to: VertexId,
+): boolean {
+  if (from === to) return false;
+  const visited = new Set<VertexId>([from]);
+  const queue: VertexId[] = [from];
+
+  while (queue.length) {
+    const cur = queue.shift()!;
+    if (cur === to) return true;
+    for (const eid of graph.edgesOfVertex[cur] ?? []) {
+      const road = board.edges[eid];
+      if (!road || road.playerId !== playerId) continue;
+      const [a, b] = graph.verticesOfEdge[eid] ?? [];
+      const next = a === cur ? b : a;
+      if (!next) continue;
+      if (next !== to) {
+        const blockerBuilding = board.vertices[next];
+        if (blockerBuilding && blockerBuilding.playerId !== playerId) continue;
+        const blockerKnight = board.knights[next];
+        if (blockerKnight && blockerKnight.playerId !== playerId) continue;
+      }
+      if (visited.has(next)) continue;
+      visited.add(next);
+      queue.push(next);
+    }
+  }
+
+  return false;
+}
+
+// ─── Steal Card ───────────────────────────────────────────────────────────────
+
+function stealRandomCard(
+  state: GameState,
+  thief: PlayerId,
+  victim: PlayerId,
+): GameState {
+  const victimPlayer = state.players[victim]!;
+  const allCards: (keyof Resources)[] = [];
+  for (const [k, v] of Object.entries(victimPlayer.resources) as [
+    keyof Resources,
+    number,
+  ][]) {
+    for (let i = 0; i < v; i++) allCards.push(k);
+  }
+  if (allCards.length === 0) return state;
+
+  const stolen = allCards[Math.floor(Math.random() * allCards.length)]!;
+  const thiefPlayer = state.players[thief]!;
+
+  return {
+    ...state,
+    players: {
+      ...state.players,
+      [victim]: {
+        ...victimPlayer,
+        resources: subtractResources(victimPlayer.resources, {
+          [stolen]: 1,
+        } as Partial<Resources>),
+      },
+      [thief]: {
+        ...thiefPlayer,
+        resources: addResources(thiefPlayer.resources, {
+          [stolen]: 1,
+        } as Partial<Resources>),
+      },
+    },
+  };
+}
+
+// ─── Win Check ────────────────────────────────────────────────────────────────
+
+function checkWin(state: GameState): GameState {
+  if (state.phase === "GAME_OVER") return state;
+  const vp = computeVP(state, state.currentPlayerId);
+  if (vp >= 13) {
+    return { ...state, phase: "GAME_OVER", winner: state.currentPlayerId };
+  }
+  return state;
+}
+
+// ─── Progress Card Effects (simplified) ──────────────────────────────────────
+
+function applyProgressCard(
+  state: GameState,
+  pid: PlayerId,
+  cardName: string,
+  params: unknown,
+): GameState {
+  let s = state;
+  const player = s.players[pid]!;
+
+  // Alchemy can only be played before rolling; all other cards in action phase.
+  if (cardName === "Alchemy") {
+    if (s.phase !== "ROLL_DICE") return s;
+  } else if (s.phase !== "ACTION") {
+    return s;
+  }
+
+  if (s.currentPlayerId !== pid) return s;
+
+  // Remove card from hand
+  const cardIdx = player.progressCards.findIndex((c) => c.name === cardName);
+  if (cardIdx === -1) return s;
+  const newCards = [...player.progressCards];
+  newCards.splice(cardIdx, 1);
+  s = {
+    ...s,
+    players: { ...s.players, [pid]: { ...player, progressCards: newCards } },
+  };
+
+  switch (cardName) {
+    case "Alchemy": {
+      const die1 = Number((params as any)?.die1);
+      const die2 = Number((params as any)?.die2);
+      if (
+        !Number.isInteger(die1) ||
+        !Number.isInteger(die2) ||
+        die1 < 1 ||
+        die1 > 6 ||
+        die2 < 1 ||
+        die2 > 6
+      ) {
+        return state;
+      }
+      return applyAction(s, {
+        type: "ROLL_DICE",
+        pid,
+        result: [die1, die2, rollEventDie()],
+      });
+    }
+    case "RoadBuilding": {
+      s = { ...s, pendingFreeRoads: { pid, remaining: 2 } };
+      s = log(s, `${player.name} plays Road Building — place 2 free roads.`);
+      break;
+    }
+    case "Irrigation": {
+      // Take 2 grain per field hex adjacent to own buildings
+      const graph = buildGraph();
+      let grain = 0;
+      for (const [hid, hex] of Object.entries(s.board.hexes)) {
+        if (hex.terrain !== "fields") continue;
+        const verts = graph.verticesOfHex[hid] ?? [];
+        if (verts.some((v) => s.board.vertices[v]?.playerId === pid))
+          grain += 2;
+      }
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...s.players[pid]!,
+            resources: addResources(s.players[pid]!.resources, { grain }),
+          },
+        },
+      };
+      break;
+    }
+    case "Mining": {
+      // Take 2 ore per mountain hex adjacent to own buildings
+      const graph = buildGraph();
+      let ore = 0;
+      for (const [hid, hex] of Object.entries(s.board.hexes)) {
+        if (hex.terrain !== "mountains") continue;
+        const verts = graph.verticesOfHex[hid] ?? [];
+        if (verts.some((v) => s.board.vertices[v]?.playerId === pid)) ore += 2;
+      }
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...s.players[pid]!,
+            resources: addResources(s.players[pid]!.resources, { ore }),
+          },
+        },
+      };
+      break;
+    }
+    case "Medicine": {
+      const targetVid = (params as any)?.vid as VertexId;
+      if (!targetVid) {
+        return state;
+      }
+      const vertex = s.board.vertices[targetVid];
+      if (!vertex || vertex.type !== "settlement" || vertex.playerId !== pid)
+        break;
+      if ((player.resources.grain ?? 0) < 1 || (player.resources.ore ?? 0) < 2)
+        break;
+      if (player.supply.cities <= 0) break;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            resources: subtractResources(player.resources, {
+              grain: 1,
+              ore: 2,
+            }),
+            supply: {
+              ...player.supply,
+              settlements: player.supply.settlements + 1,
+              cities: player.supply.cities - 1,
+            },
+          },
+        },
+        board: {
+          ...s.board,
+          vertices: {
+            ...s.board.vertices,
+            [targetVid]: {
+              type: "city",
+              playerId: pid,
+              hasWall: false,
+              metropolis: null,
+            },
+          },
+        },
+      };
+      break;
+    }
+    case "Smithing": {
+      s = { ...s, pendingKnightPromotions: { pid, remaining: 2 } };
+      s = log(
+        s,
+        `${player.name} plays Smithing — promote up to 2 knights free.`,
+      );
+      break;
+    }
+    case "Merchant": {
+      const targetHex = (params as any)?.hid as HexId;
+      if (!targetHex) {
+        return state;
+      }
+      const mGraph = buildGraph();
+      const mVerts = mGraph.verticesOfHex[targetHex] ?? [];
+      if (!mVerts.some((v) => s.board.vertices[v]?.playerId === pid)) break;
+      s = {
+        ...s,
+        board: { ...s.board, merchantHex: targetHex, merchantOwner: pid },
+      };
+      break;
+    }
+    case "Encouragement": {
+      const knights = Object.fromEntries(
+        Object.entries(s.board.knights).map(([vid, knight]) => {
+          if (!knight || knight.playerId !== pid) return [vid, knight];
+          return [vid, { ...knight, active: true }];
+        }),
+      ) as typeof s.board.knights;
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          knights,
+        },
+      };
+      break;
+    }
+    case "ResourceMonopoly": {
+      const resource = (params as any)?.resource as ResourceType | undefined;
+      if (!resource) return state;
+      let gained = 0;
+      for (const [oppId, opp] of Object.entries(s.players)) {
+        if (oppId === pid) continue;
+        const available = opp.resources[resource] ?? 0;
+        const taken = Math.min(2, available);
+        if (taken <= 0) continue;
+        gained += taken;
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [oppId]: {
+              ...opp,
+              resources: subtractResources(opp.resources, {
+                [resource]: taken,
+              }),
+            },
+          },
+        };
+      }
+      if (gained > 0) {
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [pid]: {
+              ...s.players[pid]!,
+              resources: addResources(s.players[pid]!.resources, {
+                [resource]: gained,
+              }),
+            },
+          },
+        };
+      }
+      break;
+    }
+    case "Crane": {
+      s = {
+        ...s,
+        progressEffects: {
+          ...s.progressEffects,
+          craneDiscountPlayerId: pid,
+        },
+      };
+      break;
+    }
+    case "MerchantFleet": {
+      const cardType = (params as any)?.cardType as keyof Resources | undefined;
+      if (!cardType) return state;
+      s = {
+        ...s,
+        progressEffects: {
+          ...s.progressEffects,
+          merchantFleet: {
+            playerId: pid,
+            cardType,
+          },
+        },
+      };
+      break;
+    }
+    case "TradeMonopoly": {
+      const commodity = (params as any)?.commodity as CommodityType | undefined;
+      if (!commodity) return state;
+      let gained = 0;
+      for (const [oppId, opp] of Object.entries(s.players)) {
+        if (oppId === pid) continue;
+        const available = opp.resources[commodity] ?? 0;
+        const taken = Math.min(1, available);
+        if (taken <= 0) continue;
+        gained += taken;
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [oppId]: {
+              ...opp,
+              resources: subtractResources(opp.resources, {
+                [commodity]: taken,
+              }),
+            },
+          },
+        };
+      }
+      if (gained > 0) {
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [pid]: {
+              ...s.players[pid]!,
+              resources: addResources(s.players[pid]!.resources, {
+                [commodity]: gained,
+              }),
+            },
+          },
+        };
+      }
+      break;
+    }
+    case "Sabotage": {
+      // Each player with >= current player's VP discards half
+      const myVP = computeVP(s, pid);
+      for (const [oppId, opp] of Object.entries(s.players)) {
+        if (oppId === pid) continue;
+        if (computeVP(s, oppId) >= myVP) {
+          const total = Object.values(opp.resources).reduce((a, b) => a + b, 0);
+          const discard = Math.floor(total / 2);
+          if (discard > 0) {
+            // Auto-discard lowest priority resources
+            const newRes = autoDiscard(opp.resources, discard);
+            s = {
+              ...s,
+              players: { ...s.players, [oppId]: { ...opp, resources: newRes } },
+            };
+          }
+        }
+      }
+      break;
+    }
+    case "Wedding": {
+      const myVP = computeVP(s, pid);
+      let gained = emptyResources();
+      for (const [oppId, opp] of Object.entries(s.players)) {
+        if (oppId === pid) continue;
+        if (computeVP(s, oppId) <= myVP) continue;
+        const moved = transferCardsByPriority(opp.resources, 2);
+        if (Object.values(moved.transferred).some((v) => (v ?? 0) > 0)) {
+          s = {
+            ...s,
+            players: {
+              ...s.players,
+              [oppId]: {
+                ...opp,
+                resources: moved.remaining,
+              },
+            },
+          };
+          gained = addResources(gained, moved.transferred);
+        }
+      }
+
+      if (Object.values(gained).some((v) => (v ?? 0) > 0)) {
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [pid]: {
+              ...s.players[pid]!,
+              resources: addResources(s.players[pid]!.resources, gained),
+            },
+          },
+        };
+      }
+      break;
+    }
+    case "Engineering": {
+      const engVid = (params as any)?.vid as VertexId;
+      if (!engVid) {
+        return state;
+      }
+      const engCity = s.board.vertices[engVid];
+      if (
+        !engCity ||
+        engCity.type !== "city" ||
+        engCity.playerId !== pid ||
+        engCity.hasWall
+      )
+        break;
+      if (player.supply.cityWalls <= 0) break;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...player,
+            supply: {
+              ...player.supply,
+              cityWalls: player.supply.cityWalls - 1,
+            },
+          },
+        },
+        board: {
+          ...s.board,
+          vertices: {
+            ...s.board.vertices,
+            [engVid]: { ...engCity, hasWall: true },
+          },
+        },
+      };
+      break;
+    }
+    case "Invention": {
+      const hid1 = (params as any)?.hid1 as HexId;
+      const hid2 = (params as any)?.hid2 as HexId;
+      if (!hid1 || !hid2 || hid1 === hid2) {
+        return state;
+      }
+      const invHex1 = s.board.hexes[hid1];
+      const invHex2 = s.board.hexes[hid2];
+      if (!invHex1 || !invHex2) break;
+      const forbidden = [2, 6, 8, 12];
+      if (
+        forbidden.includes(invHex1.number ?? 0) ||
+        forbidden.includes(invHex2.number ?? 0)
+      )
+        break;
+      if (!invHex1.number || !invHex2.number) break;
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          hexes: {
+            ...s.board.hexes,
+            [hid1]: { ...invHex1, number: invHex2.number },
+            [hid2]: { ...invHex2, number: invHex1.number },
+          },
+        },
+      };
+      break;
+    }
+    case "Taxation": {
+      if (!s.barbarian.robberActive) {
+        return state;
+      }
+      const taxHid = (params as any)?.hid as HexId;
+      if (!taxHid) {
+        return state;
+      }
+      const taxGraph = buildGraph();
+      const taxHexes = Object.fromEntries(
+        Object.entries(s.board.hexes).map(([k, v]) => [
+          k,
+          { ...v, hasRobber: false },
+        ]),
+      ) as typeof s.board.hexes;
+      taxHexes[taxHid] = { ...taxHexes[taxHid]!, hasRobber: true };
+      s = { ...s, board: { ...s.board, hexes: taxHexes } };
+      const taxVerts = taxGraph.verticesOfHex[taxHid] ?? [];
+      const stolenFrom = new Set<PlayerId>();
+      for (const vid of taxVerts) {
+        const b = s.board.vertices[vid];
+        if (!b || b.playerId === pid || stolenFrom.has(b.playerId)) continue;
+        stolenFrom.add(b.playerId);
+        s = stealRandomCard(s, pid, b.playerId);
+      }
+      break;
+    }
+    case "Diplomacy": {
+      const dipEid = (params as any)?.eid as EdgeId;
+      if (!dipEid) {
+        return state;
+      }
+      const dipGraph = buildGraph();
+      const dipRoad = s.board.edges[dipEid];
+      if (!dipRoad) break;
+      if (!isOpenRoad(s.board, dipGraph, dipEid)) break;
+      const roadOwner = dipRoad.playerId;
+      const roadOwnerPlayer = s.players[roadOwner]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [roadOwner]: {
+            ...roadOwnerPlayer,
+            supply: {
+              ...roadOwnerPlayer.supply,
+              roads: roadOwnerPlayer.supply.roads + 1,
+            },
+          },
+        },
+        board: { ...s.board, edges: { ...s.board.edges, [dipEid]: null } },
+      };
+      s = updateLongestRoad(s);
+      if (roadOwner === pid) {
+        s = { ...s, pendingFreeRoads: { pid, remaining: 1 } };
+      }
+      break;
+    }
+    case "Intrigue": {
+      const intVid = (params as any)?.vid as VertexId;
+      if (!intVid) {
+        return state;
+      }
+      const intGraph = buildGraph();
+      const intKnight = s.board.knights[intVid];
+      if (!intKnight || intKnight.playerId === pid) break;
+      if (!isOnPlayerNetwork(s.board, intGraph, pid, intVid)) break;
+      s = {
+        ...s,
+        board: { ...s.board, knights: { ...s.board.knights, [intVid]: null } },
+        pendingDisplace: {
+          displacerPlayerId: pid,
+          displacedPlayerId: intKnight.playerId,
+          displacedKnightVertex: intVid,
+          displacedKnightStrength: intKnight.strength,
+        },
+        phase: "KNIGHT_DISPLACE_RESPONSE",
+      };
+      break;
+    }
+    case "Treason": {
+      const trsVid = (params as any)?.vid as VertexId;
+      const trsPlaceVid = (params as any)?.placeVid as VertexId | undefined;
+      const trsPlaceStrength = (params as any)?.placeStrength as
+        | KnightStrength
+        | undefined;
+      if (!trsVid) {
+        return state;
+      }
+      const trsKnight = s.board.knights[trsVid];
+      if (!trsKnight || trsKnight.playerId === pid) break;
+      const trsPid = trsKnight.playerId;
+      const trsTarget = s.players[trsPid]!;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [trsPid]: {
+            ...trsTarget,
+            supply: {
+              ...trsTarget.supply,
+              knights: {
+                ...trsTarget.supply.knights,
+                [trsKnight.strength]:
+                  trsTarget.supply.knights[trsKnight.strength] + 1,
+              },
+            },
+          },
+        },
+        board: { ...s.board, knights: { ...s.board.knights, [trsVid]: null } },
+      };
+      if (trsPlaceVid && trsPlaceStrength) {
+        const myPlayer = s.players[pid]!;
+        const strength = Math.min(
+          trsPlaceStrength,
+          trsKnight.strength,
+        ) as KnightStrength;
+        if (myPlayer.supply.knights[strength] > 0) {
+          const trsGraph = buildGraph();
+          if (
+            !s.board.vertices[trsPlaceVid] &&
+            !s.board.knights[trsPlaceVid] &&
+            isOnPlayerNetwork(s.board, trsGraph, pid, trsPlaceVid)
+          ) {
+            s = {
+              ...s,
+              players: {
+                ...s.players,
+                [pid]: {
+                  ...myPlayer,
+                  supply: {
+                    ...myPlayer.supply,
+                    knights: {
+                      ...myPlayer.supply.knights,
+                      [strength]: myPlayer.supply.knights[strength] - 1,
+                    },
+                  },
+                },
+              },
+              board: {
+                ...s.board,
+                knights: {
+                  ...s.board.knights,
+                  [trsPlaceVid]: {
+                    playerId: pid,
+                    strength,
+                    active: trsKnight.active,
+                  },
+                },
+              },
+            };
+          }
+        }
+      }
+      break;
+    }
+    case "CommercialHarbor": {
+      const chResource = (params as any)?.resource as ResourceType | undefined;
+      if (!chResource) {
+        return state;
+      }
+      const chPlayer = s.players[pid]!;
+      if ((chPlayer.resources[chResource] ?? 0) <= 0) {
+        return state;
+      }
+      const opponents = s.playerOrder.filter((p) => p !== pid);
+      if (opponents.length === 0) break;
+      s = {
+        ...s,
+        pendingCommercialHarbor: {
+          initiatorPid: pid,
+          offeredResource: chResource,
+          remainingPids: opponents,
+        },
+      };
+      break;
+    }
+    case "Espionage": {
+      const espTarget = (params as any)?.targetPid as PlayerId | undefined;
+      if (!espTarget || espTarget === pid) {
+        return state;
+      }
+      const espTargetPlayer = s.players[espTarget];
+      if (!espTargetPlayer) break;
+      const espCardIndex = (params as any)?.cardIndex as number | undefined;
+      if (espCardIndex === undefined) break;
+      const nonVP = espTargetPlayer.progressCards
+        .map((c, i) => ({ c, i }))
+        .filter(({ c }) => !c.isVP);
+      const entry = nonVP[espCardIndex];
+      if (!entry) break;
+      const newTargetCards = [...espTargetPlayer.progressCards];
+      newTargetCards.splice(entry.i, 1);
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [espTarget]: { ...espTargetPlayer, progressCards: newTargetCards },
+          [pid]: {
+            ...s.players[pid]!,
+            progressCards: [...s.players[pid]!.progressCards, entry.c],
+          },
+        },
+      };
+      break;
+    }
+    case "GuildDues": {
+      const gdTarget = (params as any)?.targetPid as PlayerId | undefined;
+      const gdCards = (params as any)?.takeCards as
+        | Partial<Resources>
+        | undefined;
+      if (!gdTarget || !gdCards || gdTarget === pid) {
+        return state;
+      }
+      const gdTargetPlayer = s.players[gdTarget];
+      if (!gdTargetPlayer) break;
+      if (computeVP(s, gdTarget) < computeVP(s, pid)) break;
+      const gdTotal = (Object.values(gdCards) as number[]).reduce(
+        (a, b) => a + (b ?? 0),
+        0,
+      );
+      if (gdTotal > 2) return state;
+      for (const [k, v] of Object.entries(gdCards) as [
+        keyof Resources,
+        number,
+      ][]) {
+        if ((gdTargetPlayer.resources[k] ?? 0) < (v ?? 0)) return state;
+      }
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [gdTarget]: {
+            ...gdTargetPlayer,
+            resources: subtractResources(gdTargetPlayer.resources, gdCards),
+          },
+          [pid]: {
+            ...s.players[pid]!,
+            resources: addResources(s.players[pid]!.resources, gdCards),
+          },
+        },
+      };
+      break;
+    }
+    default:
+      break;
+  }
+
+  return checkWin(s);
+}
+
+function autoDiscard(resources: Resources, amount: number): Resources {
+  const result = { ...resources };
+  const keys: (keyof Resources)[] = [
+    "cloth",
+    "coin",
+    "paper",
+    "brick",
+    "lumber",
+    "wool",
+    "grain",
+    "ore",
+  ];
+  let remaining = amount;
+  for (const k of keys) {
+    while (remaining > 0 && (result[k] ?? 0) > 0) {
+      result[k] = result[k]! - 1;
+      remaining--;
+    }
+  }
+  return result;
+}
+
+function transferCardsByPriority(
+  resources: Resources,
+  amount: number,
+): { remaining: Resources; transferred: Partial<Resources> } {
+  const remaining = { ...resources };
+  const transferred: Partial<Resources> = {};
+  const keys: (keyof Resources)[] = [
+    "cloth",
+    "coin",
+    "paper",
+    "brick",
+    "lumber",
+    "wool",
+    "grain",
+    "ore",
+  ];
+
+  let need = amount;
+  for (const key of keys) {
+    while (need > 0 && (remaining[key] ?? 0) > 0) {
+      remaining[key] = (remaining[key] ?? 0) - 1;
+      transferred[key] = (transferred[key] ?? 0) + 1;
+      need--;
+    }
+    if (need === 0) break;
+  }
+
+  return { remaining, transferred };
+}
