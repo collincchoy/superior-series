@@ -34,10 +34,13 @@
 <div class="game-layout">
   {#if roomCode}
     <div class="room-code-banner">
-      <span>Room: <strong>{roomCode}</strong></span>
+      <span class="room-code-row">
+        <span class="room-label">Room:</span>
+        <strong class="room-code" title={roomCode}>{roomCode}</strong>
+      </span>
       {#if isHost}
         <button class="wizard-btn" onclick={() => (wizardOpen = true)}>
-          Open Wizard Panel
+          🪄 Control Panel
         </button>
       {/if}
     </div>
@@ -107,7 +110,31 @@
     align-items: center;
     justify-content: center;
     gap: 0.8rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  .room-code-row {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .room-label {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .room-code {
+    display: block;
+    min-width: 0;
+    max-width: min(60vw, 24rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .wizard-btn {
@@ -119,6 +146,8 @@
     font-size: 0.72rem;
     font-weight: 700;
     cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .board-and-panel {
