@@ -27,6 +27,22 @@
     trade: 1,
     politics: 2,
   };
+
+  function progressCountsByTrack(progressCards: GameState["players"][PlayerId]["progressCards"]) {
+    const counts: Record<ImprovementTrack, number> = {
+      science: 0,
+      trade: 0,
+      politics: 0,
+    };
+
+    for (const card of progressCards) {
+      counts[card.track] += 1;
+    }
+
+    return (Object.entries(counts) as Array<[ImprovementTrack, number]>)
+      .filter(([, count]) => count > 0)
+      .sort(([left], [right]) => TRACK_SORT_ORDER[left] - TRACK_SORT_ORDER[right]);
+  }
 </script>
 
 <div class="players-bar">
@@ -34,9 +50,7 @@
     {@const p = gameState.players[pid]!}
     {@const vp = computeVP(gameState, pid)}
     {@const cards = totalCards(p.resources)}
-    {@const progressCards = [...p.progressCards].sort(
-      (a, b) => TRACK_SORT_ORDER[a.track] - TRACK_SORT_ORDER[b.track],
-    )}
+    {@const progressCounts = progressCountsByTrack(p.progressCards)}
     <div
       class="player-card{pid === gameState.currentPlayerId ? ' active' : ''}"
       style="border-top: 3px solid {p.color};{pid === gameState.currentPlayerId ? `--glow-color: ${p.color}` : ''}"
@@ -60,16 +74,22 @@
           >{TRACK_LABEL.politics}{p.improvements.politics}</span
         >
       </div>
-      <div>
+      <div class="cards-row">
         <span class="cards">{cards} 🃏</span>
-        {#if progressCards.length}
-          <div class="pips-row" aria-label="Progress cards by color">
-            {#each progressCards as c}
+        {#if progressCounts.length}
+          <div class="progress-summary" aria-label="Progress cards by track">
+            {#each progressCounts as [track, count]}
               <span
-                class="pip"
-                style={`background:${TRACK_COLORS[c.track]}`}
-                title={c.track}
-              ></span>
+                class="progress-chip"
+                title={`${count} ${track} progress card${count === 1 ? "" : "s"}`}
+              >
+                <span
+                  class="progress-dot"
+                  style={`background:${TRACK_COLORS[track]}`}
+                  aria-hidden="true"
+                ></span>
+                <span>{count}</span>
+              </span>
             {/each}
           </div>
         {/if}
@@ -124,6 +144,15 @@
     font-weight: 700;
     color: #f5c842;
   }
+  .cards-row {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    min-height: 1rem;
+  }
+
   .cards {
     font-size: 0.7rem;
     color: #a0b0a0;
@@ -140,21 +169,31 @@
     opacity: 0.4;
   }
 
-  .pips-row {
-    display: flex;
+  .progress-summary {
+    display: inline-flex;
+    align-items: center;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 2px;
-    min-height: 8px;
-    margin-top: 0.05rem;
+    gap: 0.22rem;
   }
 
-  .pip {
+  .progress-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.18rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #dfe7df;
+    line-height: 1;
+  }
+
+  .progress-dot {
     width: 8px;
     height: 8px;
     border-radius: 999px;
     border: 1px solid rgba(0, 0, 0, 0.35);
     display: inline-block;
+    flex: 0 0 auto;
   }
 
   @media (prefers-reduced-motion: reduce) {
