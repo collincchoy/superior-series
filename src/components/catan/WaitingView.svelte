@@ -2,15 +2,22 @@
   import { store } from "../../lib/catan/store.svelte.js";
   import { PLAYER_COLORS } from "../../lib/catan/constants.js";
   import QRModal from "./QRModal.svelte";
+  import CopyRoomCode from "./CopyRoomCode.svelte";
 
   let totalSlots = $derived(1 + store.pendingHumans.length + store.bots.length);
   let canAddBot = $derived(totalSlots < 4);
   let canStart = $derived(totalSlots >= 2);
   let showQR = $state(false);
+  let codeCopied = $state(false);
+  let codeCopiedTimer: ReturnType<typeof setTimeout> | undefined;
 
-  function copyCode() {
-    if (store.roomCode)
-      navigator.clipboard.writeText(store.roomCode).then(() => {});
+  function copyRoomCode() {
+    if (!store.roomCode) return;
+    navigator.clipboard.writeText(store.roomCode).then(() => {
+      codeCopied = true;
+      clearTimeout(codeCopiedTimer);
+      codeCopiedTimer = setTimeout(() => (codeCopied = false), 1800);
+    });
   }
 </script>
 
@@ -20,8 +27,23 @@
   <div class="lobby-section">
     <h2>📜 Room Code</h2>
     <div class="room-code-display">
-      <span class="room-code-value">{store.roomCode}</span>
-      <button class="btn-secondary" onclick={copyCode}>Copy</button>
+      <div
+        class="room-code-value"
+        class:copied={codeCopied}
+        role="button"
+        tabindex="0"
+        aria-label="Room code {store.roomCode}, click to copy"
+        onclick={copyRoomCode}
+        onkeydown={(e) => e.key === 'Enter' && copyRoomCode()}
+      >
+        <span class="room-code-text">{store.roomCode}</span>
+        <span class="room-code-overlay" aria-hidden="true">
+          {codeCopied ? '✓ Copied!' : 'Copy code'}
+        </span>
+      </div>
+      {#if store.roomCode}
+        <CopyRoomCode roomCode={store.roomCode} />
+      {/if}
       <button class="btn-secondary" onclick={() => (showQR = true)}
         >QR Code</button
       >
@@ -105,6 +127,7 @@
     font-size: 1rem;
     color: #c8b47a;
     margin-bottom: 0.5rem;
+    margin-top: 0;
   }
 
   .lobby-section {
@@ -185,6 +208,7 @@
   }
 
   .room-code-value {
+    position: relative;
     font-family: monospace;
     font-size: 1.3rem;
     font-weight: 700;
@@ -196,8 +220,43 @@
     flex: 1;
     min-width: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .room-code-text {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .room-code-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    opacity: 0;
+    transition: opacity 120ms ease, background 120ms ease;
+    background: rgba(20, 30, 22, 0.82);
+    color: #c8e6c9;
+  }
+
+  .room-code-value:hover .room-code-overlay,
+  .room-code-value:focus-visible .room-code-overlay {
+    opacity: 1;
+  }
+
+  .room-code-value.copied .room-code-overlay {
+    opacity: 1;
+    background: rgba(20, 30, 22, 0.92);
+    color: #81c784;
   }
 
   .join-hint {
