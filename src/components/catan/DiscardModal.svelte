@@ -36,7 +36,7 @@
   }
 </script>
 
-<Modal {open} title="Discard {needed} cards">
+<Modal {open} title="Discard {needed} cards" closeable={false} closeOnBackdrop={false}>
   <div class="grid">
     {#each RESOURCE_KEYS as k}
       {#if me.resources[k] > 0}

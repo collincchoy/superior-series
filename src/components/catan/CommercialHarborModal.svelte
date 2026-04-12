@@ -24,7 +24,7 @@
 </script>
 
 {#if open && pending}
-  <Modal {open} title="Commercial Harbor">
+  <Modal {open} title="Commercial Harbor" closeable={false} closeOnBackdrop={false}>
     <p class="msg">
       {CARD_EMOJI[offeredResource] ?? ""} <strong>{initiatorName}</strong> offers you 1 <strong>{offeredResource}</strong>.
       Give 1 commodity in return, or decline.
