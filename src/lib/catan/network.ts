@@ -29,6 +29,15 @@ export interface NetworkCallbacks {
   onError(msg: string): void;
   onPlayerJoined?(name: string, pid: PlayerId): void;
   onPendingJoin?(name: string): void;
+  onConnectionStatusChange?(
+    status: "idle" | "connecting" | "connected" | "reconnecting" | "disconnected",
+    detail?: string,
+  ): void;
+  onPlayerConnectionChange?(
+    pid: PlayerId,
+    status: "connected" | "disconnected",
+    detail?: string,
+  ): void;
   onReady?(): void;
 }
 
@@ -43,6 +52,7 @@ export class CatanNetwork {
   private callbacks: NetworkCallbacks;
   private pendingJoins: Array<{ conn: any; name: string }> = [];
   private lastAdminSnapshot: GameState | null = null;
+  private connToPid: WeakMap<any, PlayerId> = new WeakMap();
 
   constructor(callbacks: NetworkCallbacks) {
     this.callbacks = callbacks;
@@ -57,12 +67,16 @@ export class CatanNetwork {
   async hostGame(hostPid: PlayerId): Promise<string> {
     this.isHost = true;
     this.localPid = hostPid;
+    this.callbacks.onConnectionStatusChange?.("connecting", "Starting host peer");
 
     const Peer = await loadPeer();
     return new Promise((resolve, reject) => {
       this.peer = new Peer();
 
-      this.peer.on("open", (id: string) => resolve(id));
+      this.peer.on("open", (id: string) => {
+        this.callbacks.onConnectionStatusChange?.("connected", "Hosting room");
+        resolve(id);
+      });
       this.peer.on("error", (err: any) => reject(err));
 
       this.peer.on("connection", (conn: any) => {
@@ -71,7 +85,13 @@ export class CatanNetwork {
             this.handleHostMessage(conn, msg),
           );
         });
-        conn.on("error", (e: any) => console.warn("[host] conn error", e));
+        conn.on("close", () => {
+          this.handleHostConnectionClosed(conn, "Connection closed");
+        });
+        conn.on("error", (e: any) => {
+          console.warn("[host] conn error", e);
+          this.handleHostConnectionClosed(conn, "Connection error");
+        });
       });
     });
   }
@@ -86,15 +106,18 @@ export class CatanNetwork {
         continue;
       }
       this.connections.set(pid, conn);
+      this.connToPid.set(conn, pid);
       conn.send({
         type: "welcome",
         pid,
         state: this.state,
       } satisfies NetMessage);
       this.callbacks.onPlayerJoined?.(name, pid);
+      this.callbacks.onPlayerConnectionChange?.(pid, "connected", `${name} connected`);
     }
     this.pendingJoins = [];
     if (this.connections.size > 0) this.broadcastState();
+    this.callbacks.onReady?.();
     this.runBotTurns();
   }
 
@@ -117,13 +140,27 @@ export class CatanNetwork {
         this.state.players[msg.pid] &&
         !this.state.players[msg.pid]!.isBot
       ) {
+        const previous = this.connections.get(msg.pid);
+        if (previous && previous !== conn) {
+          try {
+            previous.close?.();
+          } catch {
+            /* ignore stale close errors */
+          }
+        }
         this.connections.set(msg.pid, conn);
+        this.connToPid.set(conn, msg.pid);
         conn.send({
           type: "welcome",
           pid: msg.pid,
           state: this.state,
         } satisfies NetMessage);
         this.callbacks.onPlayerJoined?.(msg.name, msg.pid);
+        this.callbacks.onPlayerConnectionChange?.(
+          msg.pid,
+          "connected",
+          `${msg.name} reconnected`,
+        );
         return;
       }
 
@@ -134,12 +171,14 @@ export class CatanNetwork {
         return;
       }
       this.connections.set(pid, conn);
+      this.connToPid.set(conn, pid);
       conn.send({
         type: "welcome",
         pid,
         state: this.state,
       } satisfies NetMessage);
       this.callbacks.onPlayerJoined?.(msg.name, pid);
+      this.callbacks.onPlayerConnectionChange?.(pid, "connected", `${msg.name} connected`);
       this.broadcastState();
     } else if (msg.type === "action") {
       if (isAdminAction(msg.action)) {
@@ -150,6 +189,17 @@ export class CatanNetwork {
         return;
       }
       this.applyAndBroadcast(msg.action);
+    }
+  }
+
+  private handleHostConnectionClosed(conn: any, detail: string) {
+    const pid = this.connToPid.get(conn);
+    if (!pid) return;
+    this.connToPid.delete(conn);
+    const mapped = this.connections.get(pid);
+    if (mapped === conn) {
+      this.connections.delete(pid);
+      this.callbacks.onPlayerConnectionChange?.(pid, "disconnected", detail);
     }
   }
 
@@ -257,7 +307,7 @@ export class CatanNetwork {
       try {
         conn.send(msg);
       } catch {
-        /* stale connection */
+        this.handleHostConnectionClosed(conn, "Connection lost during sync");
       }
     }
   }
@@ -270,13 +320,36 @@ export class CatanNetwork {
     existingPid?: PlayerId,
   ): Promise<void> {
     this.isHost = false;
+    this.callbacks.onConnectionStatusChange?.("connecting", "Connecting to host");
     const Peer = await loadPeer();
     return new Promise((resolve, reject) => {
+      let settled = false;
+      const safeResolve = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      const safeReject = (err: any) => {
+        if (settled) return;
+        settled = true;
+        reject(err);
+      };
+
       this.peer = new Peer();
-      this.peer.on("error", reject);
+      this.peer.on("error", (err: any) => {
+        this.callbacks.onConnectionStatusChange?.("disconnected", err?.message ?? "Peer error");
+        if (!settled) safeReject(err);
+      });
+      this.peer.on("disconnected", () => {
+        this.callbacks.onConnectionStatusChange?.("reconnecting", "Peer disconnected, attempting reconnect");
+      });
+      this.peer.on("close", () => {
+        this.callbacks.onConnectionStatusChange?.("disconnected", "Peer closed");
+      });
       this.peer.on("open", () => {
         const conn = this.peer.connect(roomCode);
         conn.on("open", () => {
+          this.callbacks.onConnectionStatusChange?.("connecting", "Connected to room, waiting for host state");
           const joinMsg: NetMessage = existingPid
             ? { type: "join", name: playerName, pid: existingPid }
             : { type: "join", name: playerName };
@@ -286,18 +359,29 @@ export class CatanNetwork {
               this.localPid = msg.pid;
               this.state = msg.state;
               this.callbacks.onStateUpdate(msg.state);
-              resolve();
+              this.callbacks.onConnectionStatusChange?.("connected", "Connected to host");
+              safeResolve();
             } else if (msg.type === "state") {
               this.state = msg.state;
               this.callbacks.onStateUpdate(msg.state);
             } else if (msg.type === "error") {
               this.callbacks.onError(msg.msg);
-              reject(new Error(msg.msg));
+              this.callbacks.onConnectionStatusChange?.("disconnected", msg.msg);
+              if (!settled) safeReject(new Error(msg.msg));
             }
+          });
+          conn.on("close", () => {
+            this.callbacks.onConnectionStatusChange?.("disconnected", "Lost connection to host");
+          });
+          conn.on("error", (err: any) => {
+            this.callbacks.onConnectionStatusChange?.("disconnected", err?.message ?? "Host connection error");
           });
           this.connections.set("host", conn);
         });
-        conn.on("error", reject);
+        conn.on("error", (err: any) => {
+          this.callbacks.onConnectionStatusChange?.("disconnected", err?.message ?? "Failed to connect to host");
+          if (!settled) safeReject(err);
+        });
       });
     });
   }
@@ -312,9 +396,18 @@ export class CatanNetwork {
         this.callbacks.onError("Master controls are host-only");
         return;
       }
-      this.connections
-        .get("host")
-        ?.send({ type: "action", action } satisfies NetMessage);
+      const hostConn = this.connections.get("host");
+      if (!hostConn) {
+        this.callbacks.onConnectionStatusChange?.("disconnected", "Not connected to host");
+        this.callbacks.onError("Not connected to host");
+        return;
+      }
+      try {
+        hostConn.send({ type: "action", action } satisfies NetMessage);
+      } catch {
+        this.callbacks.onConnectionStatusChange?.("disconnected", "Failed to send action to host");
+        this.callbacks.onError("Failed to send action to host");
+      }
     }
   }
 

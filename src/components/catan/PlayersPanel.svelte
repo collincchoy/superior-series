@@ -7,8 +7,15 @@
   import { computeVP } from "../../lib/catan/game.js";
   import { totalCards } from "./cardEmoji.js";
 
-  let { gameState, localPid }: { gameState: GameState; localPid: PlayerId } =
-    $props();
+  let {
+    gameState,
+    localPid,
+    playerConnectionStatus = {},
+  }: {
+    gameState: GameState;
+    localPid: PlayerId;
+    playerConnectionStatus?: Partial<Record<PlayerId, "connected" | "disconnected">>;
+  } = $props();
 
   const TRACK_COLORS: Record<ImprovementTrack, string> = {
     science: "#2e9e4f",
@@ -63,7 +70,20 @@
       class="player-card{pid === gameState.currentPlayerId ? ' active' : ''}"
       style="border-top: 3px solid {p.color};{pid === gameState.currentPlayerId ? `--glow-color: ${p.color}` : ''}"
     >
-      <span class="name">{p.name}{p.isBot ? " 🤖" : ""}</span>
+      <span class="name">
+        {p.name}{p.isBot ? " 🤖" : ""}
+        {#if !p.isBot && pid !== localPid && playerConnectionStatus[pid]}
+          <span
+            class="conn-dot {playerConnectionStatus[pid] === 'connected' ? 'is-connected' : 'is-disconnected'}"
+            title={playerConnectionStatus[pid] === "connected"
+              ? "Connected"
+              : "Disconnected"}
+            aria-label={playerConnectionStatus[pid] === "connected"
+              ? "Connected"
+              : "Disconnected"}
+          ></span>
+        {/if}
+      </span>
       <span class="vp">
         <span>{vp} VP</span>
         {#if defenderVp > 0}
@@ -163,6 +183,26 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+  }
+
+  .conn-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.45);
+    display: inline-block;
+    flex: 0 0 auto;
+  }
+
+  .conn-dot.is-connected {
+    background: #6dbf6d;
+  }
+
+  .conn-dot.is-disconnected {
+    background: #e07b7b;
   }
   .vp {
     display: inline-flex;

@@ -29,6 +29,38 @@
   let isHost = $derived(store.isHostPlayer);
   let wizardOpen = $state(false);
   let isGameOver = $derived(gameState.phase === "GAME_OVER");
+  let now = $state(Date.now());
+
+  $effect(() => {
+    const id = setInterval(() => {
+      now = Date.now();
+    }, 1000);
+    return () => clearInterval(id);
+  });
+
+  let syncAgeLabel = $derived.by(() => {
+    const t = store.lastStateUpdateAt;
+    if (!t) return "unsynced";
+    const seconds = Math.max(0, Math.floor((now - t) / 1000));
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}m ago`;
+  });
+
+  let connectionLabel = $derived.by(() => {
+    switch (store.connectionStatus) {
+      case "connected":
+        return "Connected";
+      case "connecting":
+        return "Connecting";
+      case "reconnecting":
+        return "Reconnecting";
+      case "disconnected":
+        return "Disconnected";
+      default:
+        return "Idle";
+    }
+  });
 </script>
 
 <div class="game-layout">
@@ -37,6 +69,15 @@
       <span class="room-code-row">
         <span class="room-label">Room:</span>
         <strong class="room-code" title={roomCode}>{roomCode}</strong>
+        <span
+          class="conn-chip conn-{store.connectionStatus}"
+          title={store.connectionStatusDetail || connectionLabel}
+        >
+          {connectionLabel}
+        </span>
+        {#if store.lastStateVersion !== null}
+          <span class="sync-meta">v{store.lastStateVersion} • {syncAgeLabel}</span>
+        {/if}
       </span>
       {#if isHost}
         <button class="wizard-btn" onclick={() => (wizardOpen = true)}>
@@ -45,7 +86,11 @@
       {/if}
     </div>
   {/if}
-  <PlayersPanel {gameState} {localPid} />
+  <PlayersPanel
+    {gameState}
+    {localPid}
+    playerConnectionStatus={store.playerConnectionStatus}
+  />
   <div class="board-and-panel">
     <BoardCanvas {gameState} {localPid} {pendingAction} />
     <SidePanel
@@ -137,6 +182,42 @@
     white-space: nowrap;
   }
 
+  .conn-chip {
+    border-radius: 999px;
+    padding: 0.08rem 0.45rem;
+    font-size: 0.63rem;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .conn-connected {
+    color: #d6ffd6;
+    background: rgba(54, 128, 54, 0.45);
+    border-color: rgba(125, 216, 125, 0.55);
+  }
+
+  .conn-connecting,
+  .conn-reconnecting {
+    color: #fff2c2;
+    background: rgba(140, 112, 43, 0.5);
+    border-color: rgba(240, 196, 86, 0.5);
+  }
+
+  .conn-disconnected {
+    color: #ffd8d8;
+    background: rgba(128, 52, 52, 0.55);
+    border-color: rgba(230, 120, 120, 0.55);
+  }
+
+  .sync-meta {
+    font-size: 0.64rem;
+    color: #dce9dc;
+    white-space: nowrap;
+    opacity: 0.92;
+  }
+
   .wizard-btn {
     background: linear-gradient(120deg, #2f6fe4, #4f8ff8);
     color: #f0e8d0;
@@ -160,6 +241,17 @@
   @media (min-width: 700px) {
     .board-and-panel {
       flex-direction: row;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .conn-chip {
+      padding: 0.08rem 0.34rem;
+      font-size: 0.59rem;
+    }
+
+    .sync-meta {
+      font-size: 0.58rem;
     }
   }
 

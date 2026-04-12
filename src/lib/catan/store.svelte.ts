@@ -15,6 +15,12 @@ import { PLAYER_COLORS } from "./constants.js";
 import type { PendingAction } from "./validTargets.js";
 
 export type Screen = "lobby" | "waiting" | "game";
+export type ConnectionStatus =
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "disconnected";
 
 export type InfoModalState =
   | {
@@ -51,6 +57,13 @@ class CatanStore {
   lobbyStatus = $state("");
   lobbyStatusKind = $state<"info" | "error">("info");
 
+  // ── Network diagnostics ───────────────────────────────────────────────────
+  connectionStatus = $state<ConnectionStatus>("idle");
+  connectionStatusDetail = $state("");
+  lastStateUpdateAt = $state<number | null>(null);
+  lastStateVersion = $state<number | null>(null);
+  playerConnectionStatus = $state<Partial<Record<PlayerId, "connected" | "disconnected">>>({});
+
   // ── Toast ─────────────────────────────────────────────────────────────────
   toast = $state<{ msg: string; kind: "info" | "error" } | null>(null);
   infoModal = $state<InfoModalState | null>(null);
@@ -59,12 +72,35 @@ class CatanStore {
   // ── Non-reactive (must not be proxied) ────────────────────────────────────
   net: CatanNetwork | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastConnectionToastStatus: ConnectionStatus = "idle";
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
   setLobbyStatus(msg: string, kind: "info" | "error" = "info") {
     this.lobbyStatus = msg;
     this.lobbyStatusKind = kind;
+  }
+
+  setConnectionStatus(
+    status: ConnectionStatus,
+    detail?: string,
+    toastOnChange = false,
+  ) {
+    const previous = this.connectionStatus;
+    this.connectionStatus = status;
+    this.connectionStatusDetail = detail ?? "";
+
+    if (!toastOnChange || previous === status || this.lastConnectionToastStatus === status)
+      return;
+
+    this.lastConnectionToastStatus = status;
+    if (status === "disconnected") {
+      this.showToast(detail || "Connection lost", "error");
+    } else if (status === "reconnecting") {
+      this.showToast(detail || "Reconnecting…", "info");
+    } else if (status === "connected") {
+      this.showToast(detail || "Reconnected", "info");
+    }
   }
 
   showToast(msg: string, kind: "info" | "error" = "info") {
@@ -93,8 +129,13 @@ class CatanStore {
 
   applyStateUpdate(state: GameState) {
     this.gameState = state;
+    this.lastStateUpdateAt = Date.now();
+    this.lastStateVersion = state.version;
     if (this.screen !== "game") this.screen = "game";
     if (!this.localPid && this.net?.myPid) this.localPid = this.net.myPid;
+    if (this.connectionStatus !== "connected") {
+      this.setConnectionStatus("connected", "State synced", true);
+    }
   }
 
   sendAction(action: GameAction) {
@@ -122,10 +163,29 @@ class CatanStore {
     this.pendingHumans = [];
     this.bots = [];
     this.boardPreset = "A";
+    this.playerConnectionStatus = {};
+    this.lastStateUpdateAt = null;
+    this.lastStateVersion = null;
+    this.setConnectionStatus("connecting", "Creating room…");
 
     this.net = new CatanNetwork({
       onStateUpdate: (state) => this.applyStateUpdate(state),
       onError: (msg) => this.showToast(msg, "error"),
+      onConnectionStatusChange: (status, detail) => {
+        this.setConnectionStatus(status, detail, true);
+      },
+      onPlayerConnectionChange: (pid, status, detail) => {
+        this.playerConnectionStatus = {
+          ...this.playerConnectionStatus,
+          [pid]: status,
+        };
+        const playerName = this.gameState?.players[pid]?.name ?? pid;
+        if (status === "disconnected") {
+          this.showToast(`${playerName} disconnected`, "error");
+        } else if (status === "connected") {
+          this.showToast(detail ?? `${playerName} connected`, "info");
+        }
+      },
       onPendingJoin: (pname) => {
         this.pendingHumans.push(pname);
         this.showToast(`${pname} is waiting to join`, "info");
@@ -135,9 +195,11 @@ class CatanStore {
 
     try {
       this.roomCode = await this.net.hostGame("player1");
+      this.setConnectionStatus("connected", "Room created");
       this.screen = "waiting";
     } catch (e: any) {
       this.net = null;
+      this.setConnectionStatus("disconnected", e?.message ?? "Failed to host", true);
       this.setLobbyStatus(`Failed: ${e?.message ?? "unknown error"}`, "error");
     }
   }
@@ -172,12 +234,17 @@ class CatanStore {
     const initialState = createInitialState(players, {
       boardPreset: this.boardPreset,
     });
+    // Seed UI with initial snapshot; initHostState may immediately advance it
+    // if a bot is first in turn order.
+    this.gameState = initialState;
+    this.lastStateUpdateAt = Date.now();
+    this.lastStateVersion = initialState.version;
+    this.screen = "game";
+
     this.net.updateCallbacks({
       onStateUpdate: (state) => this.applyStateUpdate(state),
     });
     this.net.initHostState(initialState);
-    this.gameState = initialState;
-    this.screen = "game";
   }
 
   async joinGame(name: string, code: string) {
@@ -185,6 +252,9 @@ class CatanStore {
     const savedPid = sessionStorage.getItem(sessionKey) as PlayerId | null;
 
     this.setLobbyStatus("Connecting…");
+    this.setConnectionStatus("connecting", "Connecting to host…");
+    this.lastStateUpdateAt = null;
+    this.lastStateVersion = null;
 
     this.net = new CatanNetwork({
       onStateUpdate: (state) => {
@@ -195,12 +265,17 @@ class CatanStore {
         this.applyStateUpdate(state);
       },
       onError: (msg) => this.showToast(msg, "error"),
+      onConnectionStatusChange: (status, detail) => {
+        this.setConnectionStatus(status, detail, true);
+      },
     });
 
     try {
       await this.net.joinGame(code, name, savedPid ?? undefined);
+      this.setConnectionStatus("connected", "Connected to host");
     } catch (e: any) {
       this.net = null;
+      this.setConnectionStatus("disconnected", e?.message ?? "connection error", true);
       this.setLobbyStatus(
         `Failed: ${e?.message ?? "connection error"}`,
         "error",

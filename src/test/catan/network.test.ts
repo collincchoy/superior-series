@@ -184,3 +184,57 @@ describe("CatanNetwork master control authority", () => {
     expect(network.currentState!.board.hexes[a.id]!.number).toBe(a.number);
   });
 });
+
+describe("CatanNetwork connection diagnostics", () => {
+  it("drops stale host-side client connections and emits disconnected status", () => {
+    const onPlayerConnectionChange = vi.fn();
+    const network = new CatanNetwork({
+      onStateUpdate: vi.fn(),
+      onError: vi.fn(),
+      onPlayerConnectionChange,
+    });
+    const state = createInitialState([
+      { id: "p1", name: "Player 1", color: "#e74c3c", isBot: false },
+      { id: "p2", name: "Player 2", color: "#3498db", isBot: false },
+    ]);
+
+    const staleConn = {
+      send: () => {
+        throw new Error("stale");
+      },
+    };
+
+    (network as any).state = state;
+    (network as any).connections.set("p2", staleConn);
+    (network as any).connToPid.set(staleConn, "p2");
+
+    network.broadcastState();
+
+    expect((network as any).connections.has("p2")).toBe(false);
+    expect(onPlayerConnectionChange).toHaveBeenCalledWith(
+      "p2",
+      "disconnected",
+      "Connection lost during sync",
+    );
+  });
+
+  it("reports disconnected status if client sends action without host connection", () => {
+    const onError = vi.fn();
+    const onConnectionStatusChange = vi.fn();
+    const network = new CatanNetwork({
+      onStateUpdate: vi.fn(),
+      onError,
+      onConnectionStatusChange,
+    });
+
+    (network as any).isHost = false;
+
+    network.sendAction({ type: "END_TURN", pid: "p1" });
+
+    expect(onConnectionStatusChange).toHaveBeenCalledWith(
+      "disconnected",
+      "Not connected to host",
+    );
+    expect(onError).toHaveBeenCalledWith("Not connected to host");
+  });
+});
