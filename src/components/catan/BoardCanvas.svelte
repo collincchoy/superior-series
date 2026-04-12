@@ -486,7 +486,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #1a3a6e;
+    background: radial-gradient(ellipse at 50% 50%, #1c4272 0%, #193c6a 55%, #153460 100%);
     overflow: hidden;
   }
 

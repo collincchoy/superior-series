@@ -15,8 +15,9 @@
 
 <div class="lobby">
   <h1>Catan: Cities &amp; Knights</h1>
+  <p class="flavor-text">The island awaits brave settlers…</p>
   <div class="lobby-section">
-    <h2>Host a new game</h2>
+    <h2>🏰 Host a new game</h2>
     <div class="join-row">
       <input
         type="text"
@@ -30,7 +31,7 @@
     </div>
   </div>
   <div class="lobby-section">
-    <h2>Join existing game</h2>
+    <h2>🤝 Join existing game</h2>
     <div class="join-row">
       <input
         type="text"
@@ -70,6 +71,16 @@
     font-size: 1.6rem;
     color: #f5c842;
     text-align: center;
+    font-family: var(--font-display, cursive);
+    letter-spacing: 0.02em;
+  }
+
+  .flavor-text {
+    text-align: center;
+    font-size: 0.9rem;
+    color: #9cb29c;
+    font-style: italic;
+    margin-top: -0.8rem;
   }
 
   .lobby h2 {
@@ -111,15 +122,28 @@
     font-size: 0.95rem;
     cursor: pointer;
     font-weight: 600;
+    transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
   }
 
   .btn-primary:hover {
     background: #a07a1a;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 12px rgba(139, 105, 20, 0.4);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0) scale(0.97);
+    box-shadow: none;
   }
 
   .btn-primary:disabled {
     opacity: 0.4;
     cursor: default;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn-primary { transition: none; }
+    .btn-primary:hover { transform: none; box-shadow: none; }
   }
 
   .lobby-status {

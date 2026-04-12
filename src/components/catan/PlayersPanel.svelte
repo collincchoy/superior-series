@@ -39,7 +39,7 @@
     )}
     <div
       class="player-card{pid === gameState.currentPlayerId ? ' active' : ''}"
-      style="border-top: 3px solid {p.color}"
+      style="border-top: 3px solid {p.color};{pid === gameState.currentPlayerId ? `--glow-color: ${p.color}` : ''}"
     >
       <span class="name">{p.name}{p.isBot ? " 🤖" : ""}</span>
       <span class="vp">{vp} VP</span>
@@ -99,6 +99,17 @@
   .player-card.active {
     opacity: 1;
     background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 12px color-mix(in srgb, var(--glow-color, #f5c842) 25%, transparent);
+    animation: player-glow 2.5s ease-in-out infinite;
+  }
+
+  @keyframes player-glow {
+    0%, 100% {
+      box-shadow: inset 0 0 12px color-mix(in srgb, var(--glow-color, #f5c842) 25%, transparent);
+    }
+    50% {
+      box-shadow: inset 0 0 18px color-mix(in srgb, var(--glow-color, #f5c842) 40%, transparent);
+    }
   }
   .name {
     font-size: 0.75rem;
@@ -144,5 +155,9 @@
     border-radius: 999px;
     border: 1px solid rgba(0, 0, 0, 0.35);
     display: inline-block;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .player-card.active { animation: none; }
   }
 </style>

@@ -19,11 +19,25 @@
     font-size: 0.85rem;
     color: #c8b47a;
     border-bottom: 1px solid #2c5f2e;
+    transition: background 300ms ease, color 300ms ease;
+    font-family: var(--font-display, cursive);
   }
 
   .phase-banner.my-turn {
-    background: #3a5e1e;
+    background: linear-gradient(90deg, #3a5e1e 0%, #4a6e2e 50%, #3a5e1e 100%);
+    background-size: 200% 100%;
     color: #f5c842;
     font-weight: 600;
+    animation: shimmer 3s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .phase-banner.my-turn { animation: none; }
+    .phase-banner { transition: none; }
   }
 </style>

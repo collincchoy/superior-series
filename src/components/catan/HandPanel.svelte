@@ -145,12 +145,13 @@
   }
 
   .card {
-    border-radius: 4px;
+    border-radius: 6px;
     border: 1px solid rgba(0, 0, 0, 0.3);
     padding: 0.15rem 0.4rem;
     font-size: 0.75rem;
     font-weight: 700;
     color: #102010;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
 
   .progress-cards {
@@ -162,12 +163,13 @@
 
   .prog-card {
     border: 1px solid rgba(0, 0, 0, 0.35);
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 0.15rem 0.4rem;
     font-size: 0.7rem;
     font-weight: 700;
     color: #0f1216;
     opacity: 0.75;
+    transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
   }
 
   .prog-card.clickable {
@@ -176,8 +178,14 @@
   }
 
   .prog-card.clickable:hover {
-    transform: translateY(-1px);
-    filter: brightness(1.06);
+    transform: translateY(-2px);
+    filter: brightness(1.08);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  }
+
+  .prog-card.clickable:active {
+    transform: translateY(0) scale(0.96);
+    box-shadow: none;
   }
 
   .vp-card {
@@ -185,6 +193,12 @@
     border-color: #f5da73;
     color: #2d2100;
     opacity: 1;
+    box-shadow: 0 0 6px rgba(212, 175, 55, 0.3);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .prog-card { transition: none; }
+    .prog-card.clickable:hover { transform: none; box-shadow: none; }
   }
 
 </style>

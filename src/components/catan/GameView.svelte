@@ -28,6 +28,7 @@
   let showTrade = $state(false);
   let isHost = $derived(store.isHostPlayer);
   let wizardOpen = $state(false);
+  let isGameOver = $derived(gameState.phase === "GAME_OVER");
 </script>
 
 <div class="game-layout">
@@ -74,6 +75,18 @@
 <InfoModal />
 {#if isHost}
   <MasterControlModal {gameState} {localPid} bind:open={wizardOpen} />
+{/if}
+
+{#if isGameOver}
+  <div class="confetti-overlay" aria-hidden="true">
+    {#each Array(24) as _, i}
+      <span
+        class="confetti-piece"
+        style="--i:{i};--x:{Math.random() * 100}vw;--r:{Math.random() * 360}deg;--d:{1.5 + Math.random() * 2}s;--c:{['#f5c842','#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e91e63'][i % 8]}"
+      ></span>
+    {/each}
+    <div class="victory-crown">👑</div>
+  </div>
 {/if}
 
 <style>
@@ -147,5 +160,69 @@
     font-size: 0.78rem;
     font-weight: 700;
     cursor: pointer;
+  }
+
+  .confetti-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 400;
+    overflow: hidden;
+  }
+
+  .confetti-piece {
+    position: absolute;
+    top: -10px;
+    left: var(--x);
+    width: 8px;
+    height: 12px;
+    background: var(--c);
+    border-radius: 2px;
+    opacity: 0.9;
+    animation: confetti-fall var(--d) ease-in forwards;
+    animation-delay: calc(var(--i) * 0.08s);
+  }
+
+  .confetti-piece:nth-child(odd) {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  @keyframes confetti-fall {
+    0% {
+      transform: translateY(0) rotate(0deg);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(100vh) rotate(var(--r));
+      opacity: 0;
+    }
+  }
+
+  .victory-crown {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 4rem;
+    animation: crown-bounce 600ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    filter: drop-shadow(0 4px 20px rgba(245, 200, 66, 0.5));
+  }
+
+  @keyframes crown-bounce {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.3);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .confetti-piece { animation: none; display: none; }
+    .victory-crown { animation: none; }
   }
 </style>

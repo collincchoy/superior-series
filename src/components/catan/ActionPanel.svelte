@@ -568,9 +568,16 @@
     padding: 0.4rem 0.7rem;
     font-size: 0.8rem;
     cursor: pointer;
+    transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
   }
   .action-btn:hover:not(:disabled):not(.disabled) {
     background: rgba(255, 255, 255, 0.18);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+  .action-btn:active:not(:disabled):not(.disabled) {
+    transform: translateY(0) scale(0.97);
+    box-shadow: none;
   }
   .action-btn.active {
     background: #3a5e1e;
@@ -594,9 +601,22 @@
     border-radius: 8px;
     color: #f5c842;
     cursor: pointer;
+    transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    animation: dice-pulse 2s ease-in-out infinite;
   }
   .roll-dice-btn:hover {
     background: #4a7a28;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(107, 191, 109, 0.3);
+  }
+  .roll-dice-btn:active {
+    transform: translateY(0) scale(0.97);
+    box-shadow: none;
+    animation: none;
+  }
+  @keyframes dice-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(107, 191, 109, 0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(107, 191, 109, 0); }
   }
   .action-instruction {
     padding: 0.5rem;
@@ -654,5 +674,17 @@
     font-size: 0.72rem;
     color: #efb4ad;
     line-height: 1.3;
+  }
+
+  .end-turn {
+    background: #8b6914;
+    border-color: #c8a02e;
+    font-weight: 700;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .action-btn, .roll-dice-btn { transition: none; animation: none; }
+    .action-btn:hover:not(:disabled):not(.disabled),
+    .roll-dice-btn:hover { transform: none; box-shadow: none; }
   }
 </style>

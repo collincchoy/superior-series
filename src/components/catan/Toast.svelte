@@ -19,9 +19,26 @@
     font-size: 0.9rem;
     z-index: 200;
     pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    animation: toast-in 350ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   }
 
   .toast.error {
     background: #7a1e1e;
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(12px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toast { animation: none; }
   }
 </style>

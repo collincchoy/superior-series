@@ -56,6 +56,25 @@
     gap: 0;
   }
 
+  /* Decorative dividers between panel sections */
+  .side-panel :global(> :not(:first-child)) {
+    border-top: 1px solid #2c5f2e;
+    position: relative;
+  }
+
+  .side-panel :global(> :not(:first-child))::before {
+    content: "✦";
+    position: absolute;
+    top: -0.5em;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.55rem;
+    color: #4a6e4a;
+    background: #1a2a1a;
+    padding: 0 0.4rem;
+    line-height: 1;
+  }
+
   @media (min-width: 700px) {
     .side-panel {
       width: 260px;

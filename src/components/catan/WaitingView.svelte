@@ -16,8 +16,9 @@
 
 <div class="lobby">
   <h1>Catan: Cities &amp; Knights</h1>
+  <p class="flavor-text">Gather your friends, the island awaits…</p>
   <div class="lobby-section">
-    <h2>Room Code</h2>
+    <h2>📜 Room Code</h2>
     <div class="room-code-display">
       <span class="room-code-value">{store.roomCode}</span>
       <button class="btn-secondary" onclick={copyCode}>Copy</button>
@@ -25,10 +26,10 @@
         >QR Code</button
       >
     </div>
-    <p class="join-hint">Share this code so others can join</p>
+    <p class="join-hint">Share this code so others can join ✨</p>
   </div>
   <div class="lobby-section">
-    <h2>Players ({totalSlots}/4)</h2>
+    <h2>🎮 Players ({totalSlots}/4)</h2>
     <div class="waiting-player-list">
       <div class="waiting-player-row">
         <span class="slot-color" style="background:{PLAYER_COLORS[0]}"></span>
@@ -88,6 +89,16 @@
     font-size: 1.6rem;
     color: #f5c842;
     text-align: center;
+    font-family: var(--font-display, cursive);
+    letter-spacing: 0.02em;
+  }
+
+  .flavor-text {
+    text-align: center;
+    font-size: 0.9rem;
+    color: #9cb29c;
+    font-style: italic;
+    margin-top: -0.8rem;
   }
 
   .lobby h2 {
@@ -111,10 +122,18 @@
     font-size: 0.95rem;
     cursor: pointer;
     font-weight: 600;
+    transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
   }
 
   .btn-primary:hover {
     background: #a07a1a;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 12px rgba(139, 105, 20, 0.4);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0) scale(0.97);
+    box-shadow: none;
   }
 
   .btn-primary:disabled {
@@ -130,10 +149,16 @@
     padding: 0.5rem 1rem;
     font-size: 0.9rem;
     cursor: pointer;
+    transition: transform 120ms ease, background 120ms ease;
   }
 
   .btn-secondary:hover {
     background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary:active {
+    transform: translateY(0) scale(0.97);
   }
 
   .btn-large {
@@ -204,5 +229,11 @@
     height: 20px;
     border-radius: 50%;
     flex-shrink: 0;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn-primary, .btn-secondary { transition: none; }
+    .btn-primary:hover, .btn-secondary:hover { transform: none; box-shadow: none; }
   }
 </style>
