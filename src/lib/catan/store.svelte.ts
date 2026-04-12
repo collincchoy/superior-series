@@ -7,12 +7,38 @@
  * be proxied (circular refs + internal event emitters break P2P).
  */
 
-import type { GameState, GameAction, PlayerId, ProgressCard } from "./types.js";
+import type {
+  GameState,
+  GameAction,
+  PlayerId,
+  ProgressCard,
+  HexId,
+  TerrainType,
+} from "./types.js";
 import { createInitialState } from "./game.js";
 import type { BoardPreset } from "./game.js";
 import { CatanNetwork } from "./network.js";
 import { PLAYER_COLORS } from "./constants.js";
 import type { PendingAction } from "./validTargets.js";
+import {
+  computePlayerCardDeltaEvents,
+  getProducingHexIds,
+  getTerrainGlowHexesForPlayer,
+  type CardDeltaToken,
+} from "./uiEffects.js";
+
+export interface PlayerCardDeltaToast {
+  id: number;
+  pid: PlayerId;
+  tokens: CardDeltaToken[];
+  expiresAt: number;
+}
+
+export interface HexGlowEvent {
+  id: number;
+  hexIds: HexId[];
+  expiresAt: number;
+}
 
 export type Screen = "lobby" | "waiting" | "game";
 export type ConnectionStatus =
@@ -62,17 +88,22 @@ class CatanStore {
   connectionStatusDetail = $state("");
   lastStateUpdateAt = $state<number | null>(null);
   lastStateVersion = $state<number | null>(null);
-  playerConnectionStatus = $state<Partial<Record<PlayerId, "connected" | "disconnected">>>({});
+  playerConnectionStatus = $state<
+    Partial<Record<PlayerId, "connected" | "disconnected">>
+  >({});
 
   // ── Toast ─────────────────────────────────────────────────────────────────
   toast = $state<{ msg: string; kind: "info" | "error" } | null>(null);
   infoModal = $state<InfoModalState | null>(null);
   masterControlOpen = $state(false);
+  cardDeltaToasts = $state<PlayerCardDeltaToast[]>([]);
+  hexGlowEvents = $state<HexGlowEvent[]>([]);
 
   // ── Non-reactive (must not be proxied) ────────────────────────────────────
   net: CatanNetwork | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private lastConnectionToastStatus: ConnectionStatus = "idle";
+  private visualEventSeq = 1;
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -90,7 +121,11 @@ class CatanStore {
     this.connectionStatus = status;
     this.connectionStatusDetail = detail ?? "";
 
-    if (!toastOnChange || previous === status || this.lastConnectionToastStatus === status)
+    if (
+      !toastOnChange ||
+      previous === status ||
+      this.lastConnectionToastStatus === status
+    )
       return;
 
     this.lastConnectionToastStatus = status;
@@ -128,14 +163,121 @@ class CatanStore {
   }
 
   applyStateUpdate(state: GameState) {
+    const previous = this.gameState;
+
     this.gameState = state;
     this.lastStateUpdateAt = Date.now();
     this.lastStateVersion = state.version;
+    this.pruneVisualEvents();
+    if (previous) {
+      this.emitVisualFeedback(previous, state);
+    }
+
     if (this.screen !== "game") this.screen = "game";
     if (!this.localPid && this.net?.myPid) this.localPid = this.net.myPid;
     if (this.connectionStatus !== "connected") {
       this.setConnectionStatus("connected", "State synced", true);
     }
+  }
+
+  private emitVisualFeedback(previous: GameState, next: GameState) {
+    if (previous.version === next.version) return;
+
+    const cardDeltas = computePlayerCardDeltaEvents(previous, next);
+    for (const delta of cardDeltas) {
+      this.pushCardDeltaToast(delta.pid, delta.tokens);
+    }
+
+    if (this.didRollChange(previous, next)) {
+      const production = (next.lastRoll?.[0] ?? 0) + (next.lastRoll?.[1] ?? 0);
+      if (production !== 7) {
+        this.pushHexGlowEvent(getProducingHexIds(next, production));
+      }
+    }
+
+    const appendedLogs = next.log.slice(previous.log.length);
+    for (const line of appendedLogs) {
+      if (line.includes("[card:Mining]")) {
+        this.pushTerrainCardGlow(next, "mountains", line);
+      }
+      if (line.includes("[card:Irrigation]")) {
+        this.pushTerrainCardGlow(next, "fields", line);
+      }
+    }
+  }
+
+  private pushTerrainCardGlow(
+    state: GameState,
+    terrain: TerrainType,
+    logLine: string,
+  ) {
+    const pid = this.findPlayerIdFromPlayedCardLog(state, logLine);
+    if (!pid) return;
+
+    const hexIds = getTerrainGlowHexesForPlayer(state, pid, terrain);
+    if (hexIds.length > 0) {
+      this.pushHexGlowEvent(hexIds);
+    }
+  }
+
+  private findPlayerIdFromPlayedCardLog(
+    state: GameState,
+    logLine: string,
+  ): PlayerId | null {
+    const playedIdx = logLine.indexOf(" played ");
+    if (playedIdx <= 0) return null;
+
+    const playerName = logLine.slice(0, playedIdx).trim();
+    const entry = Object.entries(state.players).find(
+      ([, p]) => p.name === playerName,
+    );
+    return (entry?.[0] as PlayerId | undefined) ?? null;
+  }
+
+  private pushCardDeltaToast(pid: PlayerId, tokens: CardDeltaToken[]) {
+    const id = this.visualEventSeq++;
+    const expiresAt = Date.now() + 1800;
+    this.cardDeltaToasts = [
+      ...this.cardDeltaToasts,
+      { id, pid, tokens, expiresAt },
+    ];
+  }
+
+  private didRollChange(previous: GameState, next: GameState) {
+    const prevRoll = previous.lastRoll;
+    const nextRoll = next.lastRoll;
+    if (!prevRoll || !nextRoll) return prevRoll !== nextRoll;
+    return (
+      prevRoll[0] !== nextRoll[0] ||
+      prevRoll[1] !== nextRoll[1] ||
+      prevRoll[2] !== nextRoll[2]
+    );
+  }
+
+  private pushHexGlowEvent(hexIds: HexId[]) {
+    const uniqueHexIds = Array.from(new Set(hexIds));
+    if (uniqueHexIds.length === 0) return;
+
+    const id = this.visualEventSeq++;
+    const expiresAt = Date.now() + 1600;
+    this.hexGlowEvents = [
+      ...this.hexGlowEvents,
+      { id, hexIds: uniqueHexIds, expiresAt },
+    ];
+  }
+
+  private pruneVisualEvents() {
+    const now = Date.now();
+    this.cardDeltaToasts = this.cardDeltaToasts.filter(
+      (event) => event.expiresAt > now,
+    );
+    this.hexGlowEvents = this.hexGlowEvents.filter(
+      (event) => event.expiresAt > now,
+    );
+  }
+
+  tickVisualEffects() {
+    this.pruneVisualEvents();
   }
 
   sendAction(action: GameAction) {
@@ -199,7 +341,11 @@ class CatanStore {
       this.screen = "waiting";
     } catch (e: any) {
       this.net = null;
-      this.setConnectionStatus("disconnected", e?.message ?? "Failed to host", true);
+      this.setConnectionStatus(
+        "disconnected",
+        e?.message ?? "Failed to host",
+        true,
+      );
       this.setLobbyStatus(`Failed: ${e?.message ?? "unknown error"}`, "error");
     }
   }
@@ -275,7 +421,11 @@ class CatanStore {
       this.setConnectionStatus("connected", "Connected to host");
     } catch (e: any) {
       this.net = null;
-      this.setConnectionStatus("disconnected", e?.message ?? "connection error", true);
+      this.setConnectionStatus(
+        "disconnected",
+        e?.message ?? "connection error",
+        true,
+      );
       this.setLobbyStatus(
         `Failed: ${e?.message ?? "connection error"}`,
         "error",

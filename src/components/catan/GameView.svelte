@@ -34,8 +34,17 @@
   $effect(() => {
     const id = setInterval(() => {
       now = Date.now();
+      store.tickVisualEffects();
     }, 1000);
     return () => clearInterval(id);
+  });
+
+  let activeHexGlows = $derived.by(() => {
+    const ids = new Set<string>();
+    for (const event of store.hexGlowEvents) {
+      for (const hid of event.hexIds) ids.add(hid);
+    }
+    return Array.from(ids);
   });
 
   let syncAgeLabel = $derived.by(() => {
@@ -92,7 +101,12 @@
     playerConnectionStatus={store.playerConnectionStatus}
   />
   <div class="board-and-panel">
-    <BoardCanvas {gameState} {localPid} {pendingAction} />
+    <BoardCanvas
+      {gameState}
+      {localPid}
+      {pendingAction}
+      activeHexGlows={activeHexGlows}
+    />
     <SidePanel
       {gameState}
       {localPid}

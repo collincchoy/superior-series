@@ -22,9 +22,14 @@ export function phaseLabel(state: GameState, localPid: PlayerId): string {
     SETUP_R2_CITY: `${prefix} — Found your city 🏙️`,
     SETUP_R2_ROAD: `${prefix} — Expand your reach 🛤️`,
     ROLL_DICE: `${prefix} — Roll the dice! 🎲`,
-    ACTION: isMe ? `${prefix} — Build your empire! 🏰` : `${prefix} — Building…`,
+    PRODUCTION: "🌾 Collecting the harvest…",
+    ACTION: isMe
+      ? `${prefix} — Build your empire! 🏰`
+      : `${prefix} — Building…`,
     DISCARD: isMe ? "Too many cards! Discard! 😱" : "Waiting for discards… ⏳",
-    ROBBER_MOVE: isMe ? `${prefix} — Unleash the robber! 👺` : `${prefix} — Moving the robber…`,
+    ROBBER_MOVE: isMe
+      ? `${prefix} — Unleash the robber! 👺`
+      : `${prefix} — Moving the robber…`,
     RESOLVE_BARBARIANS: "The barbarians attack! ⚔️🛡️",
     RESOLVE_PROGRESS_DRAW: isMe
       ? "A progress card awaits! 🃏"

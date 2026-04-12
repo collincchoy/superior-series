@@ -4,7 +4,10 @@
     ImprovementTrack,
     PlayerId,
   } from "../../lib/catan/types.js";
+  import type { PlayerCardDeltaToast } from "../../lib/catan/store.svelte.js";
+  import { store } from "../../lib/catan/store.svelte.js";
   import { computeVP } from "../../lib/catan/game.js";
+  import DeltaChip from "./DeltaChip.svelte";
   import { totalCards } from "./cardEmoji.js";
 
   let {
@@ -55,6 +58,10 @@
 
   function metropolisTracksByPlayer(gameState: GameState, pid: PlayerId): ImprovementTrack[] {
     return TRACKS.filter((track) => gameState.metropolisOwner[track] === pid);
+  }
+
+  function toastsForPlayer(pid: PlayerId): PlayerCardDeltaToast[] {
+    return store.cardDeltaToasts.filter((toast) => toast.pid === pid);
   }
 </script>
 
@@ -139,6 +146,18 @@
           </div>
         {/if}
       </div>
+
+      {#if toastsForPlayer(pid).length > 0}
+        <div class="delta-stack" aria-label="Recent card changes">
+          {#each toastsForPlayer(pid) as toast (toast.id)}
+            <div class="delta-toast">
+              {#each toast.tokens as token, idx (idx)}
+                <DeltaChip kind={token.kind} amount={token.amount} compact={true} />
+              {/each}
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
   {/each}
 </div>
@@ -155,6 +174,7 @@
     flex: 1;
     min-width: 108px;
     display: flex;
+    position: relative;
     flex-direction: column;
     align-items: center;
     padding: 0.3rem 0.45rem;
@@ -284,7 +304,36 @@
     flex: 0 0 auto;
   }
 
+  .delta-stack {
+    position: absolute;
+    top: 0.2rem;
+    right: 0.2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.2rem;
+    pointer-events: none;
+  }
+
+  .delta-toast {
+    display: inline-flex;
+    gap: 0.18rem;
+    animation: delta-slide-fade 450ms ease-out;
+  }
+
+  @keyframes delta-slide-fade {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .player-card.active { animation: none; }
+    .delta-toast { animation: none; }
   }
 </style>

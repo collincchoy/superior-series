@@ -33,10 +33,12 @@
     gameState,
     localPid,
     pendingAction,
+    activeHexGlows = [],
   }: {
     gameState: GameState;
     localPid: PlayerId;
     pendingAction: PendingAction | null;
+    activeHexGlows?: HexId[];
   } = $props();
 
   const graph = buildGraph();
@@ -274,6 +276,23 @@
           >
             {TERRAIN_ICONS[hex.terrain]}
           </text>
+        {/if}
+      {/each}
+    </g>
+
+    <!-- ── Transient Hex Glows ── -->
+    <g id="event-glows">
+      {#each activeHexGlows as hid (hid)}
+        {@const coord = CATAN_HEX_COORDS.find((c) => hexId(c) === hid)}
+        {#if coord}
+          {@const { x, y } = hexCenter(coord)}
+          <polygon
+            points={hexPoints(x, y, HEX_SIZE - 5)}
+            class="event-glow"
+            fill="none"
+            stroke="#ffd54f"
+            stroke-width="6"
+          />
         {/if}
       {/each}
     </g>
@@ -643,8 +662,29 @@
 
   /* Decorative overlays should not block hex hit-testing. */
   .board-svg :global(#hexes text),
-  .board-svg :global(#numbers) {
+  .board-svg :global(#numbers),
+  .board-svg :global(#event-glows) {
     pointer-events: none;
+  }
+
+  .event-glow {
+    filter: drop-shadow(0 0 12px rgba(255, 213, 79, 0.9));
+    animation: hex-glow-pulse 1.2s ease-out;
+  }
+
+  @keyframes hex-glow-pulse {
+    0% {
+      opacity: 0;
+      stroke-width: 3;
+    }
+    30% {
+      opacity: 1;
+      stroke-width: 7;
+    }
+    100% {
+      opacity: 0;
+      stroke-width: 4;
+    }
   }
 
   .harbor-popover {

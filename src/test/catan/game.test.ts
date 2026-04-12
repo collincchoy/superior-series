@@ -311,13 +311,17 @@ describe("resource production", () => {
     if (hexNum === 0) return;
 
     const before = { ...state.players[pid]!.resources };
-    const rolled = applyAction(state, {
+    const result = applyAction(state, {
       type: "ROLL_DICE",
       pid,
       result: [hexNum - 1, 1, "politics" as const],
     });
+
+    // Production resolves inline on main branch
+    expect(result.phase).toBe("ACTION");
+
     // After production, player should have more resources
-    const after = rolled.players[pid]!.resources;
+    const after = result.players[pid]!.resources;
     const gained = Object.entries(after).reduce(
       (sum, [k, v]) => sum + v - (before[k as keyof typeof before] ?? 0),
       0,
@@ -333,12 +337,16 @@ describe("resource production", () => {
     if (hexNum === 0) return;
 
     const before = { ...state.players[pid]!.resources };
-    const rolled = applyAction(state, {
+    const result = applyAction(state, {
       type: "ROLL_DICE",
       pid,
       result: [hexNum - 1, 1, "politics" as const],
     });
-    const after = rolled.players[pid]!.resources;
+
+    // Production resolves inline on main branch
+    expect(result.phase).toBe("ACTION");
+
+    const after = result.players[pid]!.resources;
     const gained = Object.entries(after).reduce(
       (sum, [k, v]) => sum + v - (before[k as keyof typeof before] ?? 0),
       0,
@@ -442,15 +450,18 @@ describe("progress draw thresholds", () => {
       pendingProgressDraw: null,
     };
 
-    const rolled = applyAction(state, {
+    const result = applyAction(state, {
       type: "ROLL_DICE",
       pid,
       result: [6, 3, "science" as const],
     });
 
-    expect(rolled.pendingProgressDraw?.track).toBe("science");
-    expect(rolled.pendingProgressDraw?.remaining).toContain(pid);
-    expect(rolled.phase).toBe("RESOLVE_PROGRESS_DRAW");
+    // Progress draw resolves immediately on this branch
+    expect(result.phase).toBe("RESOLVE_PROGRESS_DRAW");
+
+    expect(result.pendingProgressDraw?.track).toBe("science");
+    expect(result.pendingProgressDraw?.remaining).toContain(pid);
+    expect(result.phase).toBe("RESOLVE_PROGRESS_DRAW");
   });
 
   it("does not create progress draws on ship events", () => {
@@ -1461,7 +1472,12 @@ describe("updateLongestRoad tie-break", () => {
         if (visited.has(next)) continue;
         usedEdges.add(eid);
         visited.add(next);
-        const result = dfs(next, remaining - 1, [...path, eid as EdgeId], visited);
+        const result = dfs(
+          next,
+          remaining - 1,
+          [...path, eid as EdgeId],
+          visited,
+        );
         if (result) return result;
         usedEdges.delete(eid);
         visited.delete(next);
