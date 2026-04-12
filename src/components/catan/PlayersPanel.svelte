@@ -28,6 +28,8 @@
     politics: 2,
   };
 
+  const TRACKS: ImprovementTrack[] = ["science", "trade", "politics"];
+
   function progressCountsByTrack(progressCards: GameState["players"][PlayerId]["progressCards"]) {
     const counts: Record<ImprovementTrack, number> = {
       science: 0,
@@ -43,6 +45,10 @@
       .filter(([, count]) => count > 0)
       .sort(([left], [right]) => TRACK_SORT_ORDER[left] - TRACK_SORT_ORDER[right]);
   }
+
+  function metropolisTracksByPlayer(gameState: GameState, pid: PlayerId): ImprovementTrack[] {
+    return TRACKS.filter((track) => gameState.metropolisOwner[track] === pid);
+  }
 </script>
 
 <div class="players-bar">
@@ -51,12 +57,31 @@
     {@const vp = computeVP(gameState, pid)}
     {@const cards = totalCards(p.resources)}
     {@const progressCounts = progressCountsByTrack(p.progressCards)}
+    {@const defenderVp = p.vpTokens}
+    {@const metropolisTracks = metropolisTracksByPlayer(gameState, pid)}
     <div
       class="player-card{pid === gameState.currentPlayerId ? ' active' : ''}"
       style="border-top: 3px solid {p.color};{pid === gameState.currentPlayerId ? `--glow-color: ${p.color}` : ''}"
     >
       <span class="name">{p.name}{p.isBot ? " 🤖" : ""}</span>
-      <span class="vp">{vp} VP</span>
+      <span class="vp">
+        <span>{vp} VP</span>
+        {#if defenderVp > 0}
+          <span class="vp-indicator">{defenderVp} 🛡️</span>
+        {/if}
+        {#if metropolisTracks.length > 0}
+          <span class="vp-metropolises" aria-label="Metropolis victory points">
+            {#each metropolisTracks as track}
+              <span
+                class="progress-dot metropolis-dot"
+                style={`background:${TRACK_COLORS[track]}`}
+                title={`${track} metropolis`}
+                aria-hidden="true"
+              ></span>
+            {/each}
+          </span>
+        {/if}
+      </span>
       <div class="improvements-row">
         <span
           class:zero={p.improvements.science === 0}
@@ -140,9 +165,32 @@
     max-width: 100%;
   }
   .vp {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.24rem;
     font-size: 1rem;
     font-weight: 700;
     color: #f5c842;
+  }
+
+  .vp-indicator {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #f0ddb5;
+    line-height: 1;
+  }
+
+  .vp-metropolises {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.14rem;
+  }
+
+  .metropolis-dot {
+    width: 7px;
+    height: 7px;
   }
   .cards-row {
     display: inline-flex;
