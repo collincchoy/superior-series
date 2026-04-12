@@ -137,3 +137,50 @@ describe("CatanNetwork bot sub-phase handling", () => {
     expect(onStateUpdate).toHaveBeenCalled();
   });
 });
+
+describe("CatanNetwork master control authority", () => {
+  it("rejects admin actions from non-host clients", () => {
+    const onError = vi.fn();
+    const network = new CatanNetwork({
+      onStateUpdate: vi.fn(),
+      onError,
+    });
+
+    (network as any).isHost = false;
+    network.sendAction({ type: "ADMIN_UNDO_LAST" });
+
+    expect(onError).toHaveBeenCalledWith("Master controls are host-only");
+  });
+
+  it("supports one-step undo for host master actions", () => {
+    const network = new CatanNetwork({
+      onStateUpdate: vi.fn(),
+      onError: vi.fn(),
+    });
+    const state = createInitialState([
+      { id: "p1", name: "Player 1", color: "#e74c3c", isBot: false },
+      { id: "p2", name: "Player 2", color: "#3498db", isBot: false },
+    ]);
+    const numbered = Object.values(state.board.hexes).filter(
+      (h) => h.number !== null,
+    );
+    const a = numbered[0]!;
+    const b = numbered[1]!;
+
+    (network as any).isHost = true;
+    (network as any).state = state;
+
+    network.sendAction({
+      type: "ADMIN_SWAP_NUMBER_TOKENS",
+      hidA: a.id,
+      hidB: b.id,
+      reason: "test",
+    });
+
+    expect(network.currentState!.board.hexes[a.id]!.number).toBe(b.number);
+
+    network.sendAction({ type: "ADMIN_UNDO_LAST" });
+
+    expect(network.currentState!.board.hexes[a.id]!.number).toBe(a.number);
+  });
+});

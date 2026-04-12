@@ -411,4 +411,67 @@ export type GameAction =
   | { type: "TRADE_ACCEPT"; from: PlayerId; to: PlayerId }
   | { type: "TRADE_REJECT"; from: PlayerId; to: PlayerId }
   // Turn
-  | { type: "END_TURN"; pid: PlayerId };
+  | { type: "END_TURN"; pid: PlayerId }
+  // Host-only master controls
+  | {
+      type: "ADMIN_MOVE_ROAD";
+      pid: PlayerId;
+      fromEid: EdgeId;
+      toEid: EdgeId;
+      unsafe?: boolean;
+      reason?: string;
+    }
+  | {
+      type: "ADMIN_MOVE_BUILDING";
+      pid: PlayerId;
+      fromVid: VertexId;
+      toVid: VertexId;
+      unsafe?: boolean;
+      reason?: string;
+    }
+  | {
+      type: "ADMIN_MOVE_KNIGHT";
+      pid: PlayerId;
+      fromVid: VertexId;
+      toVid: VertexId;
+      unsafe?: boolean;
+      reason?: string;
+    }
+  | {
+      type: "ADMIN_SWAP_NUMBER_TOKENS";
+      hidA: HexId;
+      hidB: HexId;
+      reason?: string;
+    }
+  | {
+      type: "ADMIN_SWAP_HEXES";
+      hidA: HexId;
+      hidB: HexId;
+      reason?: string;
+    }
+  | {
+      type: "ADMIN_GRANT_PROGRESS_CARD";
+      pid: PlayerId;
+      track: ImprovementTrack;
+      cardName?: ProgressCardName;
+      reason?: string;
+    }
+  | {
+      type: "ADMIN_SET_PLAYER_BOT";
+      pid: PlayerId;
+      isBot: boolean;
+      reason?: string;
+    }
+  | {
+      type: "ADMIN_END_GAME";
+      winner: PlayerId | null;
+      reason?: string;
+    }
+  | {
+      type: "ADMIN_UNDO_LAST";
+      reason?: string;
+    };
+
+export function isAdminAction(action: GameAction): boolean {
+  return action.type.startsWith("ADMIN_");
+}

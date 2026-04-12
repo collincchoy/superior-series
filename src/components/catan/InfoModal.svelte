@@ -75,6 +75,15 @@
   let selectedOpKnightVid = $state<VertexId | null>(null);
   let selectedDipEid = $state<EdgeId | null>(null);
   let selectedComHarborResource = $state<ResourceType>("grain");
+  let alchemyLateMessage = $state(false);
+
+  $effect(() => {
+    if (!modal || modal.kind !== "progress" || modal.card.name !== "Alchemy") {
+      alchemyLateMessage = false;
+      return;
+    }
+    if (modal.canPlayNow) alchemyLateMessage = false;
+  });
 
   // Board-aware derived options
   let gs = $derived(store.gameState);
@@ -138,7 +147,11 @@
   function playProgress() {
     if (!modal || modal.kind !== "progress") return;
     const pid = store.localPid;
-    if (!pid || !modal.canPlayNow) return;
+    if (!pid) return;
+    if (!modal.canPlayNow) {
+      if (modal.card.name === "Alchemy") alchemyLateMessage = true;
+      return;
+    }
 
     if (modal.card.name === "ResourceMonopoly") {
       store.sendAction({
@@ -491,11 +504,10 @@
         {/if}
       {/if}
       <div class="actions">
-        {#if modal.canPlayNow && (
+        {#if modal.card.name === "Alchemy" || (modal.canPlayNow && (
           !info.requiresTarget ||
           modal.card.name === "ResourceMonopoly" ||
           modal.card.name === "TradeMonopoly" ||
-          modal.card.name === "Alchemy" ||
           modal.card.name === "MerchantFleet" ||
           modal.card.name === "Crane" ||
           modal.card.name === "RoadBuilding" ||
@@ -511,10 +523,23 @@
           (modal.card.name === "Intrigue" && opponentKnightsOnNetwork().length > 0 && !!selectedOpKnightVid) ||
           (modal.card.name === "Treason" && allOpponentKnights.length > 0 && !!selectedOpKnightVid) ||
           (modal.card.name === "Diplomacy" && openRoadEdges.length > 0 && !!selectedDipEid)
-        )}
-          <button class="confirm" onclick={playProgress}>Use Card</button>
+        ))}
+          {#if modal.card.name === "Alchemy" && alchemyLateMessage && !modal.canPlayNow}
+            <p id="alchemy-late-message" class="inline-status" role="status" aria-live="polite">
+              Use Alchemy before rolling the dice next turn.
+            </p>
+          {/if}
+          <button
+            class="confirm"
+            type="button"
+            onclick={playProgress}
+            aria-describedby={modal.card.name === "Alchemy" && alchemyLateMessage && !modal.canPlayNow
+              ? "alchemy-late-message"
+              : undefined}
+          >
+            Use Card
+          </button>
         {/if}
-        <button class="cancel" onclick={close}>Close</button>
       </div>
     {:else if modal.kind === "build-costs"}
       <div class="hint-list">
@@ -529,9 +554,6 @@
           </div>
         {/each}
       </div>
-      <div class="actions">
-        <button class="cancel" onclick={close}>Close</button>
-      </div>
     {:else}
       <div class="hint-list">
         {#each [1, 2, 3] as level}
@@ -541,9 +563,6 @@
             <div class="desc">{item.text}</div>
           </div>
         {/each}
-      </div>
-      <div class="actions">
-        <button class="cancel" onclick={close}>Close</button>
       </div>
     {/if}
   </Modal>
@@ -638,9 +657,20 @@
 
   .actions {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 0.45rem;
     margin-top: 0.8rem;
+  }
+
+  .inline-status {
+    margin: 0;
+    margin-right: auto;
+    max-width: 16rem;
+    font-size: 0.74rem;
+    color: #f6d38c;
+    line-height: 1.35;
   }
 
   .picker-row {
@@ -682,13 +712,4 @@
     font-weight: 700;
   }
 
-  .cancel {
-    background: #314531;
-    color: #f0e8d0;
-    border: 1px solid #507250;
-    border-radius: 7px;
-    padding: 0.4rem 0.75rem;
-    font-size: 0.82rem;
-    font-weight: 700;
-  }
 </style>

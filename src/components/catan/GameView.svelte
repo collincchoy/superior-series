@@ -10,6 +10,7 @@
   import TradeBankModal from "./TradeBankModal.svelte";
   import InfoModal from "./InfoModal.svelte";
   import CommercialHarborModal from "./CommercialHarborModal.svelte";
+  import MasterControlModal from "./MasterControlModal.svelte";
 
   let {
     gameState,
@@ -25,11 +26,20 @@
 
   let isMyTurn = $derived(isPlayerActing(gameState, localPid));
   let showTrade = $state(false);
+  let isHost = $derived(store.isHostPlayer);
+  let wizardOpen = $state(false);
 </script>
 
 <div class="game-layout">
   {#if roomCode}
-    <div class="room-code-banner">Room: <strong>{roomCode}</strong></div>
+    <div class="room-code-banner">
+      <span>Room: <strong>{roomCode}</strong></span>
+      {#if isHost}
+        <button class="wizard-btn" onclick={() => (wizardOpen = true)}>
+          Open Wizard Panel
+        </button>
+      {/if}
+    </div>
   {/if}
   <PlayersPanel {gameState} {localPid} />
   <div class="board-and-panel">
@@ -62,6 +72,9 @@
   </div>
 {/if}
 <InfoModal />
+{#if isHost}
+  <MasterControlModal {gameState} {localPid} bind:open={wizardOpen} />
+{/if}
 
 <style>
   .game-layout {
@@ -77,6 +90,22 @@
     font-size: 0.8rem;
     color: #c8f5c8;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .wizard-btn {
+    background: linear-gradient(120deg, #2f6fe4, #4f8ff8);
+    color: #f0e8d0;
+    border: 1px solid #8ab4ff;
+    border-radius: 999px;
+    padding: 0.18rem 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
   }
 
   .board-and-panel {

@@ -5,7 +5,12 @@
  * Clients connect to host's peer.id, send actions, receive state updates.
  * Bot turns run only on the host after every state update.
  */
-import type { GameState, GameAction, PlayerId } from "./types.js";
+import {
+  type GameState,
+  type GameAction,
+  type PlayerId,
+  isAdminAction,
+} from "./types.js";
 import { applyAction } from "./game.js";
 import { chooseBotAction } from "./ai.js";
 import { getActingPlayerIds } from "./turnActors.js";
@@ -37,6 +42,7 @@ export class CatanNetwork {
   private state: GameState | null = null;
   private callbacks: NetworkCallbacks;
   private pendingJoins: Array<{ conn: any; name: string }> = [];
+  private lastAdminSnapshot: GameState | null = null;
 
   constructor(callbacks: NetworkCallbacks) {
     this.callbacks = callbacks;
@@ -46,7 +52,7 @@ export class CatanNetwork {
 
   /**
    * Creates a new PeerJS peer. Returns the room code (= peer.id).
-    * The host must call `initHostState(state)` once the game starts.
+   * The host must call `initHostState(state)` once the game starts.
    */
   async hostGame(hostPid: PlayerId): Promise<string> {
     this.isHost = true;
@@ -136,6 +142,13 @@ export class CatanNetwork {
       this.callbacks.onPlayerJoined?.(msg.name, pid);
       this.broadcastState();
     } else if (msg.type === "action") {
+      if (isAdminAction(msg.action)) {
+        conn.send({
+          type: "error",
+          msg: "Master controls are host-only",
+        } satisfies NetMessage);
+        return;
+      }
       this.applyAndBroadcast(msg.action);
     }
   }
@@ -158,7 +171,28 @@ export class CatanNetwork {
       return;
     }
     try {
-      this.state = applyAction(this.state, action);
+      if (isAdminAction(action)) {
+        if (action.type === "ADMIN_UNDO_LAST") {
+          if (!this.lastAdminSnapshot) {
+            this.callbacks.onError("No master action to undo");
+            return;
+          }
+          this.state = {
+            ...this.lastAdminSnapshot,
+            version: this.state.version + 1,
+            log: [
+              ...this.lastAdminSnapshot.log,
+              "[MASTER] Last master action undone",
+            ],
+          };
+          this.lastAdminSnapshot = null;
+        } else {
+          this.lastAdminSnapshot = this.state;
+          this.state = applyAction(this.state, action);
+        }
+      } else {
+        this.state = applyAction(this.state, action);
+      }
       this.callbacks.onStateUpdate(this.state);
       this.broadcastState();
       this.runBotTurns();
@@ -274,6 +308,10 @@ export class CatanNetwork {
     if (this.isHost) {
       this.applyAndBroadcast(action);
     } else {
+      if (isAdminAction(action)) {
+        this.callbacks.onError("Master controls are host-only");
+        return;
+      }
       this.connections
         .get("host")
         ?.send({ type: "action", action } satisfies NetMessage);
@@ -285,6 +323,9 @@ export class CatanNetwork {
   }
   get currentState(): GameState | null {
     return this.state;
+  }
+  get hostAuthority(): boolean {
+    return this.isHost;
   }
 
   destroy() {

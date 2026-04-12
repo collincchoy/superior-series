@@ -1057,6 +1057,214 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return s;
     }
 
+    // ── Host Master Controls ─────────────────────────────────────────────────
+    case "ADMIN_MOVE_ROAD": {
+      const { pid, fromEid, toEid, unsafe = false, reason } = action;
+      const source = s.board.edges[fromEid];
+      if (!source || source.playerId !== pid) return s;
+      if (s.board.edges[toEid] !== null) return s;
+      if (!unsafe && !isOnPlayerNetwork(s.board, graph, pid, toEid)) return s;
+
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          edges: {
+            ...s.board.edges,
+            [fromEid]: null,
+            [toEid]: source,
+          },
+        },
+      };
+      s = updateLongestRoad(s);
+      return log(
+        s,
+        `[MASTER] ${s.players[pid]?.name} road moved ${fromEid} -> ${toEid}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_MOVE_BUILDING": {
+      const { pid, fromVid, toVid, unsafe = false, reason } = action;
+      const source = s.board.vertices[fromVid];
+      if (!source || source.playerId !== pid) return s;
+      if (s.board.vertices[toVid] !== null) return s;
+      if (s.board.knights[toVid] !== null) return s;
+
+      if (!unsafe) {
+        const adjacent = graph.adjacentVertices[toVid] ?? [];
+        const blockedByDistance = adjacent.some(
+          (adj: VertexId) => !!s.board.vertices[adj],
+        );
+        if (blockedByDistance) return s;
+      }
+
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          vertices: {
+            ...s.board.vertices,
+            [fromVid]: null,
+            [toVid]: source,
+          },
+        },
+      };
+      return log(
+        s,
+        `[MASTER] ${s.players[pid]?.name} ${source.type} moved ${fromVid} -> ${toVid}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_MOVE_KNIGHT": {
+      const { pid, fromVid, toVid, unsafe = false, reason } = action;
+      const source = s.board.knights[fromVid];
+      if (!source || source.playerId !== pid) return s;
+      if (s.board.vertices[toVid] !== null) return s;
+      if (s.board.knights[toVid] !== null) return s;
+      if (
+        !unsafe &&
+        !isKnightMoveReachable(s.board, graph, pid, fromVid, toVid)
+      ) {
+        return s;
+      }
+
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          knights: {
+            ...s.board.knights,
+            [fromVid]: null,
+            [toVid]: source,
+          },
+        },
+      };
+      s = updateLongestRoad(s);
+      return log(
+        s,
+        `[MASTER] ${s.players[pid]?.name} knight moved ${fromVid} -> ${toVid}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_SWAP_NUMBER_TOKENS": {
+      const { hidA, hidB, reason } = action;
+      const a = s.board.hexes[hidA];
+      const b = s.board.hexes[hidB];
+      if (!a || !b) return s;
+      if (a.number === null || b.number === null) return s;
+
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          hexes: {
+            ...s.board.hexes,
+            [hidA]: { ...a, number: b.number },
+            [hidB]: { ...b, number: a.number },
+          },
+        },
+      };
+      return log(
+        s,
+        `[MASTER] Number tokens swapped ${hidA} <-> ${hidB}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_SWAP_HEXES": {
+      const { hidA, hidB, reason } = action;
+      const a = s.board.hexes[hidA];
+      const b = s.board.hexes[hidB];
+      if (!a || !b) return s;
+
+      s = {
+        ...s,
+        board: {
+          ...s.board,
+          hexes: {
+            ...s.board.hexes,
+            [hidA]: {
+              ...a,
+              terrain: b.terrain,
+              number: b.number,
+              hasRobber: b.hasRobber,
+            },
+            [hidB]: {
+              ...b,
+              terrain: a.terrain,
+              number: a.number,
+              hasRobber: a.hasRobber,
+            },
+          },
+        },
+      };
+      return log(
+        s,
+        `[MASTER] Hexes swapped ${hidA} <-> ${hidB}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_GRANT_PROGRESS_CARD": {
+      const { pid, track, cardName, reason } = action;
+      const deck = [...s.decks[track]];
+      let idx = 0;
+      if (cardName) {
+        idx = deck.findIndex((c) => c.name === cardName);
+        if (idx === -1) return s;
+      }
+      const [card] = deck.splice(idx, 1);
+      if (!card) return s;
+
+      s = {
+        ...s,
+        decks: { ...s.decks, [track]: deck },
+        players: {
+          ...s.players,
+          [pid]: {
+            ...s.players[pid]!,
+            progressCards: [...s.players[pid]!.progressCards, card],
+          },
+        },
+      };
+      return log(
+        s,
+        `[MASTER] ${s.players[pid]?.name} receives ${card.name}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_SET_PLAYER_BOT": {
+      const { pid, isBot, reason } = action;
+      const player = s.players[pid];
+      if (!player || player.isBot === isBot) return s;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: { ...player, isBot },
+        },
+      };
+      return log(
+        s,
+        `[MASTER] ${player.name} ${isBot ? "converted to bot" : "restored to human"}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_END_GAME": {
+      return {
+        ...s,
+        phase: "GAME_OVER",
+        winner: action.winner,
+        log: [
+          ...s.log,
+          `[MASTER] Game ended${action.reason ? ` (${action.reason})` : ""}`,
+        ],
+      };
+    }
+
+    case "ADMIN_UNDO_LAST": {
+      // Host-managed in network.ts by restoring pre-admin snapshot.
+      return s;
+    }
+
     case "END_TURN": {
       const { pid } = action;
       const idx = s.playerOrder.indexOf(pid);
@@ -1437,6 +1645,41 @@ function updateLongestRoad(state: GameState): GameState {
   }
 
   return s;
+}
+
+function isKnightMoveReachable(
+  board: BoardState,
+  graph: ReturnType<typeof buildGraph>,
+  playerId: PlayerId,
+  from: VertexId,
+  to: VertexId,
+): boolean {
+  if (from === to) return false;
+  const visited = new Set<VertexId>([from]);
+  const queue: VertexId[] = [from];
+
+  while (queue.length) {
+    const cur = queue.shift()!;
+    if (cur === to) return true;
+    for (const eid of graph.edgesOfVertex[cur] ?? []) {
+      const road = board.edges[eid];
+      if (!road || road.playerId !== playerId) continue;
+      const [a, b] = graph.verticesOfEdge[eid] ?? [];
+      const next = a === cur ? b : a;
+      if (!next) continue;
+      if (next !== to) {
+        const blockerBuilding = board.vertices[next];
+        if (blockerBuilding && blockerBuilding.playerId !== playerId) continue;
+        const blockerKnight = board.knights[next];
+        if (blockerKnight && blockerKnight.playerId !== playerId) continue;
+      }
+      if (visited.has(next)) continue;
+      visited.add(next);
+      queue.push(next);
+    }
+  }
+
+  return false;
 }
 
 // ─── Steal Card ───────────────────────────────────────────────────────────────

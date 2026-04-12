@@ -115,7 +115,6 @@
     <button class="btn-primary" onclick={confirm} disabled={!canTrade}
       >Trade</button
     >
-    <button class="btn-secondary" onclick={() => (open = false)}>Cancel</button>
   </div>
 </Modal>
 
@@ -177,13 +176,4 @@
     cursor: default;
   }
 
-  .btn-secondary {
-    background: rgba(255, 255, 255, 0.1);
-    color: #f0e8d0;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
-    cursor: pointer;
-  }
 </style>

@@ -562,7 +562,9 @@ describe("progress card effects", () => {
 
     expect(next.lastRoll?.[0]).toBe(6);
     expect(next.lastRoll?.[1]).toBe(1);
-    expect(next.players[pid]!.progressCards.some((c) => c.name === "Alchemy")).toBe(false);
+    expect(
+      next.players[pid]!.progressCards.some((c) => c.name === "Alchemy"),
+    ).toBe(false);
   });
 
   it("does not allow non-Alchemy progress cards during roll phase", () => {
@@ -589,7 +591,9 @@ describe("progress card effects", () => {
       card: "Irrigation",
     });
 
-    expect(next.players[pid]!.progressCards.some((c) => c.name === "Irrigation")).toBe(true);
+    expect(
+      next.players[pid]!.progressCards.some((c) => c.name === "Irrigation"),
+    ).toBe(true);
   });
 
   it("does not consume ResourceMonopoly card when required param is missing", () => {
@@ -615,7 +619,11 @@ describe("progress card effects", () => {
       card: "ResourceMonopoly",
     });
 
-    expect(next.players[pid]!.progressCards.some((c) => c.name === "ResourceMonopoly")).toBe(true);
+    expect(
+      next.players[pid]!.progressCards.some(
+        (c) => c.name === "ResourceMonopoly",
+      ),
+    ).toBe(true);
   });
 
   it("Crane applies a one-time city improvement discount", () => {
@@ -1037,3 +1045,54 @@ function findCityAndHex(
   }
   return { hexNum: 0, vid: "" as VertexId };
 }
+
+describe("master control actions", () => {
+  it("swaps number tokens between two numbered hexes", () => {
+    const state = buildActionState();
+    const numbered = Object.values(state.board.hexes).filter(
+      (h) => h.number !== null,
+    );
+    const a = numbered[0]!;
+    const b = numbered[1]!;
+
+    const next = applyAction(state, {
+      type: "ADMIN_SWAP_NUMBER_TOKENS",
+      hidA: a.id,
+      hidB: b.id,
+      reason: "debug swap",
+    });
+
+    expect(next.board.hexes[a.id]!.number).toBe(b.number);
+    expect(next.board.hexes[b.id]!.number).toBe(a.number);
+  });
+
+  it("grants a progress card from finite deck to target player", () => {
+    const state = buildActionState();
+    const beforeDeck = state.decks.science.length;
+    const beforeHand = state.players.p2!.progressCards.length;
+
+    const next = applyAction(state, {
+      type: "ADMIN_GRANT_PROGRESS_CARD",
+      pid: "p2",
+      track: "science",
+      reason: "compensation",
+    });
+
+    expect(next.decks.science.length).toBe(beforeDeck - 1);
+    expect(next.players.p2!.progressCards.length).toBe(beforeHand + 1);
+  });
+
+  it("converts a human player to bot mode", () => {
+    const state = buildActionState();
+    expect(state.players.p2!.isBot).toBe(false);
+
+    const next = applyAction(state, {
+      type: "ADMIN_SET_PLAYER_BOT",
+      pid: "p2",
+      isBot: true,
+      reason: "host removed player",
+    });
+
+    expect(next.players.p2!.isBot).toBe(true);
+  });
+});

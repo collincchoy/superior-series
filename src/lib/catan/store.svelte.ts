@@ -48,6 +48,7 @@ class CatanStore {
   // ── Toast ─────────────────────────────────────────────────────────────────
   toast = $state<{ msg: string; kind: "info" | "error" } | null>(null);
   infoModal = $state<InfoModalState | null>(null);
+  masterControlOpen = $state(false);
 
   // ── Non-reactive (must not be proxied) ────────────────────────────────────
   net: CatanNetwork | null = null;
@@ -74,6 +75,14 @@ class CatanStore {
 
   closeInfoModal() {
     this.infoModal = null;
+  }
+
+  get isHostPlayer(): boolean {
+    return this.net?.hostAuthority ?? false;
+  }
+
+  setMasterControlOpen(open: boolean) {
+    this.masterControlOpen = open;
   }
 
   applyStateUpdate(state: GameState) {

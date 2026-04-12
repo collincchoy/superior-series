@@ -43,7 +43,6 @@
     >
       <span class="name">{p.name}{p.isBot ? " 🤖" : ""}</span>
       <span class="vp">{vp} VP</span>
-      <span class="cards">{cards} 🃏</span>
       <div class="improvements-row">
         <span
           class:zero={p.improvements.science === 0}
@@ -61,17 +60,20 @@
           >{TRACK_LABEL.politics}{p.improvements.politics}</span
         >
       </div>
-      {#if progressCards.length}
-        <div class="pips-row" aria-label="Progress cards by color">
-          {#each progressCards as c}
-            <span
-              class="pip"
-              style={`background:${TRACK_COLORS[c.track]}`}
-              title={c.track}
-            ></span>
-          {/each}
-        </div>
-      {/if}
+      <div>
+        <span class="cards">{cards} 🃏</span>
+        {#if progressCards.length}
+          <div class="pips-row" aria-label="Progress cards by color">
+            {#each progressCards as c}
+              <span
+                class="pip"
+                style={`background:${TRACK_COLORS[c.track]}`}
+                title={c.track}
+              ></span>
+            {/each}
+          </div>
+        {/if}
+      </div>
     </div>
   {/each}
 </div>
@@ -117,11 +119,10 @@
   }
 
   .improvements-row {
-    display: flex;
+    display: inline-flex;
     gap: 0.35rem;
     font-size: 0.66rem;
     font-weight: 700;
-    line-height: 1.1;
   }
 
   .zero {
