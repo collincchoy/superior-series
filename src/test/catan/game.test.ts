@@ -4,9 +4,19 @@ import {
   applyAction,
   computeVP,
 } from "../../lib/catan/game.js";
-import { buildGraph, CATAN_HEX_COORDS, hexId } from "../../lib/catan/board.js";
+import {
+  buildGraph,
+  computeLongestRoad,
+  CATAN_HEX_COORDS,
+  hexId,
+} from "../../lib/catan/board.js";
 import { STANDARD_BOARD, HARBOR_SETUPS } from "../../lib/catan/constants.js";
-import type { GameState, PlayerId, VertexId } from "../../lib/catan/types.js";
+import type {
+  GameState,
+  PlayerId,
+  VertexId,
+  EdgeId,
+} from "../../lib/catan/types.js";
 
 const graph = buildGraph();
 const HEX_DIRECTIONS = [
@@ -1425,5 +1435,251 @@ describe("master control actions", () => {
     });
 
     expect(next.players.p2!.isBot).toBe(true);
+  });
+});
+
+// ─── Longest road tie-break ───────────────────────────────────────────────────
+
+describe("updateLongestRoad tie-break", () => {
+  /** Build a simple-path DFS chain of exactly `length` edges from startVid, updating usedEdges. */
+  function buildRoadChain(
+    startVid: VertexId,
+    length: number,
+    usedEdges: Set<string>,
+  ): EdgeId[] {
+    function dfs(
+      vid: VertexId,
+      remaining: number,
+      path: EdgeId[],
+      visited: Set<VertexId>,
+    ): EdgeId[] | null {
+      if (remaining === 0) return path;
+      for (const eid of graph.edgesOfVertex[vid] ?? []) {
+        if (usedEdges.has(eid)) continue;
+        const [a, b] = graph.verticesOfEdge[eid]!;
+        const next = (a === vid ? b : a) as VertexId;
+        if (visited.has(next)) continue;
+        usedEdges.add(eid);
+        visited.add(next);
+        const result = dfs(next, remaining - 1, [...path, eid as EdgeId], visited);
+        if (result) return result;
+        usedEdges.delete(eid);
+        visited.delete(next);
+      }
+      return null;
+    }
+    const visited = new Set<VertexId>([startVid]);
+    return dfs(startVid, length, [], visited) ?? [];
+  }
+
+  /**
+   * Find any vertex that can anchor a chain of `length` non-overlapping edges
+   * (skipping vertices already blocked by usedEdges).
+   */
+  function buildChainFromAnyVertex(
+    length: number,
+    usedEdges: Set<string>,
+  ): EdgeId[] {
+    for (const vid of Object.keys(graph.vertices) as VertexId[]) {
+      const result = buildRoadChain(vid, length, usedEdges);
+      if (result.length === length) return result;
+    }
+    return [];
+  }
+
+  it("current owner keeps the award when a challenger ties from an earlier playerOrder position", () => {
+    const base = buildActionState();
+    // Default playerOrder is ["p1","p2","p3"] — p1 is before p2.
+    // Set p2 as owner so p1 (appearing first in iteration) is the challenger.
+    const usedEdges = new Set<string>();
+
+    // Use any two non-overlapping chains; not tied to specific vertices so
+    // the board layout can't accidentally block one.
+    const p1Chain = buildChainFromAnyVertex(5, usedEdges);
+    const p2Chain = buildChainFromAnyVertex(5, usedEdges);
+    expect(p1Chain).toHaveLength(5);
+    expect(p2Chain).toHaveLength(5);
+
+    // Clear all vertices so opponent buildings don't interrupt road traversal
+    const clearedVertices = Object.fromEntries(
+      Object.keys(graph.vertices).map((v) => [v, null]),
+    );
+    const clearedEdges = Object.fromEntries(
+      Object.keys(graph.edges).map((e) => [e, null]),
+    );
+    const state: GameState = {
+      ...base,
+      longestRoadOwner: "p2" as PlayerId,
+      longestRoadLength: 5,
+      board: {
+        ...base.board,
+        vertices: clearedVertices as any,
+        edges: {
+          ...clearedEdges,
+          ...Object.fromEntries(
+            p1Chain.map((e) => [e, { playerId: "p1" as PlayerId }]),
+          ),
+          ...Object.fromEntries(
+            p2Chain.map((e) => [e, { playerId: "p2" as PlayerId }]),
+          ),
+        } as any,
+      },
+    };
+
+    expect(computeLongestRoad(state.board, graph, "p1")).toBe(5);
+    expect(computeLongestRoad(state.board, graph, "p2")).toBe(5);
+
+    // p3 builds a disconnected road to trigger updateLongestRoad without changing p1/p2 lengths
+    const p3Edge = Object.keys(graph.edges).find(
+      (e) => !usedEdges.has(e),
+    )! as EdgeId;
+    const after = applyAction(state, {
+      type: "BUILD_ROAD",
+      pid: "p3" as PlayerId,
+      eid: p3Edge,
+    });
+
+    expect(after.longestRoadOwner).toBe("p2");
+    expect(after.longestRoadLength).toBe(5);
+  });
+
+  it("challenger with strictly more roads correctly takes the award", () => {
+    const base = buildActionState();
+    const usedEdges = new Set<string>();
+
+    const p2Chain = buildChainFromAnyVertex(5, usedEdges);
+    const p1Chain = buildChainFromAnyVertex(6, usedEdges);
+    expect(p1Chain).toHaveLength(6);
+    expect(p2Chain).toHaveLength(5);
+
+    const clearedVertices = Object.fromEntries(
+      Object.keys(graph.vertices).map((v) => [v, null]),
+    );
+    const clearedEdges = Object.fromEntries(
+      Object.keys(graph.edges).map((e) => [e, null]),
+    );
+    const state: GameState = {
+      ...base,
+      longestRoadOwner: "p2" as PlayerId,
+      longestRoadLength: 5,
+      board: {
+        ...base.board,
+        vertices: clearedVertices as any,
+        edges: {
+          ...clearedEdges,
+          ...Object.fromEntries(
+            p1Chain.map((e) => [e, { playerId: "p1" as PlayerId }]),
+          ),
+          ...Object.fromEntries(
+            p2Chain.map((e) => [e, { playerId: "p2" as PlayerId }]),
+          ),
+        } as any,
+      },
+    };
+
+    expect(computeLongestRoad(state.board, graph, "p1")).toBe(6);
+    expect(computeLongestRoad(state.board, graph, "p2")).toBe(5);
+
+    const p3Edge = Object.keys(graph.edges).find(
+      (e) => !usedEdges.has(e),
+    )! as EdgeId;
+    const after = applyAction(state, {
+      type: "BUILD_ROAD",
+      pid: "p3" as PlayerId,
+      eid: p3Edge,
+    });
+
+    expect(after.longestRoadOwner).toBe("p1");
+    expect(after.longestRoadLength).toBe(6);
+  });
+});
+
+// ─── Progress card hand limit ─────────────────────────────────────────────────
+
+describe("progress card hand limit (4 non-VP)", () => {
+  const nonVpCard = {
+    name: "RoadBuilding" as const,
+    track: "science" as const,
+    isVP: false,
+  };
+  const vpCard = {
+    name: "Printing" as const,
+    track: "science" as const,
+    isVP: true,
+  };
+
+  it("DRAW_PROGRESS is ignored when the player already holds 4 non-VP cards", () => {
+    const base = buildActionState();
+    const pid = base.currentPlayerId;
+    const state: GameState = {
+      ...base,
+      players: {
+        ...base.players,
+        [pid]: {
+          ...base.players[pid]!,
+          progressCards: [nonVpCard, nonVpCard, nonVpCard, nonVpCard],
+        },
+      },
+    };
+    const after = applyAction(state, {
+      type: "DRAW_PROGRESS",
+      pid,
+      track: "science",
+    });
+    expect(after.players[pid]!.progressCards).toHaveLength(4);
+  });
+
+  it("DRAW_PROGRESS succeeds when the 4 held cards are all VP cards", () => {
+    const base = buildActionState();
+    const pid = base.currentPlayerId;
+    const state: GameState = {
+      ...base,
+      players: {
+        ...base.players,
+        [pid]: {
+          ...base.players[pid]!,
+          progressCards: [vpCard, vpCard, vpCard, vpCard],
+        },
+      },
+    };
+    const after = applyAction(state, {
+      type: "DRAW_PROGRESS",
+      pid,
+      track: "science",
+    });
+    // VP cards don't count toward the 4-card limit
+    expect(after.players[pid]!.progressCards).toHaveLength(5);
+  });
+});
+
+// ─── TRADE_REJECT / TRADE_OFFER stubs ─────────────────────────────────────────
+
+describe("unimplemented trade actions return state unchanged", () => {
+  it("TRADE_REJECT returns state unchanged (aside from version bump)", () => {
+    const state = buildActionState();
+    const [p1, p2] = state.playerOrder;
+    const after = applyAction(state, {
+      type: "TRADE_REJECT",
+      from: p1!,
+      to: p2!,
+    });
+    expect(after.version).toBe(state.version + 1);
+    expect(after.players).toEqual(state.players);
+    expect(after.board).toEqual(state.board);
+  });
+
+  it("TRADE_OFFER returns state unchanged (aside from version bump)", () => {
+    const state = buildActionState();
+    const [p1, p2] = state.playerOrder;
+    const after = applyAction(state, {
+      type: "TRADE_OFFER",
+      from: p1!,
+      to: p2!,
+      offer: { brick: 1 },
+      request: { ore: 1 },
+    });
+    expect(after.version).toBe(state.version + 1);
+    expect(after.players).toEqual(state.players);
+    expect(after.board).toEqual(state.board);
   });
 });

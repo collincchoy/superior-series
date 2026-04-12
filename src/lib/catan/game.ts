@@ -41,7 +41,12 @@ import {
   rollProductionDie,
   BUILD_COSTS,
 } from "./constants.js";
-import { discardCount, isOpenRoad, isOnPlayerNetwork } from "./rules.js";
+import {
+  discardCount,
+  isOpenRoad,
+  isOnPlayerNetwork,
+  canDrawProgress,
+} from "./rules.js";
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -129,6 +134,7 @@ function randomizeHarborSetups(): HarborSetup[] {
 }
 
 function drawRandomProgressCard(state: GameState, pid: PlayerId): GameState {
+  if (!canDrawProgress(state.players[pid]!)) return state;
   const tracks: ImprovementTrack[] = ["science", "trade", "politics"];
   const availableTracks = tracks.filter(
     (track) => state.decks[track].length > 0,
@@ -968,6 +974,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     // ── Progress Cards ─────────────────────────────────────────────────────────
     case "DRAW_PROGRESS": {
       const { pid, track } = action;
+      if (!canDrawProgress(s.players[pid]!)) return s;
       const deck = [...s.decks[track]];
       if (deck.length === 0) return s;
       const card = deck.shift()!;
@@ -1169,6 +1176,12 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       const pending = s.pendingDisplace; // TODO: proper pending trade
       return s;
     }
+
+    // Player-to-player trading is not yet implemented; these are no-ops to
+    // prevent unhandled action warnings when clients send them.
+    case "TRADE_OFFER":
+    case "TRADE_REJECT":
+      return s;
 
     // ── Host Master Controls ─────────────────────────────────────────────────
     case "ADMIN_MOVE_ROAD": {
@@ -1712,10 +1725,17 @@ function checkMetropolis(
 function updateLongestRoad(state: GameState): GameState {
   const graph = buildGraph();
   let s = state;
-  let bestLen = 4; // must be at least 5 to claim
+
+  // Seed bestLen with the current owner's road length so they keep the award on ties —
+  // challengers must strictly exceed the owner's count to take it.
+  const ownerLen = s.longestRoadOwner
+    ? computeLongestRoad(s.board, graph, s.longestRoadOwner)
+    : 0;
+  let bestLen = Math.max(4, ownerLen); // must be at least 5 to claim initially
   let bestOwner: PlayerId | null = null;
 
   for (const pid of s.playerOrder) {
+    if (pid === s.longestRoadOwner) continue; // owner already set the baseline
     const len = computeLongestRoad(s.board, graph, pid);
     if (len >= 5 && len > bestLen) {
       bestLen = len;
@@ -1723,15 +1743,23 @@ function updateLongestRoad(state: GameState): GameState {
     }
   }
 
-  // If current owner is tied or still leads, they keep it
-  if (s.longestRoadOwner && !bestOwner) {
-    const ownerLen = computeLongestRoad(s.board, graph, s.longestRoadOwner);
-    if (ownerLen >= 5) return s; // still has valid road
-    // Lost it — no new owner
-    s = { ...s, longestRoadOwner: null, longestRoadLength: 0 };
-  } else if (bestOwner && bestOwner !== s.longestRoadOwner) {
+  if (bestOwner) {
+    // A challenger strictly exceeded the current owner — transfer the award
     s = { ...s, longestRoadOwner: bestOwner, longestRoadLength: bestLen };
     s = log(s, `${s.players[bestOwner]?.name} took the Longest Road!`);
+  } else if (s.longestRoadOwner) {
+    // No challenger — check if the current owner still has at least 5 roads
+    if (ownerLen >= 5) {
+      // Keep owner; update length in case it grew
+      if (ownerLen !== s.longestRoadLength) {
+        s = { ...s, longestRoadLength: ownerLen };
+      }
+    } else {
+      s = { ...s, longestRoadOwner: null, longestRoadLength: 0 };
+    }
+  } else {
+    // No current owner — check if anyone newly reached 5
+    // (bestLen stayed at 4 so nobody hit 5 — nothing to do)
   }
 
   return s;
