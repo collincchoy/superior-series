@@ -233,11 +233,12 @@
     display: flex;
     flex-direction: column;
     flex: 1;
-    min-height: 0;
+    min-height: 100px;
   }
 
   .log-panel.collapsed {
     flex: 0 0 auto;
+    min-height: 0;
   }
 
   .log-header {
