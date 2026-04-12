@@ -23,6 +23,7 @@ import {
   canMoveKnight,
   canDisplaceKnight,
   canImproveCity,
+  canDrawProgress,
 } from "../../lib/catan/rules.js";
 
 // ─── Test setup helpers ───────────────────────────────────────────────────────
@@ -548,5 +549,46 @@ describe("canImproveCity", () => {
       metropolis: null,
     };
     expect(canImproveCity(board, player, "science")).toBe(true);
+  });
+});
+
+// ─── canDrawProgress ──────────────────────────────────────────────────────────
+
+describe("canDrawProgress", () => {
+  const nonVpCard = {
+    name: "RoadBuilding" as const,
+    track: "science" as const,
+    isVP: false,
+  };
+  const vpCard = {
+    name: "Printing" as const,
+    track: "science" as const,
+    isVP: true,
+  };
+
+  it("returns true when the player holds fewer than 4 non-VP cards", () => {
+    const player = makePlayer("p1", { progressCards: [nonVpCard, nonVpCard] });
+    expect(canDrawProgress(player)).toBe(true);
+  });
+
+  it("returns false when the player already holds 4 non-VP cards", () => {
+    const player = makePlayer("p1", {
+      progressCards: [nonVpCard, nonVpCard, nonVpCard, nonVpCard],
+    });
+    expect(canDrawProgress(player)).toBe(false);
+  });
+
+  it("returns true when the player holds 4 VP cards and no non-VP cards", () => {
+    const player = makePlayer("p1", {
+      progressCards: [vpCard, vpCard, vpCard, vpCard],
+    });
+    expect(canDrawProgress(player)).toBe(true);
+  });
+
+  it("returns false when the player holds a mix totalling 4 non-VP cards", () => {
+    const player = makePlayer("p1", {
+      progressCards: [vpCard, nonVpCard, nonVpCard, nonVpCard, nonVpCard],
+    });
+    expect(canDrawProgress(player)).toBe(false);
   });
 });
