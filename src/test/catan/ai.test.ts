@@ -11,6 +11,7 @@ import type {
   TurnPhase,
   PlayerId,
   VertexId,
+  EdgeId,
 } from "../../lib/catan/types.js";
 import { emptyResources } from "../../lib/catan/types.js";
 
@@ -299,5 +300,50 @@ describe("chooseBotAction - full game simulation", () => {
     }
 
     expect(state.phase).toBe("ROLL_DICE");
+  });
+});
+
+// ─── Knight promotion ─────────────────────────────────────────────────────────
+
+describe("chooseBotAction - knight promotion", () => {
+  it("bot emits PROMOTE_KNIGHT when it has a promotable knight and barbarians are approaching", () => {
+    const base = buildActionState();
+    const pid = base.currentPlayerId;
+
+    // Find a road edge owned by the current player to place a knight at one endpoint
+    const playerEdgeEntry = Object.entries(base.board.edges).find(
+      ([, e]) => e?.playerId === pid,
+    )!;
+    const eid = playerEdgeEntry[0] as EdgeId;
+    const [vA] = graph.verticesOfEdge[eid]!;
+    const knightVid = vA as VertexId;
+
+    const state: GameState = {
+      ...base,
+      barbarian: { ...base.barbarian, position: 3 },
+      board: {
+        ...base.board,
+        knights: {
+          ...base.board.knights,
+          [knightVid]: { playerId: pid, strength: 1, active: false },
+        },
+      },
+      players: {
+        ...base.players,
+        [pid]: {
+          ...base.players[pid]!,
+          // Only enough resources for knightPromote (ore:1, wool:1); nothing else
+          resources: { ...emptyResources(), ore: 1, wool: 1 },
+        },
+      },
+      phase: "ACTION",
+    };
+
+    const action = chooseBotAction(state, pid);
+    expect(action.type).toBe("PROMOTE_KNIGHT");
+    if (action.type === "PROMOTE_KNIGHT") {
+      expect(action.vid).toBe(knightVid);
+      expect(action.pid).toBe(pid);
+    }
   });
 });

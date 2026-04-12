@@ -398,6 +398,14 @@ function chooseAction(
     }
   }
 
+  // 5.5 Promote knight (strengthen before barbarian attack)
+  if (state.barbarian.position >= 3) {
+    const knightVid = findPromotableKnight(state, pid);
+    if (knightVid && canPromoteKnight(state.board, player, knightVid)) {
+      return { type: "PROMOTE_KNIGHT", pid, vid: knightVid };
+    }
+  }
+
   // 6. Activate knight (if barbarians imminent)
   if (state.barbarian.position >= 5) {
     const knightVid = findInactiveKnight(state, pid);
@@ -513,6 +521,17 @@ function findKnightSpot(
 function findInactiveKnight(state: GameState, pid: PlayerId): VertexId | null {
   for (const [vid, knight] of Object.entries(state.board.knights)) {
     if (knight?.playerId === pid && !knight.active) return vid as VertexId;
+  }
+  return null;
+}
+
+/** Return the first knight vertex owned by pid that is eligible for promotion. */
+function findPromotableKnight(
+  state: GameState,
+  pid: PlayerId,
+): VertexId | null {
+  for (const [vid, knight] of Object.entries(state.board.knights)) {
+    if (knight?.playerId === pid && knight.strength < 3) return vid as VertexId;
   }
   return null;
 }
