@@ -24,6 +24,10 @@ export type InfoModalState =
       helperText: string;
     }
   | {
+      kind: "card-info";
+      card: ProgressCard;
+    }
+  | {
       kind: "build-costs";
     }
   | {

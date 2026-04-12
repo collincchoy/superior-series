@@ -211,23 +211,32 @@ export interface ProgressCardInfo {
   requiresTarget: boolean;
 }
 
+export const TRACK_BADGE_COLOR: Record<ImprovementTrack, string> = {
+  science: "#2e9e4f",
+  trade: "#f1c232",
+  politics: "#2f6fe4",
+};
+
 export const PROGRESS_CARD_INFO: Record<ProgressCardName, ProgressCardInfo> = {
   Alchemy: {
     title: "Alchemy",
     short: "Pick both production dice before you roll.",
-    effect: "Play at the start of your roll phase, choose both production dice values, then roll the event die normally.",
+    effect:
+      "Play at the start of your roll phase, choose both production dice values, then roll the event die normally.",
     requiresTarget: false,
   },
   Crane: {
     title: "Crane",
     short: "Next city improvement costs one less commodity.",
-    effect: "Use this turn to buy exactly one city improvement with cost reduced by 1 (minimum 0).",
+    effect:
+      "Use this turn to buy exactly one city improvement with cost reduced by 1 (minimum 0).",
     requiresTarget: false,
   },
   Engineering: {
     title: "Engineering",
     short: "Build one city wall for free.",
-    effect: "Choose one of your cities without a wall and place a wall at no resource cost.",
+    effect:
+      "Choose one of your cities without a wall and place a wall at no resource cost.",
     requiresTarget: true,
   },
   Invention: {
@@ -239,7 +248,8 @@ export const PROGRESS_CARD_INFO: Record<ProgressCardName, ProgressCardInfo> = {
   Irrigation: {
     title: "Irrigation",
     short: "Gain grain from your fields.",
-    effect: "Gain 2 grain for each fields hex adjacent to any of your buildings.",
+    effect:
+      "Gain 2 grain for each fields hex adjacent to any of your buildings.",
     requiresTarget: false,
   },
   Medicine: {
@@ -251,19 +261,22 @@ export const PROGRESS_CARD_INFO: Record<ProgressCardName, ProgressCardInfo> = {
   Mining: {
     title: "Mining",
     short: "Gain ore from your mountains.",
-    effect: "Gain 2 ore for each mountains hex adjacent to any of your buildings.",
+    effect:
+      "Gain 2 ore for each mountains hex adjacent to any of your buildings.",
     requiresTarget: false,
   },
   RoadBuilding: {
     title: "Road Building",
     short: "Build two roads for free.",
-    effect: "Place up to 2 roads at no resource cost, following normal road placement rules.",
+    effect:
+      "Place up to 2 roads at no resource cost, following normal road placement rules.",
     requiresTarget: true,
   },
   Smithing: {
     title: "Smithing",
     short: "Promote up to two knights for free.",
-    effect: "Choose up to two of your knights and promote each once this turn at no cost.",
+    effect:
+      "Choose up to two of your knights and promote each once this turn at no cost.",
     requiresTarget: true,
   },
   Printing: {
@@ -275,37 +288,43 @@ export const PROGRESS_CARD_INFO: Record<ProgressCardName, ProgressCardInfo> = {
   CommercialHarbor: {
     title: "Commercial Harbor",
     short: "Offer resource-for-commodity trades to each player.",
-    effect: "Offer each opponent one resource type from your hand; they must return one commodity or decline if none.",
+    effect:
+      "Offer each opponent one resource type from your hand; they must return one commodity or decline if none.",
     requiresTarget: true,
   },
   GuildDues: {
     title: "Guild Dues",
     short: "Take two chosen cards from one eligible player.",
-    effect: "Pick one player with VP at least as high as yours and take any 2 resource/commodity cards from their hand.",
+    effect:
+      "Pick one player with VP at least as high as yours and take any 2 resource/commodity cards from their hand.",
     requiresTarget: true,
   },
   Merchant: {
     title: "Merchant",
     short: "Place the merchant for ongoing 2:1 trade + 1 VP.",
-    effect: "Place the merchant on a land hex adjacent to one of your buildings. You gain 1 VP while you hold it and may trade that hex's resource at 2:1.",
+    effect:
+      "Place the merchant on a land hex adjacent to one of your buildings. You gain 1 VP while you hold it and may trade that hex's resource at 2:1.",
     requiresTarget: true,
   },
   MerchantFleet: {
     title: "Merchant Fleet",
     short: "Trade one chosen resource or commodity at 2:1 this turn.",
-    effect: "Choose one card type; for the rest of this turn, you may trade it at 2:1 with the bank.",
+    effect:
+      "Choose one card type; for the rest of this turn, you may trade it at 2:1 with the bank.",
     requiresTarget: true,
   },
   ResourceMonopoly: {
     title: "Resource Monopoly",
     short: "Claim resources from every opponent.",
-    effect: "Name one resource type; each opponent gives you up to 2 of that resource.",
+    effect:
+      "Name one resource type; each opponent gives you up to 2 of that resource.",
     requiresTarget: true,
   },
   TradeMonopoly: {
     title: "Trade Monopoly",
     short: "Claim one commodity from every opponent.",
-    effect: "Name one commodity type; each opponent gives you 1 of that commodity if possible.",
+    effect:
+      "Name one commodity type; each opponent gives you 1 of that commodity if possible.",
     requiresTarget: true,
   },
   Constitution: {
@@ -317,7 +336,8 @@ export const PROGRESS_CARD_INFO: Record<ProgressCardName, ProgressCardInfo> = {
   Diplomacy: {
     title: "Diplomacy",
     short: "Remove an open road, then maybe place one free road.",
-    effect: "Choose an open road to remove. If it is your own road, immediately place one free road.",
+    effect:
+      "Choose an open road to remove. If it is your own road, immediately place one free road.",
     requiresTarget: true,
   },
   Encouragement: {
@@ -329,37 +349,43 @@ export const PROGRESS_CARD_INFO: Record<ProgressCardName, ProgressCardInfo> = {
   Espionage: {
     title: "Espionage",
     short: "Peek at an opponent's progress hand and optionally steal one.",
-    effect: "Choose one opponent, view their progress cards, and optionally take one non-VP card.",
+    effect:
+      "Choose one opponent, view their progress cards, and optionally take one non-VP card.",
     requiresTarget: true,
   },
   Intrigue: {
     title: "Intrigue",
     short: "Displace one eligible enemy knight.",
-    effect: "Pick an opponent knight connected to one of your routes and force it to relocate/remove, without moving one of your own knights.",
+    effect:
+      "Pick an opponent knight connected to one of your routes and force it to relocate/remove, without moving one of your own knights.",
     requiresTarget: true,
   },
   Sabotage: {
     title: "Sabotage",
     short: "High-VP opponents discard half their cards.",
-    effect: "Each opponent with VP at least as high as yours discards half of their resource+commodity cards (rounded down).",
+    effect:
+      "Each opponent with VP at least as high as yours discards half of their resource+commodity cards (rounded down).",
     requiresTarget: false,
   },
   Taxation: {
     title: "Taxation",
     short: "Move robber and steal from all players on that hex.",
-    effect: "Move the robber to a new hex and steal one random card from each opponent with a building on that hex.",
+    effect:
+      "Move the robber to a new hex and steal one random card from each opponent with a building on that hex.",
     requiresTarget: true,
   },
   Treason: {
     title: "Treason",
     short: "Replace an opponent knight with your own.",
-    effect: "Choose an opponent knight to remove, then optionally place one of your own equal-or-lower strength knights there.",
+    effect:
+      "Choose an opponent knight to remove, then optionally place one of your own equal-or-lower strength knights there.",
     requiresTarget: true,
   },
   Wedding: {
     title: "Wedding",
     short: "Higher-VP opponents give you two cards each.",
-    effect: "Every opponent with more VP than you gives you 2 resource/commodity cards of their choice.",
+    effect:
+      "Every opponent with more VP than you gives you 2 resource/commodity cards of their choice.",
     requiresTarget: false,
   },
 };
@@ -370,6 +396,46 @@ export const PROGRESS_AUTO_PLAY_CARDS = new Set<ProgressCardName>([
   "Sabotage",
   "Encouragement",
 ]);
+
+export const PROGRESS_CARD_BY_NAME: Record<ProgressCardName, ProgressCard> = {
+  Alchemy: { name: "Alchemy", track: "science", isVP: false },
+  Crane: { name: "Crane", track: "science", isVP: false },
+  Engineering: { name: "Engineering", track: "science", isVP: false },
+  Invention: { name: "Invention", track: "science", isVP: false },
+  Irrigation: { name: "Irrigation", track: "science", isVP: false },
+  Medicine: { name: "Medicine", track: "science", isVP: false },
+  Mining: { name: "Mining", track: "science", isVP: false },
+  RoadBuilding: { name: "RoadBuilding", track: "science", isVP: false },
+  Smithing: { name: "Smithing", track: "science", isVP: false },
+  Printing: { name: "Printing", track: "science", isVP: true },
+  CommercialHarbor: {
+    name: "CommercialHarbor",
+    track: "trade",
+    isVP: false,
+  },
+  GuildDues: { name: "GuildDues", track: "trade", isVP: false },
+  Merchant: { name: "Merchant", track: "trade", isVP: false },
+  MerchantFleet: { name: "MerchantFleet", track: "trade", isVP: false },
+  ResourceMonopoly: {
+    name: "ResourceMonopoly",
+    track: "trade",
+    isVP: false,
+  },
+  TradeMonopoly: { name: "TradeMonopoly", track: "trade", isVP: false },
+  Diplomacy: { name: "Diplomacy", track: "politics", isVP: false },
+  Encouragement: { name: "Encouragement", track: "politics", isVP: false },
+  Espionage: { name: "Espionage", track: "politics", isVP: false },
+  Intrigue: { name: "Intrigue", track: "politics", isVP: false },
+  Sabotage: { name: "Sabotage", track: "politics", isVP: false },
+  Taxation: { name: "Taxation", track: "politics", isVP: false },
+  Treason: { name: "Treason", track: "politics", isVP: false },
+  Wedding: { name: "Wedding", track: "politics", isVP: false },
+  Constitution: { name: "Constitution", track: "politics", isVP: true },
+};
+
+export function getProgressCardByName(name: ProgressCardName): ProgressCard {
+  return PROGRESS_CARD_BY_NAME[name];
+}
 
 export const BUILD_COST_HINTS: Array<{
   label: string;

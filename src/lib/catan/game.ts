@@ -97,6 +97,10 @@ function log(state: GameState, msg: string): GameState {
   return { ...state, log: [...state.log, msg] };
 }
 
+function progressCardTag(cardName: string): string {
+  return `[card:${cardName}]`;
+}
+
 // ─── createInitialState ───────────────────────────────────────────────────────
 
 export function createInitialState(
@@ -152,7 +156,6 @@ export function createInitialState(
       vpTokens: 0,
       improvements: { science: 0, trade: 0, politics: 0 },
       supply: { ...INITIAL_SUPPLY, knights: { ...INITIAL_SUPPLY.knights } },
-      knightsActivatedTotal: 0,
     };
   }
 
@@ -181,8 +184,6 @@ export function createInitialState(
     },
     longestRoadOwner: null,
     longestRoadLength: 0,
-    largestArmyOwner: null,
-    largestArmySize: 0,
     metropolisOwner: { science: null, trade: null, politics: null },
     lastRoll: null,
     setupQueue: [...playerOrder],
@@ -221,7 +222,6 @@ export function computeVP(state: GameState, playerId: PlayerId): number {
 
   // Special cards
   if (state.longestRoadOwner === playerId) vp += 2;
-  if (state.largestArmyOwner === playerId) vp += 2;
 
   // VP tokens (from barbarian defense)
   vp += player.vpTokens;
@@ -434,6 +434,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     case "DISCARD": {
       const { pid, cards } = action;
       const player = s.players[pid]!;
+      const discardedCount = Object.values(cards).reduce(
+        (sum, v) => sum + (v ?? 0),
+        0,
+      );
       s = {
         ...s,
         players: {
@@ -444,6 +448,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           },
         },
       };
+      s = log(
+        s,
+        `${s.players[pid]?.name} discarded ${discardedCount} resource card${discardedCount === 1 ? "" : "s"}.`,
+      );
 
       const pending = { ...s.pendingDiscard! };
       const newRemaining = { ...pending.remaining };
@@ -483,6 +491,13 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         s = stealRandomCard(s, pid, stealFrom);
       }
 
+      s = log(
+        s,
+        stealFrom
+          ? `${s.players[pid]?.name} moved the robber and stole a card from ${s.players[stealFrom]?.name}.`
+          : `${s.players[pid]?.name} moved the robber.`,
+      );
+
       s = { ...s, phase: "ACTION" };
       return s;
     }
@@ -510,6 +525,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         },
       };
       s = updateLongestRoad(s);
+      s = log(s, `${s.players[pid]?.name} built a road.`);
       return s;
     }
 
@@ -542,6 +558,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           },
         },
       };
+      s = log(s, `${s.players[pid]?.name} built a settlement.`);
       return checkWin(s);
     }
 
@@ -578,6 +595,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           },
         },
       };
+      s = log(s, `${s.players[pid]?.name} built a city.`);
       return checkWin(s);
     }
 
@@ -608,6 +626,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           vertices: { ...s.board.vertices, [vid]: { ...city, hasWall: true } },
         },
       };
+      s = log(s, `${s.players[pid]?.name} built a city wall.`);
       return s;
     }
 
@@ -645,6 +664,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
 
       // Check metropolis thresholds
       s = checkMetropolis(s, pid, track, targetLevel);
+      s = log(
+        s,
+        `${s.players[pid]?.name} improved ${track} to level ${targetLevel}.`,
+      );
       return checkWin(s);
     }
 
@@ -676,6 +699,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           },
         },
       };
+      s = log(s, `${s.players[pid]?.name} recruited a knight.`);
       return s;
     }
 
@@ -712,6 +736,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           },
         },
       };
+      s = log(s, `${s.players[pid]?.name} promoted a knight.`);
       return s;
     }
 
@@ -726,7 +751,6 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           [pid]: {
             ...player,
             resources: subtractResources(player.resources, { grain: 1 }),
-            knightsActivatedTotal: player.knightsActivatedTotal + 1,
           },
         },
         board: {
@@ -734,7 +758,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           knights: { ...s.board.knights, [vid]: { ...knight, active: true } },
         },
       };
-      s = updateLargestArmy(s);
+      s = log(s, `${s.players[pid]?.name} activated a knight.`);
       return s;
     }
 
@@ -871,6 +895,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           [pid]: { ...player, progressCards: [...player.progressCards, card] },
         },
       };
+      s = log(s, `${s.players[pid]?.name} drew a ${track} progress card.`);
 
       // Remove from pending
       if (s.pendingProgressDraw) {
@@ -1048,6 +1073,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           },
         },
       };
+      s = log(s, `${s.players[pid]?.name} traded with the bank.`);
       return s;
     }
 
@@ -1463,15 +1489,15 @@ function resolveBarbarianAttack(state: GameState): GameState {
       };
       s = log(
         s,
-        `${s.players[winnerId]?.name} gets 1 VP token for defending Catan!`,
+        `${s.players[winnerId]?.name} got 1 VP token for defending Catan!`,
       );
     } else if (winners.length > 1) {
-      s = log(s, "Tied defenders each draw a progress card!");
+      s = log(s, "Tied defenders each drew a progress card!");
       for (const winnerId of winners) {
         const before = s.players[winnerId]!.progressCards.length;
         s = drawRandomProgressCard(s, winnerId);
         if (s.players[winnerId]!.progressCards.length > before) {
-          s = log(s, `${s.players[winnerId]?.name} draws a progress card.`);
+          s = log(s, `${s.players[winnerId]?.name} drew a progress card.`);
         }
       }
     }
@@ -1588,36 +1614,13 @@ function checkMetropolis(
     }
 
     s = { ...s, board: { ...s.board, vertices: newVertices } };
-    s = log(s, `${s.players[pid]?.name} claims the ${track} metropolis!`);
+    s = log(s, `${s.players[pid]?.name} claimed the ${track} metropolis!`);
   }
 
   return s;
 }
 
-// ─── Largest Army / Longest Road ──────────────────────────────────────────────
-
-function updateLargestArmy(state: GameState): GameState {
-  let s = state;
-  let best = s.largestArmySize;
-  let bestOwner = s.largestArmyOwner;
-
-  for (const [pid, player] of Object.entries(s.players)) {
-    if (
-      player.knightsActivatedTotal >= 3 &&
-      player.knightsActivatedTotal > best
-    ) {
-      best = player.knightsActivatedTotal;
-      bestOwner = pid;
-    }
-  }
-
-  if (bestOwner !== s.largestArmyOwner) {
-    s = { ...s, largestArmyOwner: bestOwner, largestArmySize: best };
-    s = log(s, `${s.players[bestOwner!]?.name} takes the Largest Army!`);
-  }
-
-  return s;
-}
+// ─── Longest Road ─────────────────────────────────────────────────────────────
 
 function updateLongestRoad(state: GameState): GameState {
   const graph = buildGraph();
@@ -1641,7 +1644,7 @@ function updateLongestRoad(state: GameState): GameState {
     s = { ...s, longestRoadOwner: null, longestRoadLength: 0 };
   } else if (bestOwner && bestOwner !== s.longestRoadOwner) {
     s = { ...s, longestRoadOwner: bestOwner, longestRoadLength: bestLen };
-    s = log(s, `${s.players[bestOwner]?.name} takes the Longest Road!`);
+    s = log(s, `${s.players[bestOwner]?.name} took the Longest Road!`);
   }
 
   return s;
@@ -1762,6 +1765,7 @@ function applyProgressCard(
     ...s,
     players: { ...s.players, [pid]: { ...player, progressCards: newCards } },
   };
+  s = log(s, `${player.name} played ${progressCardTag(cardName)}.`);
 
   switch (cardName) {
     case "Alchemy": {
@@ -1785,7 +1789,6 @@ function applyProgressCard(
     }
     case "RoadBuilding": {
       s = { ...s, pendingFreeRoads: { pid, remaining: 2 } };
-      s = log(s, `${player.name} plays Road Building — place 2 free roads.`);
       break;
     }
     case "Irrigation": {
@@ -1876,10 +1879,6 @@ function applyProgressCard(
     }
     case "Smithing": {
       s = { ...s, pendingKnightPromotions: { pid, remaining: 2 } };
-      s = log(
-        s,
-        `${player.name} plays Smithing — promote up to 2 knights free.`,
-      );
       break;
     }
     case "Merchant": {

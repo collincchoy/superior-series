@@ -698,6 +698,209 @@ describe("progress card effects", () => {
     });
     expect(ended.progressEffects.merchantFleet).toBeNull();
   });
+
+  it("logs played progress cards with a clickable card marker", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    state = {
+      ...state,
+      phase: "ACTION",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          progressCards: [
+            { name: "Irrigation", track: "science", isVP: false },
+          ],
+        },
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "Irrigation",
+    });
+
+    expect(
+      next.log.some((line) =>
+        line.includes(`${state.players[pid]!.name} played [card:Irrigation].`),
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("action logging", () => {
+  it("logs build and economy actions in past tense", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    const targetSettlementVertex = findEmptyVertex(state);
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          resources: {
+            ...state.players[pid]!.resources,
+            brick: 10,
+            lumber: 10,
+            grain: 10,
+            wool: 10,
+            ore: 10,
+            paper: 10,
+            cloth: 10,
+            coin: 10,
+          },
+        },
+      },
+    };
+
+    const builtSettlement = applyAction(state, {
+      type: "BUILD_SETTLEMENT",
+      pid,
+      vid: targetSettlementVertex,
+    });
+    expect(
+      builtSettlement.log.some((line) => line.includes("built a settlement.")),
+    ).toBe(true);
+
+    const cityTarget = Object.entries(builtSettlement.board.vertices).find(
+      ([, b]) => b?.type === "settlement" && b.playerId === pid,
+    )?.[0] as VertexId;
+    const builtCity = applyAction(builtSettlement, {
+      type: "BUILD_CITY",
+      pid,
+      vid: cityTarget,
+    });
+    expect(builtCity.log.some((line) => line.includes("built a city."))).toBe(
+      true,
+    );
+
+    const roadEdge = Object.entries(builtCity.board.edges).find(
+      ([, road]) => road === null,
+    )?.[0]!;
+    const builtRoad = applyAction(builtCity, {
+      type: "BUILD_ROAD",
+      pid,
+      eid: roadEdge,
+    });
+    expect(builtRoad.log.some((line) => line.includes("built a road."))).toBe(
+      true,
+    );
+
+    const walled = applyAction(builtRoad, {
+      type: "BUILD_CITY_WALL",
+      pid,
+      vid: cityTarget,
+    });
+    expect(walled.log.some((line) => line.includes("built a city wall."))).toBe(
+      true,
+    );
+
+    const improved = applyAction(walled, {
+      type: "IMPROVE_CITY",
+      pid,
+      track: "science",
+    });
+    expect(
+      improved.log.some((line) =>
+        line.includes("improved science to level 1."),
+      ),
+    ).toBe(true);
+
+    const robberHex = Object.keys(improved.board.hexes)[0]!;
+    const movedRobber = applyAction(improved, {
+      type: "MOVE_ROBBER",
+      pid,
+      hid: robberHex,
+      stealFrom: null,
+    });
+    expect(
+      movedRobber.log.some((line) => line.includes("moved the robber.")),
+    ).toBe(true);
+
+    const discarded = applyAction(movedRobber, {
+      type: "DISCARD",
+      pid,
+      cards: { grain: 2, wool: 1 },
+    });
+    expect(
+      discarded.log.some((line) =>
+        line.includes("discarded 3 resource cards."),
+      ),
+    ).toBe(true);
+
+    const drew = applyAction(discarded, {
+      type: "DRAW_PROGRESS",
+      pid,
+      track: "science",
+    });
+    expect(
+      drew.log.some((line) => line.includes("drew a science progress card.")),
+    ).toBe(true);
+
+    const traded = applyAction(drew, {
+      type: "TRADE_BANK",
+      pid,
+      give: { grain: 4 },
+      get: { ore: 1 },
+    });
+    expect(
+      traded.log.some((line) => line.includes("traded with the bank.")),
+    ).toBe(true);
+  });
+
+  it("logs knight actions in past tense", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    const knightVertex = findEmptyVertex(state);
+
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          resources: {
+            ...state.players[pid]!.resources,
+            ore: 5,
+            grain: 5,
+            wool: 5,
+          },
+        },
+      },
+    };
+
+    const recruited = applyAction(state, {
+      type: "RECRUIT_KNIGHT",
+      pid,
+      vid: knightVertex,
+    });
+    expect(
+      recruited.log.some((line) => line.includes("recruited a knight.")),
+    ).toBe(true);
+
+    const promoted = applyAction(recruited, {
+      type: "PROMOTE_KNIGHT",
+      pid,
+      vid: knightVertex,
+    });
+    expect(
+      promoted.log.some((line) => line.includes("promoted a knight.")),
+    ).toBe(true);
+
+    const activated = applyAction(promoted, {
+      type: "ACTIVATE_KNIGHT",
+      pid,
+      vid: knightVertex,
+    });
+    expect(
+      activated.log.some((line) => line.includes("activated a knight.")),
+    ).toBe(true);
+  });
 });
 
 describe("displaced knight resolution", () => {

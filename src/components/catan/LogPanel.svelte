@@ -1,6 +1,12 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import type { EventDieFace } from "../../lib/catan/types.js";
+  import { store } from "../../lib/catan/store.svelte.js";
+  import {
+    PROGRESS_CARD_INFO,
+    TRACK_BADGE_COLOR,
+    getProgressCardByName,
+  } from "../../lib/catan/constants.js";
+  import type { EventDieFace, ProgressCardName } from "../../lib/catan/types.js";
 
   let { log }: { log: string[] } = $props();
 
@@ -86,6 +92,44 @@
     };
   }
 
+  type LogSegment =
+    | { type: "text"; value: string }
+    | { type: "card"; name: ProgressCardName };
+
+  function parseLogSegments(line: string): LogSegment[] {
+    const segments: LogSegment[] = [];
+    const re = /\[card:([A-Za-z]+)\]/g;
+    let cursor = 0;
+    let match: RegExpExecArray | null = null;
+
+    while ((match = re.exec(line))) {
+      const start = match.index;
+      if (start > cursor) {
+        segments.push({ type: "text", value: line.slice(cursor, start) });
+      }
+      const name = match[1] as ProgressCardName;
+      if (PROGRESS_CARD_INFO[name]) {
+        segments.push({ type: "card", name });
+      } else {
+        segments.push({ type: "text", value: match[0] });
+      }
+      cursor = start + match[0].length;
+    }
+
+    if (cursor < line.length) {
+      segments.push({ type: "text", value: line.slice(cursor) });
+    }
+
+    return segments.length > 0 ? segments : [{ type: "text", value: line }];
+  }
+
+  function openCardInfo(name: ProgressCardName) {
+    store.openInfoModal({
+      kind: "card-info",
+      card: getProgressCardByName(name),
+    });
+  }
+
   $effect(() => {
     // access log so the effect re-runs when it changes
     log.length;
@@ -141,7 +185,22 @@
         >
       </div>
     {:else}
-      <div class="log-line">{line}</div>
+      <div class="log-line">
+        {#each parseLogSegments(line) as segment}
+          {#if segment.type === "text"}
+            <span>{segment.value}</span>
+          {:else}
+            <button
+              class="card-link"
+              type="button"
+              style={`color:${TRACK_BADGE_COLOR[getProgressCardByName(segment.name).track]}`}
+              onclick={() => openCardInfo(segment.name)}
+            >
+              {PROGRESS_CARD_INFO[segment.name].title}
+            </button>
+          {/if}
+        {/each}
+      </div>
     {/if}
   {/each}
 </div>
@@ -237,5 +296,21 @@
   .event-label {
     font-weight: 700;
     font-size: 0.65rem;
+  }
+
+  .card-link {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  .card-link:hover {
+    filter: brightness(1.15);
   }
 </style>
