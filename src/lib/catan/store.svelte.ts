@@ -9,6 +9,7 @@
 
 import type { GameState, GameAction, PlayerId, ProgressCard } from "./types.js";
 import { createInitialState } from "./game.js";
+import type { BoardPreset } from "./game.js";
 import { CatanNetwork } from "./network.js";
 import { PLAYER_COLORS } from "./constants.js";
 import type { PendingAction } from "./validTargets.js";
@@ -46,6 +47,7 @@ class CatanStore {
   hostName = $state("Player 1");
   pendingHumans = $state<string[]>([]);
   bots = $state<Array<{ name: string }>>([]);
+  boardPreset = $state<BoardPreset>("A");
   lobbyStatus = $state("");
   lobbyStatusKind = $state<"info" | "error">("info");
 
@@ -119,6 +121,7 @@ class CatanStore {
     this.setLobbyStatus("Creating room…");
     this.pendingHumans = [];
     this.bots = [];
+    this.boardPreset = "A";
 
     this.net = new CatanNetwork({
       onStateUpdate: (state) => this.applyStateUpdate(state),
@@ -166,7 +169,9 @@ class CatanStore {
     ];
 
     this.localPid = "player1";
-    const initialState = createInitialState(players);
+    const initialState = createInitialState(players, {
+      boardPreset: this.boardPreset,
+    });
     this.net.updateCallbacks({
       onStateUpdate: (state) => this.applyStateUpdate(state),
     });

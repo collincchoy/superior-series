@@ -86,6 +86,17 @@
       >
     {/if}
   </div>
+  <div class="lobby-section">
+    <h2>⚙️ Game Settings</h2>
+    <label class="setting-label" for="boardPreset">Board preset</label>
+    <select id="boardPreset" class="setting-select" bind:value={store.boardPreset}>
+      <option value="A">A (Current configuration)</option>
+      <option value="random">Random</option>
+    </select>
+    <p class="setting-help">
+      Random shuffles hex terrain, number tokens, harbor placement, and player turn order. 6 and 8 tokens will not be adjacent.
+    </p>
+  </div>
   <button
     class="btn-primary btn-large"
     onclick={() => store.startGame()}
@@ -197,6 +208,30 @@
     cursor: pointer;
     font-size: 1rem;
     padding: 0.2rem;
+  }
+
+  .setting-label {
+    display: block;
+    font-size: 0.86rem;
+    margin-bottom: 0.35rem;
+    color: #dccb9a;
+  }
+
+  .setting-select {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 0.5rem 0.6rem;
+    color: #f0e8d0;
+    font-size: 0.9rem;
+  }
+
+  .setting-help {
+    margin: 0.55rem 0 0;
+    font-size: 0.8rem;
+    color: #9cb29c;
+    line-height: 1.4;
   }
 
   .room-code-display {

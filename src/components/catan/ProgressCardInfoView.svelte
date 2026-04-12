@@ -1,9 +1,8 @@
 <script lang="ts">
   import {
     PROGRESS_CARD_INFO,
-    TRACK_BADGE_COLOR,
   } from "../../lib/catan/constants.js";
-  import type { ProgressCard } from "../../lib/catan/types.js";
+  import type { ImprovementTrack, ProgressCard } from "../../lib/catan/types.js";
 
   let {
     card,
@@ -14,6 +13,12 @@
   } = $props();
 
   let info = $derived(PROGRESS_CARD_INFO[card.name]);
+
+  const TRACK_BADGE_COLOR: Record<ImprovementTrack, string> = {
+    science: "#2e9e4f",
+    trade: "#f1c232",
+    politics: "#2f6fe4",
+  };
 </script>
 
 <div class="track-badge" style={`background:${TRACK_BADGE_COLOR[card.track] ?? "#4d5f4d"}`}>

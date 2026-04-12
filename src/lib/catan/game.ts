@@ -25,6 +25,8 @@ import {
   CATAN_HEX_COORDS,
 } from "./board.js";
 import {
+  type HexSetup,
+  type HarborSetup,
   STANDARD_BOARD,
   HARBOR_SETUPS,
   SCIENCE_DECK,
@@ -49,6 +51,80 @@ function shuffle<T>(arr: T[]): T[] {
     [a[i], a[j]] = [a[j]!, a[i]!];
   }
   return a;
+}
+
+export type BoardPreset = "A" | "random";
+
+const HEX_DIRECTIONS = [
+  { q: 1, r: 0 },
+  { q: 1, r: -1 },
+  { q: 0, r: -1 },
+  { q: -1, r: 0 },
+  { q: -1, r: 1 },
+  { q: 0, r: 1 },
+];
+
+const TERRAIN_POOL: HexSetup["terrain"][] = STANDARD_BOARD.map(
+  (hex) => hex.terrain,
+);
+const NUMBER_TOKEN_POOL: number[] = STANDARD_BOARD.filter(
+  (hex) => hex.number !== null,
+).map((hex) => hex.number as number);
+
+function isRedToken(n: number | null): n is 6 | 8 {
+  return n === 6 || n === 8;
+}
+
+function hasNoAdjacentRedTokens(hexes: HexSetup[]): boolean {
+  const byId = new Map(hexes.map((hex) => [hexId(hex.coord), hex]));
+  for (const hex of hexes) {
+    if (!isRedToken(hex.number)) continue;
+    for (const d of HEX_DIRECTIONS) {
+      const neighbor = byId.get(
+        hexId({ q: hex.coord.q + d.q, r: hex.coord.r + d.r }),
+      );
+      if (neighbor && isRedToken(neighbor.number)) return false;
+    }
+  }
+  return true;
+}
+
+function randomizeBoardHexes(): HexSetup[] {
+  for (let attempt = 0; attempt < 2000; attempt++) {
+    const terrains = shuffle(TERRAIN_POOL);
+    const numbers = shuffle(NUMBER_TOKEN_POOL);
+    let numberIdx = 0;
+
+    const candidate = CATAN_HEX_COORDS.map((coord, idx) => {
+      const terrain = terrains[idx]!;
+      const number = terrain === "desert" ? null : numbers[numberIdx++]!;
+      return { coord, terrain, number };
+    });
+
+    if (hasNoAdjacentRedTokens(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    "Failed to generate random board with non-adjacent 6/8 tokens",
+  );
+}
+
+function randomizeHarborSetups(): HarborSetup[] {
+  const harborTypes = shuffle(HARBOR_SETUPS.map((harbor) => harbor.type));
+  const harborAnchors = shuffle(
+    HARBOR_SETUPS.map((harbor) => ({
+      hexCoord: harbor.hexCoord,
+      edgeIndex: harbor.edgeIndex,
+    })),
+  );
+
+  return harborAnchors.map((anchor, idx) => ({
+    type: harborTypes[idx]!,
+    hexCoord: anchor.hexCoord,
+    edgeIndex: anchor.edgeIndex,
+  }));
 }
 
 function drawRandomProgressCard(state: GameState, pid: PlayerId): GameState {
@@ -105,12 +181,18 @@ function progressCardTag(cardName: string): string {
 
 export function createInitialState(
   players: { id: PlayerId; name: string; color: string; isBot: boolean }[],
+  options: { boardPreset?: BoardPreset } = {},
 ): GameState {
   const graph = buildGraph();
+  const boardPreset = options.boardPreset ?? "A";
+  const boardSetup =
+    boardPreset === "random" ? randomizeBoardHexes() : STANDARD_BOARD;
+  const harborSetup =
+    boardPreset === "random" ? randomizeHarborSetups() : HARBOR_SETUPS;
 
-  // Build board hexes from standard layout
+  // Build board hexes from selected layout
   const hexes: BoardState["hexes"] = {};
-  for (const setup of STANDARD_BOARD) {
+  for (const setup of boardSetup) {
     const id = hexId(setup.coord);
     hexes[id] = {
       id,
@@ -133,7 +215,7 @@ export function createInitialState(
   );
 
   // Compute harbor vertices from edge positions
-  const harbors: BoardState["harbors"] = HARBOR_SETUPS.map((setup) => {
+  const harbors: BoardState["harbors"] = harborSetup.map((setup) => {
     const hid = hexId(setup.hexCoord);
     const hexVerts = graph.verticesOfHex[hid] ?? [];
     // Edge e connects vertices e and (e+1)%6
@@ -159,7 +241,10 @@ export function createInitialState(
     };
   }
 
-  const playerOrder = players.map((p) => p.id);
+  const playerOrder =
+    boardPreset === "random"
+      ? shuffle(players.map((p) => p.id))
+      : players.map((p) => p.id);
 
   return {
     version: 0,

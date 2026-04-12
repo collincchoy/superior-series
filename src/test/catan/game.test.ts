@@ -5,9 +5,33 @@ import {
   computeVP,
 } from "../../lib/catan/game.js";
 import { buildGraph, CATAN_HEX_COORDS, hexId } from "../../lib/catan/board.js";
+import { STANDARD_BOARD, HARBOR_SETUPS } from "../../lib/catan/constants.js";
 import type { GameState, PlayerId, VertexId } from "../../lib/catan/types.js";
 
 const graph = buildGraph();
+const HEX_DIRECTIONS = [
+  { q: 1, r: 0 },
+  { q: 1, r: -1 },
+  { q: 0, r: -1 },
+  { q: -1, r: 0 },
+  { q: -1, r: 1 },
+  { q: 0, r: 1 },
+];
+
+function hasAdjacentRedTokens(state: GameState): boolean {
+  const byId = state.board.hexes;
+  for (const hex of Object.values(byId)) {
+    if (hex.number !== 6 && hex.number !== 8) continue;
+    for (const d of HEX_DIRECTIONS) {
+      const nid = hexId({ q: hex.coord.q + d.q, r: hex.coord.r + d.r });
+      const neighbor = byId[nid];
+      if (neighbor && (neighbor.number === 6 || neighbor.number === 8)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 function makePlayers(count = 3) {
   return Array.from({ length: count }, (_, i) => ({
@@ -96,6 +120,110 @@ describe("createInitialState", () => {
       (h) => h.hasRobber,
     );
     expect(hexWithRobber).toBeUndefined();
+  });
+
+  it("preset A keeps the current board, harbor, and player order configuration", () => {
+    const players = makePlayers(4);
+    const state = createInitialState(players, { boardPreset: "A" });
+
+    const actualHexSignature = CATAN_HEX_COORDS.map((coord) => {
+      const hex = state.board.hexes[hexId(coord)]!;
+      return `${hex.coord.q},${hex.coord.r}:${hex.terrain}:${hex.number}`;
+    });
+    const expectedHexSignature = STANDARD_BOARD.map(
+      (hex) => `${hex.coord.q},${hex.coord.r}:${hex.terrain}:${hex.number}`,
+    );
+    expect(actualHexSignature).toEqual(expectedHexSignature);
+
+    const actualHarborSignature = state.board.harbors.map((harbor) => {
+      const key = [...harbor.vertices].sort().join("|");
+      return `${harbor.type}:${key}`;
+    });
+    const expectedHarborSignature = HARBOR_SETUPS.map((setup) => {
+      const hid = hexId(setup.hexCoord);
+      const hexVerts = graph.verticesOfHex[hid] ?? [];
+      const vA = hexVerts[setup.edgeIndex] ?? hexVerts[0]!;
+      const vB = hexVerts[(setup.edgeIndex + 1) % 6] ?? hexVerts[1]!;
+      const key = [vA, vB].sort().join("|");
+      return `${setup.type}:${key}`;
+    });
+    expect(actualHarborSignature).toEqual(expectedHarborSignature);
+
+    expect(state.playerOrder).toEqual(players.map((p) => p.id));
+  });
+
+  it("random preset preserves board and harbor composition counts", () => {
+    const state = createInitialState(makePlayers(4), { boardPreset: "random" });
+
+    const terrainCounts = Object.values(state.board.hexes).reduce(
+      (acc, hex) => {
+        acc[hex.terrain] = (acc[hex.terrain] ?? 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    const expectedTerrainCounts = STANDARD_BOARD.reduce(
+      (acc, hex) => {
+        acc[hex.terrain] = (acc[hex.terrain] ?? 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    expect(terrainCounts).toEqual(expectedTerrainCounts);
+
+    const numberCounts = Object.values(state.board.hexes)
+      .map((hex) => hex.number)
+      .filter((n): n is number => n !== null)
+      .sort((a, b) => a - b);
+    const expectedNumberCounts = STANDARD_BOARD.map((hex) => hex.number)
+      .filter((n): n is number => n !== null)
+      .sort((a, b) => a - b);
+    expect(numberCounts).toEqual(expectedNumberCounts);
+
+    const harborTypeCounts = state.board.harbors.reduce(
+      (acc, harbor) => {
+        acc[harbor.type] = (acc[harbor.type] ?? 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+    const expectedHarborTypeCounts = HARBOR_SETUPS.reduce(
+      (acc, harbor) => {
+        acc[harbor.type] = (acc[harbor.type] ?? 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    expect(state.board.harbors).toHaveLength(HARBOR_SETUPS.length);
+    expect(harborTypeCounts).toEqual(expectedHarborTypeCounts);
+  });
+
+  it("random preset never places adjacent 6/8 tokens", () => {
+    for (let i = 0; i < 30; i++) {
+      const state = createInitialState(makePlayers(4), {
+        boardPreset: "random",
+      });
+      expect(hasAdjacentRedTokens(state)).toBe(false);
+    }
+  });
+
+  it("random preset randomizes player order", () => {
+    const players = makePlayers(4);
+    const originalOrder = players.map((p) => p.id);
+
+    let foundDifferentOrder = false;
+    for (let i = 0; i < 20; i++) {
+      const state = createInitialState(players, { boardPreset: "random" });
+      if (state.playerOrder.join("|") !== originalOrder.join("|")) {
+        foundDifferentOrder = true;
+        break;
+      }
+    }
+
+    expect(foundDifferentOrder).toBe(true);
   });
 });
 
