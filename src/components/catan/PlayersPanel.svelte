@@ -40,6 +40,15 @@
 
   const TRACKS: ImprovementTrack[] = ["science", "trade", "politics"];
 
+  const TERRAIN_TO_RESOURCE_LABEL = {
+    hills: "brick",
+    forest: "wood",
+    mountains: "ore",
+    fields: "grain",
+    pasture: "wool",
+    desert: null,
+  } as const;
+
   function progressCountsByTrack(progressCards: GameState["players"][PlayerId]["progressCards"]) {
     const counts: Record<ImprovementTrack, number> = {
       science: 0,
@@ -63,6 +72,17 @@
   function toastsForPlayer(pid: PlayerId): PlayerCardDeltaToast[] {
     return store.cardDeltaToasts.filter((toast) => toast.pid === pid);
   }
+
+  function merchantBadgeLabel(gameState: GameState): string {
+    const merchantHex = gameState.board.merchantHex;
+    if (!merchantHex) return "Controls merchant";
+
+    const terrain = gameState.board.hexes[merchantHex]?.terrain;
+    const resource = terrain ? TERRAIN_TO_RESOURCE_LABEL[terrain] : null;
+    if (!resource) return "Controls merchant";
+
+    return `Controls merchant (${resource} trades at 2:1)`;
+  }
 </script>
 
 <div class="players-bar">
@@ -73,12 +93,18 @@
     {@const progressCounts = progressCountsByTrack(p.progressCards)}
     {@const defenderVp = p.vpTokens}
     {@const metropolisTracks = metropolisTracksByPlayer(gameState, pid)}
+    {@const merchantLabel = merchantBadgeLabel(gameState)}
     <div
       class="player-card{pid === gameState.currentPlayerId ? ' active' : ''}"
       style="border-top: 3px solid {p.color};{pid === gameState.currentPlayerId ? `--glow-color: ${p.color}` : ''}"
     >
       <span class="name">
         {p.name}{p.isBot ? " 🤖" : ""}
+        {#if gameState.board.merchantOwner === pid}
+          <span class="merchant-badge" title={merchantLabel} aria-label={merchantLabel}>
+            🏪
+          </span>
+        {/if}
         {#if !p.isBot && pid !== localPid && playerConnectionStatus[pid]}
           <span
             class="conn-dot {playerConnectionStatus[pid] === 'connected' ? 'is-connected' : 'is-disconnected'}"
@@ -224,6 +250,13 @@
   .conn-dot.is-disconnected {
     background: #e07b7b;
   }
+
+  .merchant-badge {
+    font-size: 0.75rem;
+    line-height: 1;
+    flex: 0 0 auto;
+  }
+
   .vp {
     display: inline-flex;
     align-items: center;

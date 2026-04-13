@@ -24,6 +24,7 @@ import {
   canDisplaceKnight,
   canImproveCity,
   canDrawProgress,
+  canTradeBank,
 } from "../../lib/catan/rules.js";
 
 // ─── Test setup helpers ───────────────────────────────────────────────────────
@@ -549,6 +550,64 @@ describe("canImproveCity", () => {
       metropolis: null,
     };
     expect(canImproveCity(board, player, "science")).toBe(true);
+  });
+});
+
+// ─── canTradeBank ───────────────────────────────────────────────────────────
+
+describe("canTradeBank", () => {
+  it("allows the merchant owner to trade the merchant resource at 2:1", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      resources: { ...emptyResources(), lumber: 2 },
+    });
+    const merchantHex = hexId({ q: -1, r: 0 });
+    board.hexes[merchantHex] = {
+      ...board.hexes[merchantHex],
+      terrain: "forest",
+    };
+    board.merchantHex = merchantHex;
+    board.merchantOwner = "p1";
+
+    expect(
+      canTradeBank(player, board, { lumber: 2 }, { brick: 1 }),
+    ).toBe(true);
+  });
+
+  it("does not allow another player to use the merchant trade bonus", () => {
+    const board = makeBoard();
+    const player = makePlayer("p2", {
+      resources: { ...emptyResources(), lumber: 2 },
+    });
+    const merchantHex = hexId({ q: -1, r: 0 });
+    board.hexes[merchantHex] = {
+      ...board.hexes[merchantHex],
+      terrain: "forest",
+    };
+    board.merchantHex = merchantHex;
+    board.merchantOwner = "p1";
+
+    expect(
+      canTradeBank(player, board, { lumber: 2 }, { brick: 1 }),
+    ).toBe(false);
+  });
+
+  it("only applies the merchant bonus to the resource on the merchant hex", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      resources: { ...emptyResources(), wool: 2 },
+    });
+    const merchantHex = hexId({ q: -1, r: 0 });
+    board.hexes[merchantHex] = {
+      ...board.hexes[merchantHex],
+      terrain: "forest",
+    };
+    board.merchantHex = merchantHex;
+    board.merchantOwner = "p1";
+
+    expect(canTradeBank(player, board, { wool: 2 }, { brick: 1 })).toBe(
+      false,
+    );
   });
 });
 

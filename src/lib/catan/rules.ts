@@ -8,6 +8,7 @@ import type {
   ImprovementTrack,
   Resources,
   KnightStrength,
+  TerrainType,
 } from "./types.js";
 import type { CatanGraph } from "./board.js";
 import { BUILD_COSTS, TRACK_COMMODITY } from "./constants.js";
@@ -410,7 +411,7 @@ export function canTradeBank(
   return true;
 }
 
-function getBankRatio(
+export function getBankRatio(
   player: Player,
   board: BoardState,
   cardType: keyof Resources,
@@ -429,7 +430,33 @@ function getBankRatio(
       else if (harbor.type === cardType) best = Math.min(best, 2);
     }
   }
+
+  if (board.merchantOwner === player.id && board.merchantHex) {
+    const merchantHex = board.hexes[board.merchantHex];
+    const merchantType = merchantHex
+      ? terrainToTradeResource(merchantHex.terrain)
+      : null;
+    if (merchantType === cardType) best = Math.min(best, 2);
+  }
+
   return best;
+}
+
+function terrainToTradeResource(terrain: TerrainType): keyof Resources | null {
+  switch (terrain) {
+    case "hills":
+      return "brick";
+    case "forest":
+      return "lumber";
+    case "mountains":
+      return "ore";
+    case "fields":
+      return "grain";
+    case "pasture":
+      return "wool";
+    default:
+      return null;
+  }
 }
 
 // ─── Progress Card Helpers ───────────────────────────────────────────────────

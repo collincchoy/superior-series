@@ -4,6 +4,7 @@
     PlayerId,
     Resources,
   } from "../../lib/catan/types.js";
+  import { getBankRatio } from "../../lib/catan/rules.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import { CARD_EMOJI, RESOURCE_KEYS } from "./cardEmoji.js";
   import Modal from "./Modal.svelte";
@@ -31,16 +32,9 @@
       coin: 4,
       paper: 4,
     };
-    for (const harbor of gameState.board.harbors) {
-      const hasHarbor = harbor.vertices.some(
-        (vid) => gameState.board.vertices[vid]?.playerId === localPid,
-      );
-      if (!hasHarbor) continue;
-      if (harbor.type === "generic") {
-        for (const k of RESOURCE_KEYS) r[k] = Math.min(r[k], 3);
-      } else if (harbor.type in r) {
-        r[harbor.type as keyof Resources] = 2;
-      }
+
+    for (const key of RESOURCE_KEYS) {
+      r[key] = getBankRatio(me, gameState.board, key);
     }
 
     const fleet = gameState.progressEffects.merchantFleet;
