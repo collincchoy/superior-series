@@ -235,7 +235,7 @@ class CatanStore {
 
   private pushCardDeltaToast(pid: PlayerId, tokens: CardDeltaToken[]) {
     const id = this.visualEventSeq++;
-    const expiresAt = Date.now() + 1800;
+    const expiresAt = Date.now() + 3500;
     this.cardDeltaToasts = [
       ...this.cardDeltaToasts,
       { id, pid, tokens, expiresAt },
