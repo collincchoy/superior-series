@@ -695,6 +695,81 @@ describe("progress card effects", () => {
     );
   });
 
+  it("Wedding with no eligible opponents still consumes and logs silly message", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    state = {
+      ...state,
+      phase: "ACTION",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          vpTokens: 3,
+          progressCards: [{ name: "Wedding", track: "politics", isVP: false }],
+        },
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "Wedding",
+    });
+
+    expect(
+      next.players[pid]!.progressCards.some((c) => c.name === "Wedding"),
+    ).toBe(false);
+    expect(next.log.at(-1)).toBe(
+      `oh hmm oops that's not what ${next.players[pid]!.name} had in mind I'm sure...`,
+    );
+  });
+
+  it("ResourceMonopoly with zero available cards still consumes and logs silly message", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    const opponents = state.playerOrder.filter((p) => p !== pid);
+
+    state = {
+      ...state,
+      phase: "ACTION",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          progressCards: [
+            { name: "ResourceMonopoly", track: "trade", isVP: false },
+          ],
+        },
+        [opponents[0]!]: {
+          ...state.players[opponents[0]!]!,
+          resources: { ...state.players[opponents[0]!]!.resources, ore: 0 },
+        },
+        [opponents[1]!]: {
+          ...state.players[opponents[1]!]!,
+          resources: { ...state.players[opponents[1]!]!.resources, ore: 0 },
+        },
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "ResourceMonopoly",
+      params: { resource: "ore" },
+    });
+
+    expect(
+      next.players[pid]!.progressCards.some(
+        (c) => c.name === "ResourceMonopoly",
+      ),
+    ).toBe(false);
+    expect(next.log.at(-1)).toBe(
+      `oh hmm oops that's not what ${next.players[pid]!.name} had in mind I'm sure...`,
+    );
+  });
+
   it("logs Irrigation gains with delta tokens", () => {
     let state = buildActionState();
     const pid = state.currentPlayerId;

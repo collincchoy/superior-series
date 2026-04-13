@@ -230,6 +230,10 @@ function resolvedCardText(
   );
 }
 
+function sillyNoOpProgressText(playerName: string): string {
+  return `oh hmm oops that's not what ${playerName} had in mind I'm sure...`;
+}
+
 // ─── createInitialState ───────────────────────────────────────────────────────
 
 export function createInitialState(
@@ -2071,6 +2075,8 @@ function applyProgressCard(
       };
       if (grain > 0) {
         s = log(s, gainedFromCardText(player.name, "Irrigation", { grain }));
+      } else {
+        s = log(s, sillyNoOpProgressText(player.name));
       }
       break;
     }
@@ -2095,6 +2101,8 @@ function applyProgressCard(
       };
       if (ore > 0) {
         s = log(s, gainedFromCardText(player.name, "Mining", { ore }));
+      } else {
+        s = log(s, sillyNoOpProgressText(player.name));
       }
       break;
     }
@@ -2106,7 +2114,10 @@ function applyProgressCard(
       const vertex = s.board.vertices[targetVid];
       if (!vertex || vertex.type !== "settlement" || vertex.playerId !== pid)
         break;
-      if ((playerAfterCardRemoval.resources.grain ?? 0) < 1 || (playerAfterCardRemoval.resources.ore ?? 0) < 2)
+      if (
+        (playerAfterCardRemoval.resources.grain ?? 0) < 1 ||
+        (playerAfterCardRemoval.resources.ore ?? 0) < 2
+      )
         break;
       if (playerAfterCardRemoval.supply.cities <= 0) break;
       s = {
@@ -2221,6 +2232,8 @@ function applyProgressCard(
             [resource]: gained,
           } as Partial<Resources>),
         );
+      } else {
+        s = log(s, sillyNoOpProgressText(player.name));
       }
       break;
     }
@@ -2291,12 +2304,15 @@ function applyProgressCard(
             [commodity]: gained,
           } as Partial<Resources>),
         );
+      } else {
+        s = log(s, sillyNoOpProgressText(player.name));
       }
       break;
     }
     case "Sabotage": {
       // Each player with >= current player's VP discards half
       const myVP = computeVP(s, pid);
+      let didDiscard = false;
       for (const [oppId, opp] of Object.entries(s.players)) {
         if (oppId === pid) continue;
         if (computeVP(s, oppId) >= myVP) {
@@ -2305,12 +2321,16 @@ function applyProgressCard(
           if (discard > 0) {
             // Auto-discard lowest priority resources
             const newRes = autoDiscard(opp.resources, discard);
+            didDiscard = true;
             s = {
               ...s,
               players: { ...s.players, [oppId]: { ...opp, resources: newRes } },
             };
           }
         }
+      }
+      if (!didDiscard) {
+        s = log(s, sillyNoOpProgressText(player.name));
       }
       break;
     }
@@ -2348,6 +2368,8 @@ function applyProgressCard(
           },
         };
         s = log(s, gainedFromCardText(player.name, "Wedding", gained));
+      } else {
+        s = log(s, sillyNoOpProgressText(player.name));
       }
       break;
     }
