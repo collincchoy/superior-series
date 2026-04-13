@@ -13,6 +13,9 @@ export function getActingPlayerIds(state: GameState): PlayerId[] {
       return displacedPid ? [displacedPid] : [];
     }
 
+    case "SCIENCE_SELECT_RESOURCE":
+      return state.pendingScienceBonus ? [state.pendingScienceBonus.pid] : [];
+
     default:
       return [state.currentPlayerId];
   }

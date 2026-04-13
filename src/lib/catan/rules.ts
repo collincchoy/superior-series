@@ -397,11 +397,14 @@ function countPlayerCityWalls(board: BoardState, playerId: PlayerId): number {
 
 // ─── Trade Validation ─────────────────────────────────────────────────────────
 
+const COMMODITY_KEYS = new Set<keyof Resources>(["cloth", "coin", "paper"]);
+
 export function canTradeBank(
   player: Player,
   board: BoardState,
   give: Partial<Resources>,
   get: Partial<Resources>,
+  progressEffects?: { merchantFleet?: { playerId: PlayerId; cardType: keyof Resources } | null },
 ): boolean {
   // Validate give amounts
   for (const [key, amount] of Object.entries(give) as [
@@ -419,8 +422,18 @@ export function canTradeBank(
   if (giveEntries.length !== 1) return false; // simple bank trade: 1 type given
   const [giveType, giveAmount] = giveEntries[0]!;
 
-  // Determine best ratio for this resource from harbors
-  const ratio = getBankRatio(player, board, giveType);
+  // Trade level 3: any 2 identical commodities → 1 resource or commodity
+  if (
+    player.improvements.trade >= 3 &&
+    COMMODITY_KEYS.has(giveType) &&
+    giveAmount === 2
+  ) {
+    const getEntries = Object.entries(get).filter(([, v]) => v > 0);
+    return getEntries.length === 1;
+  }
+
+  // Determine best ratio for this resource from harbors (+ optional MerchantFleet)
+  const ratio = getBankRatio(player, board, giveType, progressEffects);
   if (giveAmount < ratio) return false;
 
   // Receive exactly 1 type
@@ -434,6 +447,7 @@ export function getBankRatio(
   player: Player,
   board: BoardState,
   cardType: keyof Resources,
+  progressEffects?: { merchantFleet?: { playerId: PlayerId; cardType: keyof Resources } | null },
 ): number {
   const playerVertices = new Set(
     Object.entries(board.vertices)
@@ -456,6 +470,15 @@ export function getBankRatio(
       ? terrainToTradeResource(merchantHex.terrain)
       : null;
     if (merchantType === cardType) best = Math.min(best, 2);
+  }
+
+  // MerchantFleet progress effect: 2:1 for the named card type this turn
+  if (
+    progressEffects?.merchantFleet &&
+    progressEffects.merchantFleet.playerId === player.id &&
+    progressEffects.merchantFleet.cardType === cardType
+  ) {
+    best = Math.min(best, 2);
   }
 
   return best;

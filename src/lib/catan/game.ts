@@ -46,6 +46,7 @@ import {
   isOpenRoad,
   isOnPlayerNetwork,
   canDrawProgress,
+  canTradeBank,
 } from "./rules.js";
 import {
   logCardToken,
@@ -336,6 +337,7 @@ export function createInitialState(
     pendingFreeRoads: null,
     pendingKnightPromotions: null,
     pendingCommercialHarbor: null,
+    pendingScienceBonus: null,
     knightsActivatedThisTurn: [],
     progressEffects: {
       craneDiscountPlayerId: null,
@@ -557,10 +559,26 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           s = { ...s, phase: "ACTION" };
         }
       } else {
-        // Distribute resources
+        // Distribute resources; track whether current player gained anything
+        const beforeTotal = Object.values(s.players[pid]!.resources).reduce(
+          (a, b) => a + b,
+          0,
+        );
         s = distributeResources(s, production, graph);
-        // Handle progress draw queue or go to action
-        if (
+        const afterTotal = Object.values(s.players[pid]!.resources).reduce(
+          (a, b) => a + b,
+          0,
+        );
+        const playerGained = afterTotal > beforeTotal;
+
+        // Science level 3: if player got zero production, they choose 1 free resource
+        if (!playerGained && s.players[pid]!.improvements.science >= 3) {
+          s = {
+            ...s,
+            phase: "SCIENCE_SELECT_RESOURCE",
+            pendingScienceBonus: { pid },
+          };
+        } else if (
           s.pendingProgressDraw &&
           s.pendingProgressDraw.remaining.length > 0
         ) {
@@ -1293,9 +1311,50 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     }
 
     // ── Trading ────────────────────────────────────────────────────────────────
+    case "SELECT_SCIENCE_RESOURCE": {
+      const { pid, resource } = action;
+      if (s.phase !== "SCIENCE_SELECT_RESOURCE") return s;
+      if (s.pendingScienceBonus?.pid !== pid) return s;
+      // Only basic resources (not commodities)
+      const basicResources = new Set<keyof Resources>([
+        "brick",
+        "lumber",
+        "ore",
+        "grain",
+        "wool",
+      ]);
+      if (!basicResources.has(resource)) return s;
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...s.players[pid]!,
+            resources: addResources(s.players[pid]!.resources, {
+              [resource]: 1,
+            }),
+          },
+        },
+        pendingScienceBonus: null,
+      };
+      s = log(
+        s,
+        `${s.players[pid]?.name} took 1 ${resource} (Science level 3 ability).`,
+      );
+      // Transition: progress draw first if pending, else action
+      if (s.pendingProgressDraw && s.pendingProgressDraw.remaining.length > 0) {
+        s = { ...s, phase: "RESOLVE_PROGRESS_DRAW" };
+      } else {
+        s = { ...s, phase: "ACTION" };
+      }
+      return s;
+    }
+
     case "TRADE_BANK": {
       const { pid, give, get } = action;
       const player = s.players[pid]!;
+      // Validate trade legality (includes trade L3 commodity 2:1 and MerchantFleet)
+      if (!canTradeBank(player, s.board, give, get, s.progressEffects)) return s;
       s = {
         ...s,
         players: {

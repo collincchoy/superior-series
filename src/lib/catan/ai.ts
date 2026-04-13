@@ -70,6 +70,9 @@ export function chooseBotAction(state: GameState, pid: PlayerId): GameAction {
     case "RESOLVE_PROGRESS_DRAW":
       return choosProgressDraw(state, pid);
 
+    case "SCIENCE_SELECT_RESOURCE":
+      return { type: "SELECT_SCIENCE_RESOURCE", pid, resource: "ore" };
+
     default:
       return { type: "END_TURN", pid };
   }

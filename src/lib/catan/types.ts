@@ -241,6 +241,7 @@ export type TurnPhase =
   | "ROBBER_MOVE" // current player places robber
   | "ACTION" // trade / build / knight actions
   | "KNIGHT_DISPLACE_RESPONSE" // displaced player must move their knight
+  | "SCIENCE_SELECT_RESOURCE" // active player claims 1 free resource (science L3)
   | "GAME_OVER";
 
 export interface PendingDisplace {
@@ -278,13 +279,19 @@ export interface PendingCommercialHarbor {
   remainingPids: PlayerId[];
 }
 
+export interface PendingScienceBonus {
+  /** The player who must select their free resource */
+  pid: PlayerId;
+}
+
 export type PendingStateField =
   | "pendingDisplace"
   | "pendingProgressDraw"
   | "pendingDiscard"
   | "pendingFreeRoads"
   | "pendingKnightPromotions"
-  | "pendingCommercialHarbor";
+  | "pendingCommercialHarbor"
+  | "pendingScienceBonus";
 
 export interface ProgressEffects {
   craneDiscountPlayerId: PlayerId | null;
@@ -324,6 +331,8 @@ export interface GameState {
   pendingFreeRoads: PendingFreeRoads | null;
   pendingKnightPromotions: PendingKnightPromotions | null;
   pendingCommercialHarbor: PendingCommercialHarbor | null;
+  /** Science level 3: active player must choose a free resource (non-7 zero-production roll) */
+  pendingScienceBonus: PendingScienceBonus | null;
   /** Knights activated during the current player's turn cannot take knight actions until next turn. */
   knightsActivatedThisTurn: VertexId[];
   progressEffects: ProgressEffects;
@@ -399,6 +408,12 @@ export type GameAction =
       type: "PROGRESS_RESPOND_COMMERCIAL_HARBOR";
       pid: PlayerId;
       commodity?: CommodityType;
+    }
+  // Science level 3 no-production bonus
+  | {
+      type: "SELECT_SCIENCE_RESOURCE";
+      pid: PlayerId;
+      resource: keyof Resources;
     }
   // Trading
   | {
