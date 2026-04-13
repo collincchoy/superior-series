@@ -404,7 +404,9 @@ export function canTradeBank(
   board: BoardState,
   give: Partial<Resources>,
   get: Partial<Resources>,
-  progressEffects?: { merchantFleet?: { playerId: PlayerId; cardType: keyof Resources } | null },
+  progressEffects?: {
+    merchantFleet?: { playerId: PlayerId; cardType: keyof Resources } | null;
+  },
 ): boolean {
   // Validate give amounts
   for (const [key, amount] of Object.entries(give) as [
@@ -447,7 +449,9 @@ export function getBankRatio(
   player: Player,
   board: BoardState,
   cardType: keyof Resources,
-  progressEffects?: { merchantFleet?: { playerId: PlayerId; cardType: keyof Resources } | null },
+  progressEffects?: {
+    merchantFleet?: { playerId: PlayerId; cardType: keyof Resources } | null;
+  },
 ): number {
   const playerVertices = new Set(
     Object.entries(board.vertices)

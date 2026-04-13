@@ -1354,7 +1354,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       const { pid, give, get } = action;
       const player = s.players[pid]!;
       // Validate trade legality (includes trade L3 commodity 2:1 and MerchantFleet)
-      if (!canTradeBank(player, s.board, give, get, s.progressEffects)) return s;
+      if (!canTradeBank(player, s.board, give, get, s.progressEffects))
+        return s;
       s = {
         ...s,
         players: {
