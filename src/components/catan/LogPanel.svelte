@@ -7,10 +7,9 @@
     TRACK_BADGE_COLOR,
     getProgressCardByName,
   } from "../../lib/catan/constants.js";
-  import type { CardDeltaKind } from "../../lib/catan/uiEffects.js";
   import type { EventDieFace, ProgressCardName } from "../../lib/catan/types.js";
   import DeltaChip from "./DeltaChip.svelte";
-  import { parseTradeLogSegments } from "../../lib/catan/logParsing.js";
+  import { parseLogLineSegments } from "../../lib/catan/logParsing.js";
 
   let { log }: { log: string[] } = $props();
 
@@ -77,83 +76,6 @@
     return event === "trade" ? "#2f2400" : "#ffffff";
   }
 
-  function parseRollLine(line: string): {
-    player: string;
-    yellow: number;
-    red: number;
-    sum: number;
-    event: EventDieFace;
-  } | null {
-    const match = line.match(
-      /^(.*) rolled Y([1-6]) R([1-6]) = (\d{1,2}) \((ship|science|trade|politics)\)$/,
-    );
-    if (!match) return null;
-    return {
-      player: match[1]!,
-      yellow: Number(match[2]),
-      red: Number(match[3]),
-      sum: Number(match[4]),
-      event: match[5] as EventDieFace,
-    };
-  }
-
-  type LogSegment =
-    | { type: "text"; value: string }
-    | { type: "card"; name: ProgressCardName }
-    | { type: "delta"; kind: CardDeltaKind; amount: number };
-
-  function parseLogSegments(line: string): LogSegment[] {
-    const tradeSegments = parseTradeLogSegments(line);
-    if (tradeSegments) return tradeSegments;
-
-    const segments: LogSegment[] = [];
-    const deltas: LogSegment[] = [];
-
-    // Always strip delta tags out of raw text first so marker text never leaks.
-    const lineWithoutDeltas = line.replace(
-      /\[delta:([a-z]+):([+-]?\d+)\]/g,
-      (_, kind: string, amount: string) => {
-        deltas.push({
-          type: "delta",
-          kind: kind as CardDeltaKind,
-          amount: Number(amount),
-        });
-        return "";
-      },
-    );
-
-    const re = /\[card:([A-Za-z]+)\]/g;
-    let cursor = 0;
-    let match: RegExpExecArray | null = null;
-
-    while ((match = re.exec(lineWithoutDeltas))) {
-      const start = match.index;
-      if (start > cursor) {
-        segments.push({
-          type: "text",
-          value: lineWithoutDeltas.slice(cursor, start),
-        });
-      }
-
-      const name = match[1] as ProgressCardName;
-      if (PROGRESS_CARD_INFO[name]) {
-        segments.push({ type: "card", name });
-      } else {
-        segments.push({ type: "text", value: match[0] });
-      }
-      cursor = start + match[0].length;
-    }
-
-    if (cursor < lineWithoutDeltas.length) {
-      segments.push({ type: "text", value: lineWithoutDeltas.slice(cursor) });
-    }
-
-    // Append extracted deltas after base text/card parsing.
-    segments.push(...deltas);
-
-    return segments.length > 0 ? segments : [{ type: "text", value: line }];
-  }
-
   function openCardInfo(name: ProgressCardName) {
     store.openInfoModal({
       kind: "card-info",
@@ -189,82 +111,48 @@
   {#if isExpanded}
     <div id="log-content" class="log-content" bind:this={el}>
       {#each log.slice(-8) as line}
-        {@const roll = parseRollLine(line)}
-        {@const tradeSegments = parseTradeLogSegments(line)}
-        {#if roll}
-          <div class="log-line">
-            <span class="player-name">{roll.player}</span>
-            <span> rolled </span>
-            <span class="dice-pack">
-              <span class="die die-yellow" aria-label={`Yellow die ${roll.yellow}`}>
-                {#each pipLayout(roll.yellow) as pip}
-                  <span
-                    class="pip"
-                    style={`left:${pip.x}%;top:${pip.y}%`}
-                  ></span>
-                {/each}
+        <div class="log-line">
+          {#each parseLogLineSegments(line) as segment}
+            {#if segment.type === "text"}
+              <span>{segment.value}</span>
+            {:else if segment.type === "card"}
+              <button
+                class="card-link"
+                type="button"
+                style={`color:${TRACK_BADGE_COLOR[getProgressCardByName(segment.name).track]}`}
+                onclick={() => openCardInfo(segment.name)}
+              >
+                {PROGRESS_CARD_INFO[segment.name].title}
+              </button>
+            {:else if segment.type === "delta"}
+              <DeltaChip kind={segment.kind} amount={segment.amount} compact={true} />
+            {:else if segment.type === "die"}
+              <span class="dice-pack">
+                <span
+                  class={`die ${segment.color === 'yellow' ? 'die-yellow' : 'die-red'}`}
+                  aria-label={`${segment.color === 'yellow' ? 'Yellow' : 'Red'} die ${segment.value}`}
+                >
+                  {#each pipLayout(segment.value) as pip}
+                    <span class="pip" style={`left:${pip.x}%;top:${pip.y}%`}></span>
+                  {/each}
+                </span>
+                <span class="die-value">{segment.value}</span>
               </span>
-              <span class="die-value">{roll.yellow}</span>
-            </span>
-            <span> </span>
-            <span class="dice-pack">
-              <span class="die die-red" aria-label={`Red die ${roll.red}`}>
-                {#each pipLayout(roll.red) as pip}
-                  <span
-                    class="pip"
-                    style={`left:${pip.x}%;top:${pip.y}%`}
-                  ></span>
-                {/each}
+            {:else}
+              <span
+                class="event-die"
+                style={`background:${EVENT_COLORS[segment.face]};color:${eventTextColor(segment.face)}`}
+                aria-label={EVENT_LABELS[segment.face]}
+                title={EVENT_LABELS[segment.face]}
+              >
+                {eventIcon(segment.face)}
               </span>
-              <span class="die-value">{roll.red}</span>
-            </span>
-            <span> = </span>
-            <span class="sum">{roll.sum}</span>
-            <span> </span>
-            <span
-              class="event-die"
-              style={`background:${EVENT_COLORS[roll.event]};color:${eventTextColor(roll.event)}`}
-              aria-label={EVENT_LABELS[roll.event]}
-              title={EVENT_LABELS[roll.event]}
-            >
-              {eventIcon(roll.event)}
-            </span>
-            <span class="event-label" style={`color:${EVENT_COLORS[roll.event]}`}
-              >{EVENT_LABELS[roll.event]}</span
-            >
-          </div>
-        {:else if tradeSegments}
-          <div class="log-line">
-            {#each tradeSegments as segment}
-              {#if segment.type === "text"}
-                <span>{segment.value}</span>
-              {:else}
-                <DeltaChip kind={segment.kind} amount={segment.amount} compact={true} />
-              {/if}
-            {/each}
-          </div>
-        {:else}
-          <div class="log-line">
-            {#each parseLogSegments(line) as segment}
-              {#if segment.type === "text"}
-                <span>{segment.value}</span>
-              {:else}
-                {#if segment.type === "card"}
-                  <button
-                    class="card-link"
-                    type="button"
-                    style={`color:${TRACK_BADGE_COLOR[getProgressCardByName(segment.name).track]}`}
-                    onclick={() => openCardInfo(segment.name)}
-                  >
-                    {PROGRESS_CARD_INFO[segment.name].title}
-                  </button>
-                {:else}
-                  <DeltaChip kind={segment.kind} amount={segment.amount} compact={true} />
-                {/if}
-              {/if}
-            {/each}
-          </div>
-        {/if}
+              <span class="event-label" style={`color:${EVENT_COLORS[segment.face]}`}
+                >{EVENT_LABELS[segment.face]}</span
+              >
+            {/if}
+          {/each}
+        </div>
       {/each}
     </div>
   {/if}

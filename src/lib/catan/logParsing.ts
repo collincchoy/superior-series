@@ -1,64 +1,173 @@
+import type { Resources, EventDieFace, ProgressCardName } from "./types.js";
 import type { CardDeltaKind } from "./uiEffects.js";
+
+type DieColor = "yellow" | "red";
+type WidgetId = "card" | "delta" | "die-yellow" | "die-red" | "event-die";
 
 export type ParsedLogSegment =
   | { type: "text"; value: string }
-  | { type: "delta"; kind: CardDeltaKind; amount: number };
+  | { type: "card"; name: ProgressCardName }
+  | { type: "delta"; kind: CardDeltaKind; amount: number }
+  | { type: "die"; color: DieColor; value: number }
+  | { type: "event-die"; face: EventDieFace };
 
-function parseTradeList(
-  text: string,
-  sign: 1 | -1,
-): Array<{ type: "delta"; kind: CardDeltaKind; amount: number }> {
-  return text
-    .split(/,\s*/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .flatMap((part) => {
-      const match = part.match(/^(\d+)\s+([a-z]+)$/i);
-      if (!match) return [];
-      return [
-        {
-          type: "delta" as const,
-          kind: match[2]!.toLowerCase() as CardDeltaKind,
-          amount: Number(match[1]) * sign,
-        },
-      ];
-    });
+const TOKEN_RE = /(\[\{[a-z-]+\}\|[^\]]*\]|\[card:[A-Za-z]+\]|\[delta:[a-z]+:[+-]?\d+\])/g;
+const RESOURCE_ORDER: Array<keyof Resources> = [
+  "brick",
+  "lumber",
+  "ore",
+  "grain",
+  "wool",
+  "cloth",
+  "coin",
+  "paper",
+];
+
+function encodeProp(value: string | number): string {
+  return encodeURIComponent(String(value));
 }
 
-export function parseTradeLogSegments(line: string): ParsedLogSegment[] | null {
-  const normalized = line.trim();
-  const prefix = "traded with the bank.";
-  const idx = normalized.indexOf(prefix);
-  if (idx === -1) return null;
+function parseWidgetProps(raw: string): Record<string, string> {
+  if (!raw) return {};
 
-  const baseText = normalized.slice(0, idx + prefix.length);
-  let remainder = normalized.slice(idx + prefix.length).trim();
+  return Object.fromEntries(
+    raw
+      .split("&")
+      .filter(Boolean)
+      .map((entry) => {
+        const [key, ...rest] = entry.split("=");
+        return [key ?? "", decodeURIComponent(rest.join("="))];
+      })
+      .filter(([key]) => key.length > 0),
+  );
+}
 
-  if (!remainder) {
-    return [{ type: "text", value: baseText }];
+function parseWidgetSegment(token: string): ParsedLogSegment {
+  const match = token.match(/^\[\{([a-z-]+)\}\|([^\]]*)\]$/);
+  if (!match) return { type: "text", value: token };
+
+  const widget = match[1] as WidgetId;
+  const props = parseWidgetProps(match[2] ?? "");
+
+  if (widget === "card") {
+    const name = props.name as ProgressCardName | undefined;
+    return name ? { type: "card", name } : { type: "text", value: token };
   }
 
-  if (remainder.endsWith(".")) {
-    remainder = remainder.slice(0, -1).trim();
+  if (widget === "delta") {
+    const kind = props.kind as CardDeltaKind | undefined;
+    const amount = Number(props.amount);
+    return kind && Number.isFinite(amount)
+      ? { type: "delta", kind, amount }
+      : { type: "text", value: token };
   }
 
-  const segments: ParsedLogSegment[] = [{ type: "text", value: baseText }];
-  const gaveMatch = remainder.match(/^Gave\s+(.+?)(?:;\s*got\s+(.+))?$/i);
-  const gotOnlyMatch = remainder.match(/^Got\s+(.+)$/i);
-
-  if (gaveMatch) {
-    const gaveText = gaveMatch[1]?.trim() ?? "";
-    const gotText = gaveMatch[2]?.trim() ?? "";
-    if (gaveText) segments.push(...parseTradeList(gaveText, -1));
-    if (gotText) segments.push(...parseTradeList(gotText, 1));
-    return segments;
+  if (widget === "die-yellow" || widget === "die-red") {
+    const value = Number(props.value);
+    return Number.isInteger(value) && value >= 1 && value <= 6
+      ? {
+          type: "die",
+          color: widget === "die-yellow" ? "yellow" : "red",
+          value,
+        }
+      : { type: "text", value: token };
   }
 
-  if (gotOnlyMatch) {
-    const gotText = gotOnlyMatch[1]?.trim() ?? "";
-    if (gotText) segments.push(...parseTradeList(gotText, 1));
-    return segments;
+  if (widget === "event-die") {
+    const face = props.face as EventDieFace | undefined;
+    if (
+      face === "ship" ||
+      face === "science" ||
+      face === "trade" ||
+      face === "politics"
+    ) {
+      return { type: "event-die", face };
+    }
   }
 
-  return [{ type: "text", value: normalized }];
+  return { type: "text", value: token };
+}
+
+function parseLegacySegment(token: string): ParsedLogSegment {
+  const cardMatch = token.match(/^\[card:([A-Za-z]+)\]$/);
+  if (cardMatch) {
+    return { type: "card", name: cardMatch[1] as ProgressCardName };
+  }
+
+  const deltaMatch = token.match(/^\[delta:([a-z]+):([+-]?\d+)\]$/);
+  if (deltaMatch) {
+    return {
+      type: "delta",
+      kind: deltaMatch[1] as CardDeltaKind,
+      amount: Number(deltaMatch[2]),
+    };
+  }
+
+  return { type: "text", value: token };
+}
+
+function parseSegmentToken(token: string): ParsedLogSegment {
+  return token.startsWith("[{")
+    ? parseWidgetSegment(token)
+    : parseLegacySegment(token);
+}
+
+export function parseLogLineSegments(line: string): ParsedLogSegment[] {
+  const segments: ParsedLogSegment[] = [];
+  let cursor = 0;
+  let match: RegExpExecArray | null = null;
+
+  while ((match = TOKEN_RE.exec(line))) {
+    const start = match.index;
+    if (start > cursor) {
+      segments.push({ type: "text", value: line.slice(cursor, start) });
+    }
+    segments.push(parseSegmentToken(match[0]));
+    cursor = start + match[0].length;
+  }
+
+  if (cursor < line.length) {
+    segments.push({ type: "text", value: line.slice(cursor) });
+  }
+
+  return segments.length > 0 ? segments : [{ type: "text", value: line }];
+}
+
+export function logWidgetToken(
+  widget: WidgetId,
+  props: Record<string, string | number>,
+): string {
+  const encodedProps = Object.entries(props)
+    .map(([key, value]) => `${key}=${encodeProp(value)}`)
+    .join("&");
+  return `[{${widget}}|${encodedProps}]`;
+}
+
+export function logCardToken(name: ProgressCardName): string {
+  return logWidgetToken("card", { name });
+}
+
+export function logDieToken(color: DieColor, value: number): string {
+  return logWidgetToken(color === "yellow" ? "die-yellow" : "die-red", {
+    value,
+  });
+}
+
+export function logEventDieToken(face: EventDieFace): string {
+  return logWidgetToken("event-die", { face });
+}
+
+export function logDeltaToken(kind: CardDeltaKind, amount: number): string {
+  return logWidgetToken("delta", { kind, amount });
+}
+
+export function logResourceDeltaTokens(
+  delta: Partial<Resources>,
+  multiplier: 1 | -1 = 1,
+): string[] {
+  return RESOURCE_ORDER.flatMap((kind) => {
+    const amount = (delta[kind] ?? 0) * multiplier;
+    if (amount === 0) return [];
+    return [logDeltaToken(kind, amount)];
+  });
 }

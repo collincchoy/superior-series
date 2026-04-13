@@ -568,6 +568,9 @@ describe("progress card effects", () => {
     expect(next.players[pid]!.resources.ore).toBe(before + 3);
     expect(next.players[opponents[0]!]!.resources.ore).toBe(2);
     expect(next.players[opponents[1]!]!.resources.ore).toBe(0);
+    expect(next.log.at(-1)).toBe(
+      `${next.players[pid]!.name} gained from [{card}|name=ResourceMonopoly]. [{delta}|kind=ore&amount=3]`,
+    );
   });
 
   it("TradeMonopoly takes one named commodity from each opponent", () => {
@@ -608,6 +611,9 @@ describe("progress card effects", () => {
     expect(next.players[pid]!.resources.cloth).toBe(before + 1);
     expect(next.players[opponents[0]!]!.resources.cloth).toBe(1);
     expect(next.players[opponents[1]!]!.resources.cloth).toBe(0);
+    expect(next.log.at(-1)).toBe(
+      `${next.players[pid]!.name} gained from [{card}|name=TradeMonopoly]. [{delta}|kind=cloth&amount=1]`,
+    );
   });
 
   it("Wedding collects two cards from each opponent with more VP", () => {
@@ -684,6 +690,102 @@ describe("progress card effects", () => {
       0,
     );
     expect(after - before).toBe(2);
+    expect(next.log.at(-1)).toBe(
+      `${next.players[pid]!.name} gained from [{card}|name=Wedding]. [{delta}|kind=wool&amount=2]`,
+    );
+  });
+
+  it("logs Irrigation gains with delta tokens", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    const before = state.players[pid]!.resources.grain;
+
+    state = {
+      ...state,
+      phase: "ACTION",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          progressCards: [
+            { name: "Irrigation", track: "science", isVP: false },
+          ],
+        },
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "Irrigation",
+    });
+
+    const gained = next.players[pid]!.resources.grain - before;
+    expect(gained).toBeGreaterThan(0);
+    expect(next.log.at(-1)).toBe(
+      `${next.players[pid]!.name} gained from [{card}|name=Irrigation]. [{delta}|kind=grain&amount=${gained}]`,
+    );
+  });
+
+  it("logs Mining gains with delta tokens", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    const before = state.players[pid]!.resources.ore;
+
+    state = {
+      ...state,
+      phase: "ACTION",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          progressCards: [{ name: "Mining", track: "science", isVP: false }],
+        },
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "Mining",
+    });
+
+    const gained = next.players[pid]!.resources.ore - before;
+    expect(gained).toBeGreaterThan(0);
+    expect(next.log.at(-1)).toBe(
+      `${next.players[pid]!.name} gained from [{card}|name=Mining]. [{delta}|kind=ore&amount=${gained}]`,
+    );
+  });
+
+  it("logs Medicine cost with delta tokens", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    const targetVid = Object.entries(state.board.vertices).find(
+      ([, b]) => b?.type === "settlement" && b.playerId === pid,
+    )?.[0] as VertexId;
+
+    state = {
+      ...state,
+      phase: "ACTION",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          progressCards: [{ name: "Medicine", track: "science", isVP: false }],
+        },
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid,
+      card: "Medicine",
+      params: { vid: targetVid },
+    });
+
+    expect(next.log.at(-1)).toBe(
+      `${next.players[pid]!.name} resolved [{card}|name=Medicine]. [{delta}|kind=ore&amount=-2] [{delta}|kind=grain&amount=-1]`,
+    );
   });
 
   it("Alchemy can be played in roll phase and sets both production dice", () => {
@@ -874,13 +976,31 @@ describe("progress card effects", () => {
 
     expect(
       next.log.some((line) =>
-        line.includes(`${state.players[pid]!.name} played [card:Irrigation].`),
+        line.includes(
+          `${state.players[pid]!.name} played [{card}|name=Irrigation].`,
+        ),
       ),
     ).toBe(true);
   });
 });
 
 describe("action logging", () => {
+  it("logs rolls with die widget tokens", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    state = { ...state, phase: "ROLL_DICE" };
+
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid,
+      result: [4, 3, "trade"],
+    });
+
+    expect(rolled.log.at(-1)).toBe(
+      `${rolled.players[pid]!.name} rolled [{die-yellow}|value=4] [{die-red}|value=3] = 7 [{event-die}|face=trade]`,
+    );
+  });
+
   it("logs build and economy actions in past tense", () => {
     let state = buildActionState();
     const pid = state.currentPlayerId;
@@ -924,8 +1044,8 @@ describe("action logging", () => {
       pid,
       vid: cityTarget,
     });
-    expect(builtCity.log.some((line) => line.includes("built a city."))).toBe(
-      true,
+    expect(builtCity.log.at(-1)).toBe(
+      `${builtCity.players[pid]!.name} built a city. [{delta}|kind=ore&amount=-3] [{delta}|kind=grain&amount=-2]`,
     );
 
     const roadEdge = Object.entries(builtCity.board.edges).find(
@@ -936,8 +1056,8 @@ describe("action logging", () => {
       pid,
       eid: roadEdge,
     });
-    expect(builtRoad.log.some((line) => line.includes("built a road."))).toBe(
-      true,
+    expect(builtRoad.log.at(-1)).toBe(
+      `${builtRoad.players[pid]!.name} built a road. [{delta}|kind=brick&amount=-1] [{delta}|kind=lumber&amount=-1]`,
     );
 
     const walled = applyAction(builtRoad, {
@@ -976,11 +1096,9 @@ describe("action logging", () => {
       pid,
       cards: { grain: 2, wool: 1 },
     });
-    expect(
-      discarded.log.some((line) =>
-        line.includes("discarded 3 resource cards."),
-      ),
-    ).toBe(true);
+    expect(discarded.log.at(-1)).toBe(
+      `${discarded.players[pid]!.name} discarded 3 resource cards. [{delta}|kind=grain&amount=-2] [{delta}|kind=wool&amount=-1]`,
+    );
 
     const drew = applyAction(discarded, {
       type: "DRAW_PROGRESS",
@@ -997,9 +1115,9 @@ describe("action logging", () => {
       give: { grain: 4 },
       get: { ore: 1 },
     });
-    expect(
-      traded.log.some((line) => line.includes("traded with the bank.")),
-    ).toBe(true);
+    expect(traded.log.at(-1)).toBe(
+      `${traded.players[pid]!.name} traded with the bank. [{delta}|kind=grain&amount=-4] [{delta}|kind=ore&amount=1]`,
+    );
   });
 
   it("logs knight actions in past tense", () => {
@@ -1028,27 +1146,27 @@ describe("action logging", () => {
       pid,
       vid: knightVertex,
     });
-    expect(
-      recruited.log.some((line) => line.includes("recruited a knight.")),
-    ).toBe(true);
+    expect(recruited.log.at(-1)).toBe(
+      `${recruited.players[pid]!.name} recruited a knight. [{delta}|kind=ore&amount=-1] [{delta}|kind=wool&amount=-1]`,
+    );
 
     const promoted = applyAction(recruited, {
       type: "PROMOTE_KNIGHT",
       pid,
       vid: knightVertex,
     });
-    expect(
-      promoted.log.some((line) => line.includes("promoted a knight.")),
-    ).toBe(true);
+    expect(promoted.log.at(-1)).toBe(
+      `${promoted.players[pid]!.name} promoted a knight. [{delta}|kind=ore&amount=-1] [{delta}|kind=wool&amount=-1]`,
+    );
 
     const activated = applyAction(promoted, {
       type: "ACTIVATE_KNIGHT",
       pid,
       vid: knightVertex,
     });
-    expect(
-      activated.log.some((line) => line.includes("activated a knight.")),
-    ).toBe(true);
+    expect(activated.log.at(-1)).toBe(
+      `${activated.players[pid]!.name} activated a knight. [{delta}|kind=grain&amount=-1]`,
+    );
   });
 });
 

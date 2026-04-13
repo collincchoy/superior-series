@@ -47,6 +47,12 @@ import {
   isOnPlayerNetwork,
   canDrawProgress,
 } from "./rules.js";
+import {
+  logCardToken,
+  logDieToken,
+  logEventDieToken,
+  logResourceDeltaTokens,
+} from "./logParsing.js";
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -181,26 +187,44 @@ function log(state: GameState, msg: string): GameState {
 }
 
 function progressCardTag(cardName: string): string {
-  return `[card:${cardName}]`;
+  return logCardToken(cardName as ProgressCardName);
 }
 
-function describeTradeResources(delta: Partial<Resources>): string {
-  return (Object.entries(delta) as Array<[keyof Resources, number]>)
-    .filter(([, v]) => (v ?? 0) > 0)
-    .map(([k, v]) => `${v} ${k}`)
-    .join(", ");
+function appendLogTokens(base: string, tokens: string[]): string {
+  return tokens.length > 0 ? `${base} ${tokens.join(" ")}` : base;
 }
 
-function tradeDetailsText(
-  give: Partial<Resources>,
-  get: Partial<Resources>,
+function resourceCostTokens(cost: Partial<Resources>): string[] {
+  return logResourceDeltaTokens(cost, -1);
+}
+
+function tradeDetailsText(give: Partial<Resources>, get: Partial<Resources>): string {
+  return appendLogTokens("", [
+    ...logResourceDeltaTokens(give, -1),
+    ...logResourceDeltaTokens(get, 1),
+  ]).trim();
+}
+
+function gainedFromCardText(
+  playerName: string,
+  cardName: ProgressCardName,
+  gains: Partial<Resources>,
 ): string {
-  const giveText = describeTradeResources(give);
-  const getText = describeTradeResources(get);
-  if (!giveText && !getText) return "";
-  if (!giveText) return ` Got ${getText}.`;
-  if (!getText) return ` Gave ${giveText}.`;
-  return ` Gave ${giveText}; got ${getText}.`;
+  return appendLogTokens(
+    `${playerName} gained from ${progressCardTag(cardName)}.`,
+    logResourceDeltaTokens(gains, 1),
+  );
+}
+
+function resolvedCardText(
+  playerName: string,
+  cardName: ProgressCardName,
+  costs: Partial<Resources>,
+): string {
+  return appendLogTokens(
+    `${playerName} resolved ${progressCardTag(cardName)}.`,
+    logResourceDeltaTokens(costs, -1),
+  );
 }
 
 // ─── createInitialState ───────────────────────────────────────────────────────
@@ -477,7 +501,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       s = { ...s, lastRoll: [d1, d2, event] };
       s = log(
         s,
-        `${s.players[pid]?.name} rolled Y${yellowDie} R${redDie} = ${production} (${event})`,
+        `${s.players[pid]?.name} rolled ${logDieToken("yellow", yellowDie)} ${logDieToken("red", redDie)} = ${production} ${logEventDieToken(event)}`,
       );
 
       // 1. Handle event die
@@ -561,7 +585,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       };
       s = log(
         s,
-        `${s.players[pid]?.name} discarded ${discardedCount} resource card${discardedCount === 1 ? "" : "s"}.`,
+        appendLogTokens(
+          `${s.players[pid]?.name} discarded ${discardedCount} resource card${discardedCount === 1 ? "" : "s"}.`,
+          logResourceDeltaTokens(cards, -1),
+        ),
       );
 
       const pending = { ...s.pendingDiscard! };
@@ -633,7 +660,13 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         },
       };
       s = updateLongestRoad(s);
-      s = log(s, `${s.players[pid]?.name} built a road.`);
+      s = log(
+        s,
+        appendLogTokens(
+          `${s.players[pid]?.name} built a road.`,
+          resourceCostTokens(BUILD_COSTS.road),
+        ),
+      );
       return s;
     }
 
@@ -664,7 +697,13 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           },
         },
       };
-      s = log(s, `${s.players[pid]?.name} built a settlement.`);
+      s = log(
+        s,
+        appendLogTokens(
+          `${s.players[pid]?.name} built a settlement.`,
+          resourceCostTokens(BUILD_COSTS.settlement),
+        ),
+      );
       return checkWin(s);
     }
 
@@ -698,7 +737,13 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           },
         },
       };
-      s = log(s, `${s.players[pid]?.name} built a city.`);
+      s = log(
+        s,
+        appendLogTokens(
+          `${s.players[pid]?.name} built a city.`,
+          resourceCostTokens(BUILD_COSTS.city),
+        ),
+      );
       return checkWin(s);
     }
 
@@ -732,7 +777,13 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           vertices: { ...s.board.vertices, [vid]: { ...city, hasWall: true } },
         },
       };
-      s = log(s, `${s.players[pid]?.name} built a city wall.`);
+      s = log(
+        s,
+        appendLogTokens(
+          `${s.players[pid]?.name} built a city wall.`,
+          resourceCostTokens(BUILD_COSTS.cityWall),
+        ),
+      );
       return s;
     }
 
@@ -772,7 +823,13 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       s = checkMetropolis(s, pid, track, targetLevel);
       s = log(
         s,
-        `${s.players[pid]?.name} improved ${track} to level ${targetLevel}.`,
+        appendLogTokens(
+          `${s.players[pid]?.name} improved ${track} to level ${targetLevel}.`,
+          logResourceDeltaTokens(
+            { [TRACK_COMMODITY[track]]: cost } as Partial<Resources>,
+            -1,
+          ),
+        ),
       );
       return checkWin(s);
     }
@@ -808,7 +865,13 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           },
         },
       };
-      s = log(s, `${s.players[pid]?.name} recruited a knight.`);
+      s = log(
+        s,
+        appendLogTokens(
+          `${s.players[pid]?.name} recruited a knight.`,
+          resourceCostTokens(BUILD_COSTS.knightRecruit),
+        ),
+      );
       return s;
     }
 
@@ -845,7 +908,13 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           },
         },
       };
-      s = log(s, `${s.players[pid]?.name} promoted a knight.`);
+      s = log(
+        s,
+        appendLogTokens(
+          `${s.players[pid]?.name} promoted a knight.`,
+          resourceCostTokens(BUILD_COSTS.knightPromote),
+        ),
+      );
       return s;
     }
 
@@ -870,7 +939,13 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           knights: { ...s.board.knights, [vid]: { ...knight, active: true } },
         },
       };
-      s = log(s, `${s.players[pid]?.name} activated a knight.`);
+      s = log(
+        s,
+        appendLogTokens(
+          `${s.players[pid]?.name} activated a knight.`,
+          resourceCostTokens(BUILD_COSTS.knightActivate),
+        ),
+      );
       return s;
     }
 
@@ -1189,7 +1264,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       const tradeDetails = tradeDetailsText(give, get);
       s = log(
         s,
-        `${s.players[pid]?.name} traded with the bank.${tradeDetails}`,
+        appendLogTokens(
+          `${s.players[pid]?.name} traded with the bank.`,
+          tradeDetails.length > 0 ? tradeDetails.split(" ") : [],
+        ),
       );
       return s;
     }
@@ -1949,6 +2027,9 @@ function applyProgressCard(
           },
         },
       };
+      if (grain > 0) {
+        s = log(s, gainedFromCardText(player.name, "Irrigation", { grain }));
+      }
       break;
     }
     case "Mining": {
@@ -1970,6 +2051,9 @@ function applyProgressCard(
           },
         },
       };
+      if (ore > 0) {
+        s = log(s, gainedFromCardText(player.name, "Mining", { ore }));
+      }
       break;
     }
     case "Medicine": {
@@ -2013,6 +2097,10 @@ function applyProgressCard(
           },
         },
       };
+      s = log(
+        s,
+        resolvedCardText(player.name, "Medicine", { grain: 1, ore: 2 }),
+      );
       break;
     }
     case "Smithing": {
@@ -2085,6 +2173,12 @@ function applyProgressCard(
             },
           },
         };
+        s = log(
+          s,
+          gainedFromCardText(player.name, "ResourceMonopoly", {
+            [resource]: gained,
+          } as Partial<Resources>),
+        );
       }
       break;
     }
@@ -2149,6 +2243,12 @@ function applyProgressCard(
             },
           },
         };
+        s = log(
+          s,
+          gainedFromCardText(player.name, "TradeMonopoly", {
+            [commodity]: gained,
+          } as Partial<Resources>),
+        );
       }
       break;
     }
@@ -2205,6 +2305,7 @@ function applyProgressCard(
             },
           },
         };
+        s = log(s, gainedFromCardText(player.name, "Wedding", gained));
       }
       break;
     }
