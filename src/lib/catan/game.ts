@@ -1208,6 +1208,18 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         const responder = s.players[pid]!;
         const initiator = s.players[initiatorPid]!;
         if ((responder.resources[commodity] ?? 0) < 1) return s;
+        const responderRemove: Partial<CommodityType extends keyof Resources ? Record<CommodityType, number> : Record<string, number>> = {
+          [commodity]: 1,
+        } as Partial<Resources>;
+        const responderAdd: Partial<ResourceType extends keyof Resources ? Record<ResourceType, number> : Record<string, number>> = {
+          [resource]: 1,
+        } as Partial<Resources>;
+        const initiatorRemove: Partial<ResourceType extends keyof Resources ? Record<ResourceType, number> : Record<string, number>> = {
+          [resource]: 1,
+        } as Partial<Resources>;
+        const initiatorAdd: Partial<CommodityType extends keyof Resources ? Record<CommodityType, number> : Record<string, number>> = {
+          [commodity]: 1,
+        } as Partial<Resources>;
         s = {
           ...s,
           players: {
@@ -1215,19 +1227,15 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             [pid]: {
               ...responder,
               resources: addResources(
-                subtractResources(responder.resources, {
-                  [commodity]: 1,
-                } as any),
-                { [resource]: 1 } as any,
+                subtractResources(responder.resources, responderRemove as Partial<Resources>),
+                responderAdd as Partial<Resources>,
               ),
             },
             [initiatorPid]: {
               ...initiator,
               resources: addResources(
-                subtractResources(initiator.resources, {
-                  [resource]: 1,
-                } as any),
-                { [commodity]: 1 } as any,
+                subtractResources(initiator.resources, initiatorRemove as Partial<Resources>),
+                initiatorAdd as Partial<Resources>,
               ),
             },
           },
@@ -1960,6 +1968,10 @@ function applyProgressCard(
   cardName: string,
   params: unknown,
 ): GameState {
+  // Helper to safely extract params properties
+  const getParam = <T = unknown>(key: string): T | undefined =>
+    (params && typeof params === "object" && key in params ? (params as Record<string, unknown>)[key] : undefined) as T | undefined;
+
   let s = state;
   const player = s.players[pid]!;
 
@@ -1985,8 +1997,8 @@ function applyProgressCard(
 
   switch (cardName) {
     case "Alchemy": {
-      const die1 = Number((params as any)?.die1);
-      const die2 = Number((params as any)?.die2);
+      const die1 = Number(getParam<number>("die1") ?? 0);
+      const die2 = Number(getParam<number>("die2") ?? 0);
       if (
         !Number.isInteger(die1) ||
         !Number.isInteger(die2) ||
@@ -2057,7 +2069,7 @@ function applyProgressCard(
       break;
     }
     case "Medicine": {
-      const targetVid = (params as any)?.vid as VertexId;
+      const targetVid = getParam<VertexId>("vid");
       if (!targetVid) {
         return state;
       }
@@ -2108,7 +2120,7 @@ function applyProgressCard(
       break;
     }
     case "Merchant": {
-      const targetHex = (params as any)?.hid as HexId;
+      const targetHex = getParam<HexId>("hid");
       if (!targetHex) {
         return state;
       }
@@ -2138,7 +2150,7 @@ function applyProgressCard(
       break;
     }
     case "ResourceMonopoly": {
-      const resource = (params as any)?.resource as ResourceType | undefined;
+      const resource = getParam<ResourceType>("resource");
       if (!resource) return state;
       let gained = 0;
       for (const [oppId, opp] of Object.entries(s.players)) {
@@ -2193,7 +2205,7 @@ function applyProgressCard(
       break;
     }
     case "MerchantFleet": {
-      const cardType = (params as any)?.cardType as keyof Resources | undefined;
+      const cardType = getParam<keyof Resources>("cardType");
       if (!cardType) return state;
       s = {
         ...s,
@@ -2208,7 +2220,7 @@ function applyProgressCard(
       break;
     }
     case "TradeMonopoly": {
-      const commodity = (params as any)?.commodity as CommodityType | undefined;
+      const commodity = getParam<CommodityType>("commodity");
       if (!commodity) return state;
       let gained = 0;
       for (const [oppId, opp] of Object.entries(s.players)) {
@@ -2310,7 +2322,7 @@ function applyProgressCard(
       break;
     }
     case "Engineering": {
-      const engVid = (params as any)?.vid as VertexId;
+      const engVid = getParam<VertexId>("vid");
       if (!engVid) {
         return state;
       }
@@ -2346,8 +2358,8 @@ function applyProgressCard(
       break;
     }
     case "Invention": {
-      const hid1 = (params as any)?.hid1 as HexId;
-      const hid2 = (params as any)?.hid2 as HexId;
+      const hid1 = getParam<HexId>("hid1");
+      const hid2 = getParam<HexId>("hid2");
       if (!hid1 || !hid2 || hid1 === hid2) {
         return state;
       }
@@ -2378,7 +2390,7 @@ function applyProgressCard(
       if (!s.barbarian.robberActive) {
         return state;
       }
-      const taxHid = (params as any)?.hid as HexId;
+      const taxHid = getParam<HexId>("hid");
       if (!taxHid) {
         return state;
       }
@@ -2402,7 +2414,7 @@ function applyProgressCard(
       break;
     }
     case "Diplomacy": {
-      const dipEid = (params as any)?.eid as EdgeId;
+      const dipEid = getParam<EdgeId>("eid");
       if (!dipEid) {
         return state;
       }
@@ -2433,7 +2445,7 @@ function applyProgressCard(
       break;
     }
     case "Intrigue": {
-      const intVid = (params as any)?.vid as VertexId;
+      const intVid = getParam<VertexId>("vid");
       if (!intVid) {
         return state;
       }
@@ -2455,11 +2467,9 @@ function applyProgressCard(
       break;
     }
     case "Treason": {
-      const trsVid = (params as any)?.vid as VertexId;
-      const trsPlaceVid = (params as any)?.placeVid as VertexId | undefined;
-      const trsPlaceStrength = (params as any)?.placeStrength as
-        | KnightStrength
-        | undefined;
+      const trsVid = getParam<VertexId>("vid");
+      const trsPlaceVid = getParam<VertexId>("placeVid");
+      const trsPlaceStrength = getParam<KnightStrength>("placeStrength");
       if (!trsVid) {
         return state;
       }
@@ -2531,7 +2541,7 @@ function applyProgressCard(
       break;
     }
     case "CommercialHarbor": {
-      const chResource = (params as any)?.resource as ResourceType | undefined;
+      const chResource = getParam<ResourceType>("resource");
       if (!chResource) {
         return state;
       }
@@ -2552,13 +2562,13 @@ function applyProgressCard(
       break;
     }
     case "Espionage": {
-      const espTarget = (params as any)?.targetPid as PlayerId | undefined;
+      const espTarget = getParam<PlayerId>("targetPid");
       if (!espTarget || espTarget === pid) {
         return state;
       }
       const espTargetPlayer = s.players[espTarget];
       if (!espTargetPlayer) break;
-      const espCardIndex = (params as any)?.cardIndex as number | undefined;
+      const espCardIndex = getParam<number>("cardIndex");
       if (espCardIndex === undefined) break;
       const nonVP = espTargetPlayer.progressCards
         .map((c, i) => ({ c, i }))
@@ -2581,10 +2591,8 @@ function applyProgressCard(
       break;
     }
     case "GuildDues": {
-      const gdTarget = (params as any)?.targetPid as PlayerId | undefined;
-      const gdCards = (params as any)?.takeCards as
-        | Partial<Resources>
-        | undefined;
+      const gdTarget = getParam<PlayerId>("targetPid");
+      const gdCards = getParam<Partial<Resources>>("takeCards");
       if (!gdTarget || !gdCards || gdTarget === pid) {
         return state;
       }

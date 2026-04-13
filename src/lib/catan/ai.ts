@@ -7,6 +7,7 @@ import type {
   HexId,
   ImprovementTrack,
   Resources,
+  PlayerSupply,
   TurnPhase,
 } from "./types.js";
 import { buildGraph } from "./board.js";
@@ -423,7 +424,7 @@ function chooseAction(
 
 function canBuildCitySomewhere(
   state: GameState,
-  player: { id: PlayerId } & { resources: Resources; supply: any },
+  player: { id: PlayerId; resources: Resources; supply: PlayerSupply },
   graph: ReturnType<typeof buildGraph>,
 ): boolean {
   if (!hasResources(player as any, BUILD_COSTS.city)) return false;

@@ -5,6 +5,7 @@
     VertexId,
     EdgeId,
     HexId,
+    GameAction,
   } from "../../lib/catan/types.js";
   import type {
     PendingAction,
@@ -118,7 +119,7 @@
   function onVertexClick(vid: VertexId) {
     if (!isMyTurn) return;
     const pid = localPid;
-    function s(action: any) {
+    function s(action: GameAction) {
       store.setPendingAction(null);
       store.sendAction(action);
     }
@@ -151,13 +152,21 @@
       s({ type: "ACTIVATE_KNIGHT", pid, vid });
     } else if (gameState.pendingKnightPromotions?.pid === pid) {
       s({ type: "PROGRESS_PROMOTE_FREE_KNIGHT", pid, vid });
+    } else if (pendingAction?.type === "progress_select_vertex") {
+      s({ type: "PLAY_PROGRESS", pid, card: pendingAction.card, params: { vid } });
+    } else if (pendingAction?.type === "progress_select_knight") {
+      s({ type: "PLAY_PROGRESS", pid, card: pendingAction.card, params: { vid } });
+    } else if (pendingAction?.type === "move_knight_from") {
+      store.setPendingAction({ type: "move_knight_to", from: vid });
+    } else if (pendingAction?.type === "move_knight_to") {
+      s({ type: "MOVE_KNIGHT", pid, from: pendingAction.from, to: vid });
     }
   }
 
   function onEdgeClick(eid: EdgeId) {
     if (!isMyTurn) return;
     const pid = localPid;
-    function s(action: any) {
+    function s(action: GameAction) {
       store.setPendingAction(null);
       store.sendAction(action);
     }
@@ -171,20 +180,38 @@
       s({ type: "BUILD_ROAD", pid, eid });
     } else if (gameState.pendingFreeRoads?.pid === pid) {
       s({ type: "PROGRESS_PLACE_FREE_ROAD", pid, eid });
+    } else if (pendingAction?.type === "progress_select_edge") {
+      s({ type: "PLAY_PROGRESS", pid, card: pendingAction.card, params: { eid } });
     }
   }
 
   function onHexClick(hid: HexId) {
-    if (!isMyTurn || gameState.phase !== "ROBBER_MOVE") return;
+    if (!isMyTurn) return;
     const pid = localPid;
-    const adjacentBuildings = Object.entries(gameState.board.vertices).filter(
-      ([vid, b]) => {
-        if (!b || b.playerId === pid) return false;
-        return (graph.hexesOfVertex[vid as VertexId] ?? []).includes(hid);
-      },
-    );
-    const stealFrom = adjacentBuildings[0]?.[1]?.playerId ?? null;
-    store.sendAction({ type: "MOVE_ROBBER", pid, hid, stealFrom });
+    function s(action: GameAction) {
+      store.setPendingAction(null);
+      store.sendAction(action);
+    }
+
+    if (gameState.phase === "ROBBER_MOVE") {
+      const adjacentBuildings = Object.entries(gameState.board.vertices).filter(
+        ([vid, b]) => {
+          if (!b || b.playerId === pid) return false;
+          return (graph.hexesOfVertex[vid as VertexId] ?? []).includes(hid);
+        },
+      );
+      const stealFrom = adjacentBuildings[0]?.[1]?.playerId ?? null;
+      s({ type: "MOVE_ROBBER", pid, hid, stealFrom });
+    } else if (pendingAction?.type === "progress_select_hex") {
+      s({ type: "PLAY_PROGRESS", pid, card: pendingAction.card, params: { hid } });
+    } else if (pendingAction?.type === "progress_select_hex_pair") {
+      const picked = [...pendingAction.picked, hid];
+      if (picked.length === 2) {
+        s({ type: "PLAY_PROGRESS", pid, card: "Invention", params: { hid1: picked[0], hid2: picked[1] } });
+      } else {
+        store.setPendingAction({ type: "progress_select_hex_pair", card: "Invention", picked });
+      }
+    }
   }
 
   // Precompute harbor positions (pure derived data)

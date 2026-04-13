@@ -4,6 +4,7 @@
     PlayerId,
     ImprovementTrack,
     ProgressCardName,
+    GameAction,
   } from "../../lib/catan/types.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import Modal from "./Modal.svelte";
@@ -62,7 +63,7 @@
     return reason.trim() || undefined;
   }
 
-  function sendAdmin(action: any) {
+  function sendAdmin(action: GameAction) {
     if (!store.isHostPlayer) {
       store.showToast("Master controls are host-only", "error");
       return;

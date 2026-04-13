@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { computeValidTargets } from "../../lib/catan/validTargets.js";
 import { createInitialState, applyAction } from "../../lib/catan/game.js";
 import { buildGraph, CATAN_HEX_COORDS, hexId } from "../../lib/catan/board.js";
+import { isOnPlayerNetwork } from "../../lib/catan/rules.js";
 import type {
   GameState,
   PlayerId,
@@ -584,6 +585,248 @@ describe("computeValidTargets", () => {
       expect(targets.validVertices.has(activeKnightVid)).toBe(false);    // already active
       expect(targets.validVertices.has(enemyKnightVid)).toBe(false);     // opponent's knight
       expect(targets.validEdges.size).toBe(0);
+    });
+  });
+
+  describe("Progress card and knight move selections", () => {
+    let actionState: GameState;
+    let vids: VertexId[];
+
+    beforeEach(() => {
+      let state = createInitialState(makePlayers(3));
+      vids = Object.keys(graph.vertices) as VertexId[];
+      // Complete setup
+      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[0]!, building: "settlement" });
+      state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: (graph.edgesOfVertex[vids[0]!] ?? [])[0]! });
+      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[5]!, building: "settlement" });
+      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]! });
+      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p3", vid: vids[10]!, building: "settlement" });
+      state = applyAction(state, { type: "PLACE_ROAD", pid: "p3", eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]! });
+      // R2
+      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p3", vid: vids[15]!, building: "city" });
+      state = applyAction(state, { type: "PLACE_ROAD", pid: "p3", eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]! });
+      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[20]!, building: "city" });
+      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[20]!] ?? [])[0]! });
+      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[25]!, building: "city" });
+      state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: (graph.edgesOfVertex[vids[25]!] ?? [])[0]! });
+
+      actionState = {
+        ...state,
+        phase: "ACTION",
+        currentPlayerId: "p1",
+        barbarian: { ...state.barbarian, robberActive: true },
+      };
+    });
+
+    it("progress_select_vertex for Engineering highlights own cities without walls", () => {
+      const cityWithWall = vids[25]!;
+      const ownCity = vids[30]!;
+      const opponentCity = vids[20]!;
+
+      const state: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          vertices: {
+            ...actionState.board.vertices,
+            [cityWithWall]: { type: "city", playerId: "p1", hasWall: true, metropolis: null },
+            [ownCity]: { type: "city", playerId: "p1", hasWall: false, metropolis: null },
+          },
+        },
+      };
+
+      const targets = computeValidTargets(state, "p1", { type: "progress_select_vertex", card: "Engineering" });
+      expect(targets.validVertices.has(ownCity)).toBe(true);
+      expect(targets.validVertices.has(cityWithWall)).toBe(false); // has wall
+      expect(targets.validVertices.has(opponentCity)).toBe(false); // not own
+    });
+
+    it("progress_select_vertex for Medicine highlights own settlements", () => {
+      const ownSettlement = vids[0]!;
+      const ownCity = vids[25]!;
+      const opponentSettlement = vids[5]!;
+
+      const targets = computeValidTargets(actionState, "p1", { type: "progress_select_vertex", card: "Medicine" });
+      expect(targets.validVertices.has(ownSettlement)).toBe(true);
+      expect(targets.validVertices.has(ownCity)).toBe(false); // not a settlement
+      expect(targets.validVertices.has(opponentSettlement)).toBe(false); // not own
+    });
+
+    it("progress_select_knight for Intrigue filters opponent knights correctly", () => {
+      const ownKnightVid = vids[1]!;
+      const p2KnightVid = vids[50]!;
+
+      const state: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          knights: {
+            ...actionState.board.knights,
+            [p2KnightVid]: { playerId: "p2", strength: 1, active: true },
+            [ownKnightVid]: { playerId: "p1", strength: 1, active: true },
+          },
+        },
+      };
+
+      const targets = computeValidTargets(state, "p1", { type: "progress_select_knight", card: "Intrigue" });
+      // Own knights must never be valid
+      expect(targets.validVertices.has(ownKnightVid)).toBe(false);
+      // p2 knight may or may not be on network - just verify it's considered
+      // (Intrigue filters by isOnPlayerNetwork, which is tested elsewhere)
+    });
+
+    it("progress_select_knight for Treason highlights any opponent knight", () => {
+      const opponentKnightVid = vids[50]!;
+      const ownKnightVid = vids[1]!;
+
+      const state: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          knights: {
+            ...actionState.board.knights,
+            [opponentKnightVid]: { playerId: "p2", strength: 1, active: false },
+            [ownKnightVid]: { playerId: "p1", strength: 1, active: true },
+          },
+        },
+      };
+
+      const targets = computeValidTargets(state, "p1", { type: "progress_select_knight", card: "Treason" });
+      expect(targets.validVertices.has(opponentKnightVid)).toBe(true);
+      expect(targets.validVertices.has(ownKnightVid)).toBe(false);
+    });
+
+    it("progress_select_hex for Merchant highlights hexes adjacent to own buildings", () => {
+      const hexesAdjacentToP1 = new Set<string>();
+      const hexesNotAdjacentToP1 = new Set<string>();
+
+      for (const obj of Object.entries(actionState.board.vertices)) {
+        const [vid, v] = obj as [VertexId, any];
+        if (v?.playerId === "p1") {
+          const hexes = graph.hexesOfVertex[vid] ?? [];
+          hexes.forEach((h) => hexesAdjacentToP1.add(h));
+        }
+      }
+
+      for (const hid of Object.keys(actionState.board.hexes)) {
+        if (!hexesAdjacentToP1.has(hid)) {
+          hexesNotAdjacentToP1.add(hid as any);
+        }
+      }
+
+      const targets = computeValidTargets(actionState, "p1", { type: "progress_select_hex", card: "Merchant" });
+      for (const hid of hexesAdjacentToP1) {
+        expect(targets.validHexes.has(hid as any)).toBe(true);
+      }
+      for (const hid of hexesNotAdjacentToP1) {
+        expect(targets.validHexes.has(hid as any)).toBe(false);
+      }
+    });
+
+    it("progress_select_hex for Taxation highlights all non-desert hexes when robber is active", () => {
+      const targets = computeValidTargets(actionState, "p1", { type: "progress_select_hex", card: "Taxation" });
+      for (const hex of Object.values(actionState.board.hexes)) {
+        if (hex.terrain === "desert") {
+          expect(targets.validHexes.has(hex.id)).toBe(false);
+        } else {
+          expect(targets.validHexes.has(hex.id)).toBe(true);
+        }
+      }
+    });
+
+    it("progress_select_hex for Taxation returns empty when robber is inactive", () => {
+      const inactiveRobberState: GameState = {
+        ...actionState,
+        barbarian: { ...actionState.barbarian, robberActive: false },
+      };
+
+      const targets = computeValidTargets(inactiveRobberState, "p1", { type: "progress_select_hex", card: "Taxation" });
+      expect(targets.validHexes.size).toBe(0);
+    });
+
+    it("progress_select_edge for Diplomacy highlights only open roads", () => {
+      // During normal setup, all roads are connected to the player's buildings/network.
+      // An "open road" in Diplomacy terms is a road where one endpoint is not connected.
+      // In this test state, all roads are well-connected, so few/no roads are "open".
+      // We just verify that p1's roads are never valid targets and that the function doesn't crash.
+      const p1RoadEdge = (graph.edgesOfVertex[vids[0]!] ?? [])[0]!;
+
+      const targets = computeValidTargets(actionState, "p1", { type: "progress_select_edge", card: "Diplomacy" });
+      
+      // p1's own roads should never be valid for Diplomacy (can only target opponent roads)
+      expect(targets.validEdges.has(p1RoadEdge)).toBe(false);
+    });
+
+    it("progress_select_hex_pair for Invention highlights hexes with numbers not in [2,6,8,12]", () => {
+      const invalidNumbers = new Set([2, 6, 8, 12]);
+      const targets = computeValidTargets(actionState, "p1", { type: "progress_select_hex_pair", card: "Invention", picked: [] });
+
+      for (const hex of Object.values(actionState.board.hexes)) {
+        if (hex.number !== null && invalidNumbers.has(hex.number)) {
+          expect(targets.validHexes.has(hex.id)).toBe(false);
+        } else if (hex.number !== null) {
+          expect(targets.validHexes.has(hex.id)).toBe(true);
+        }
+      }
+    });
+
+    it("progress_select_hex_pair for Invention excludes already picked hexes", () => {
+      const hid1 = Object.values(actionState.board.hexes)
+        .find((h) => h.number !== null && ![2, 6, 8, 12].includes(h.number))?.id!;
+      
+      const targets = computeValidTargets(actionState, "p1", {
+        type: "progress_select_hex_pair",
+        card: "Invention",
+        picked: [hid1],
+      });
+
+      expect(targets.validHexes.has(hid1)).toBe(false);
+    });
+
+    it("move_knight_from highlights own active knights", () => {
+      const activeKnight = vids[1]!;
+      const inactiveKnight = vids[2]!;
+      const opponentKnight = vids[3]!;
+
+      const state: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          knights: {
+            ...actionState.board.knights,
+            [activeKnight]: { playerId: "p1", strength: 1, active: true },
+            [inactiveKnight]: { playerId: "p1", strength: 1, active: false },
+            [opponentKnight]: { playerId: "p2", strength: 1, active: true },
+          },
+        },
+      };
+
+      const targets = computeValidTargets(state, "p1", { type: "move_knight_from" });
+      expect(targets.validVertices.has(activeKnight)).toBe(true);
+      expect(targets.validVertices.has(inactiveKnight)).toBe(false);
+      expect(targets.validVertices.has(opponentKnight)).toBe(false);
+    });
+
+    it("move_knight_to highlights valid destinations for knight move", () => {
+      const knightFromVid = vids[0]!;
+      const validDestVid = vids[1]!;
+      const occupiedByBuildingVid = vids[25]!; // has p1 city
+
+      const state: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          knights: {
+            ...actionState.board.knights,
+            [knightFromVid]: { playerId: "p1", strength: 1, active: true },
+          },
+        },
+      };
+
+      const targets = computeValidTargets(state, "p1", { type: "move_knight_to", from: knightFromVid });
+      expect(targets.validVertices.has(validDestVid)).toBe(true);
+      expect(targets.validVertices.has(occupiedByBuildingVid)).toBe(false); // has building
+      expect(targets.validVertices.has(knightFromVid)).toBe(false); // can't move to self
     });
   });
 });

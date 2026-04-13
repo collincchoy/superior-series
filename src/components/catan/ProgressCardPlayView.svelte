@@ -59,72 +59,17 @@
   let die1 = $state(1);
   let die2 = $state(1);
 
-  let selectedVid = $state<VertexId | null>(null);
-  let selectedHid = $state<HexId | null>(null);
-  let selectedHid2 = $state<HexId | null>(null);
   let selectedTargetPid = $state<PlayerId | null>(null);
   let selectedEspCardIndex = $state<number>(0);
   let gdResource1 = $state<keyof Resources>("grain");
   let gdResource2 = $state<keyof Resources>("grain");
-  let selectedOpKnightVid = $state<VertexId | null>(null);
-  let selectedDipEid = $state<EdgeId | null>(null);
   let selectedComHarborResource = $state<ResourceType>("grain");
   let alchemyLateMessage = $state(false);
 
   let gs = $derived(store.gameState);
   let myPid = $derived(store.localPid);
 
-  let mySettlements = $derived(
-    gs && myPid
-      ? Object.entries(gs.board.vertices)
-          .filter(([, v]) => v?.type === "settlement" && v.playerId === myPid)
-          .map(([vid]) => vid as VertexId)
-      : [],
-  );
 
-  let myUnwalledCities = $derived(
-    gs && myPid
-      ? Object.entries(gs.board.vertices)
-          .filter(
-            ([, v]) =>
-              v?.type === "city" && v.playerId === myPid && !(v as any).hasWall,
-          )
-          .map(([vid]) => vid as VertexId)
-      : [],
-  );
-
-  let hexesAdjacentToMe = $derived((): HexId[] => {
-    if (!gs || !myPid) return [];
-    const myVids = new Set(
-      Object.entries(gs.board.vertices)
-        .filter(([, v]) => v?.playerId === myPid)
-        .map(([vid]) => vid),
-    );
-    return Object.entries(gs.board.hexes)
-      .filter(
-        ([hid, hex]) =>
-          hex.terrain !== "desert" &&
-          hex.number &&
-          (graph.verticesOfHex[hid] ?? []).some((v) => myVids.has(v)),
-      )
-      .map(([hid]) => hid as HexId);
-  });
-
-  let numberableHexes = $derived(
-    gs
-      ? Object.entries(gs.board.hexes)
-          .filter(([, hex]) => hex.number && ![2, 6, 8, 12].includes(hex.number))
-          .map(([hid]) => hid as HexId)
-      : [],
-  );
-
-  let eligibleRobberHexes = $derived(
-    gs?.barbarian.robberActive
-      ? Object.entries(gs.board.hexes)
-          .filter(([, hex]) => hex.terrain !== "desert")
-          .map(([hid]) => hid as HexId)
-      : ([] as HexId[]),
-  );
 
   let opponents = $derived(
     gs && myPid ? (gs.playerOrder.filter((p) => p !== myPid) as PlayerId[]) : ([] as PlayerId[]),
@@ -136,33 +81,7 @@
       : ([] as PlayerId[]),
   );
 
-  let opponentKnightsOnNetwork = $derived((): VertexId[] => {
-    if (!gs || !myPid) return [];
-    return Object.entries(gs.board.knights)
-      .filter(
-        ([vid, k]) =>
-          !!k &&
-          k.playerId !== myPid &&
-          isOnPlayerNetwork(gs.board, graph, myPid, vid as VertexId),
-      )
-      .map(([vid]) => vid as VertexId);
-  });
 
-  let allOpponentKnights = $derived(
-    gs && myPid
-      ? Object.entries(gs.board.knights)
-          .filter(([, k]) => !!k && k.playerId !== myPid)
-          .map(([vid]) => vid as VertexId)
-      : ([] as VertexId[]),
-  );
-
-  let openRoadEdges = $derived(
-    gs
-      ? Object.entries(gs.board.edges)
-          .filter(([eid, road]) => !!road && isOpenRoad(gs.board, graph, eid as EdgeId))
-          .map(([eid]) => eid as EdgeId)
-      : ([] as EdgeId[]),
-  );
 
   let espTargetCards = $derived(
     gs && selectedTargetPid
@@ -259,41 +178,6 @@
       return;
     }
 
-    if (card.name === "Medicine") {
-      if (!selectedVid) return;
-      store.sendAction({ type: "PLAY_PROGRESS", pid, card: "Medicine", params: { vid: selectedVid } });
-      close();
-      return;
-    }
-
-    if (card.name === "Engineering") {
-      if (!selectedVid) return;
-      store.sendAction({ type: "PLAY_PROGRESS", pid, card: "Engineering", params: { vid: selectedVid } });
-      close();
-      return;
-    }
-
-    if (card.name === "Merchant") {
-      if (!selectedHid) return;
-      store.sendAction({ type: "PLAY_PROGRESS", pid, card: "Merchant", params: { hid: selectedHid } });
-      close();
-      return;
-    }
-
-    if (card.name === "Invention") {
-      if (!selectedHid || !selectedHid2 || selectedHid === selectedHid2) return;
-      store.sendAction({ type: "PLAY_PROGRESS", pid, card: "Invention", params: { hid1: selectedHid, hid2: selectedHid2 } });
-      close();
-      return;
-    }
-
-    if (card.name === "Taxation") {
-      if (!selectedHid) return;
-      store.sendAction({ type: "PLAY_PROGRESS", pid, card: "Taxation", params: { hid: selectedHid } });
-      close();
-      return;
-    }
-
     if (card.name === "CommercialHarbor") {
       store.sendAction({ type: "PLAY_PROGRESS", pid, card: "CommercialHarbor", params: { resource: selectedComHarborResource } });
       close();
@@ -313,27 +197,6 @@
       if (gdResource1) takeCards[gdResource1] = (takeCards[gdResource1] ?? 0) + 1;
       if (gdResource2) takeCards[gdResource2] = (takeCards[gdResource2] ?? 0) + 1;
       store.sendAction({ type: "PLAY_PROGRESS", pid, card: "GuildDues", params: { targetPid: selectedTargetPid, takeCards } });
-      close();
-      return;
-    }
-
-    if (card.name === "Intrigue") {
-      if (!selectedOpKnightVid) return;
-      store.sendAction({ type: "PLAY_PROGRESS", pid, card: "Intrigue", params: { vid: selectedOpKnightVid } });
-      close();
-      return;
-    }
-
-    if (card.name === "Treason") {
-      if (!selectedOpKnightVid) return;
-      store.sendAction({ type: "PLAY_PROGRESS", pid, card: "Treason", params: { vid: selectedOpKnightVid } });
-      close();
-      return;
-    }
-
-    if (card.name === "Diplomacy") {
-      if (!selectedDipEid) return;
-      store.sendAction({ type: "PLAY_PROGRESS", pid, card: "Diplomacy", params: { eid: selectedDipEid } });
       close();
       return;
     }
@@ -409,63 +272,38 @@
     </select>
   </div>
 {:else if canPlayNow && card.name === "Medicine"}
-  <div class="picker-row">
-    <label for="med-vid">Your settlement</label>
-    <select id="med-vid" bind:value={selectedVid}>
-      {#each mySettlements as vid}
-        <option value={vid}>{vid}</option>
-      {/each}
-    </select>
-  </div>
+  <p class="helper">Click a settlement on the board to upgrade it.</p>
+  <button class="board-select-btn" onclick={() => {
+    store.setPendingAction({ type: "progress_select_vertex", card: "Medicine" });
+    onClose();
+  }}>Select on board</button>
 {:else if canPlayNow && card.name === "Engineering"}
-  <div class="picker-row">
-    <label for="eng-vid">City to wall</label>
-    <select id="eng-vid" bind:value={selectedVid}>
-      {#each myUnwalledCities as vid}
-        <option value={vid}>{vid}</option>
-      {/each}
-    </select>
-  </div>
+  <p class="helper">Click a city on the board to add a wall.</p>
+  <button class="board-select-btn" onclick={() => {
+    store.setPendingAction({ type: "progress_select_vertex", card: "Engineering" });
+    onClose();
+  }}>Select on board</button>
 {:else if canPlayNow && card.name === "Merchant"}
-  <div class="picker-row">
-    <label for="merch-hid">Place on hex</label>
-    <select id="merch-hid" bind:value={selectedHid}>
-      {#each hexesAdjacentToMe() as hid}
-        <option value={hid}>{hid}</option>
-      {/each}
-    </select>
-  </div>
+  <p class="helper">Click a land hex adjacent to your buildings to place the merchant.</p>
+  <button class="board-select-btn" onclick={() => {
+    store.setPendingAction({ type: "progress_select_hex", card: "Merchant" });
+    onClose();
+  }}>Select on board</button>
 {:else if canPlayNow && card.name === "Invention"}
-  <div class="picker-grid">
-    <div class="picker-row">
-      <label for="inv-hid1">Hex 1</label>
-      <select id="inv-hid1" bind:value={selectedHid}>
-        {#each numberableHexes as hid}
-          <option value={hid}>{gs?.board.hexes[hid]?.number ?? hid}</option>
-        {/each}
-      </select>
-    </div>
-    <div class="picker-row">
-      <label for="inv-hid2">Hex 2</label>
-      <select id="inv-hid2" bind:value={selectedHid2}>
-        {#each numberableHexes as hid}
-          <option value={hid}>{gs?.board.hexes[hid]?.number ?? hid}</option>
-        {/each}
-      </select>
-    </div>
-  </div>
+  <p class="helper">Click two number hexes (not 2, 6, 8, or 12) to swap their values.</p>
+  <button class="board-select-btn" onclick={() => {
+    store.setPendingAction({ type: "progress_select_hex_pair", card: "Invention", picked: [] });
+    onClose();
+  }}>Select on board</button>
 {:else if canPlayNow && card.name === "Taxation"}
-  {#if eligibleRobberHexes.length === 0}
+  {#if !gs?.barbarian.robberActive}
     <p class="helper" style="color:#f87171">Taxation requires the robber to be active (after first barbarian attack).</p>
   {:else}
-    <div class="picker-row">
-      <label for="tax-hid">Move robber to</label>
-      <select id="tax-hid" bind:value={selectedHid}>
-        {#each eligibleRobberHexes as hid}
-          <option value={hid}>{gs?.board.hexes[hid]?.terrain} ({gs?.board.hexes[hid]?.number ?? "?"})</option>
-        {/each}
-      </select>
-    </div>
+    <p class="helper">Click a hex to move the robber there.</p>
+    <button class="board-select-btn" onclick={() => {
+      store.setPendingAction({ type: "progress_select_hex", card: "Taxation" });
+      onClose();
+    }}>Select on board</button>
   {/if}
 {:else if canPlayNow && card.name === "CommercialHarbor"}
   <div class="picker-row">
@@ -527,47 +365,23 @@
     </div>
   {/if}
 {:else if canPlayNow && card.name === "Intrigue"}
-  {#if opponentKnightsOnNetwork().length === 0}
-    <p class="helper" style="color:#f87171">No eligible enemy knights adjacent to your network.</p>
-  {:else}
-    <div class="picker-row">
-      <label for="int-vid">Enemy knight to displace</label>
-      <select id="int-vid" bind:value={selectedOpKnightVid}>
-        {#each opponentKnightsOnNetwork() as vid}
-          {@const k = gs?.board.knights[vid]}
-          <option value={vid}>{gs?.players[k?.playerId ?? ""]?.name ?? k?.playerId} strength {k?.strength} at {vid}</option>
-        {/each}
-      </select>
-    </div>
-  {/if}
+  <p class="helper">Click an enemy knight on your network to displace it.</p>
+  <button class="board-select-btn" onclick={() => {
+    store.setPendingAction({ type: "progress_select_knight", card: "Intrigue" });
+    onClose();
+  }}>Select on board</button>
 {:else if canPlayNow && card.name === "Treason"}
-  {#if allOpponentKnights.length === 0}
-    <p class="helper" style="color:#f87171">No enemy knights on the board.</p>
-  {:else}
-    <div class="picker-row">
-      <label for="trs-vid">Enemy knight to remove</label>
-      <select id="trs-vid" bind:value={selectedOpKnightVid}>
-        {#each allOpponentKnights as vid}
-          {@const k = gs?.board.knights[vid]}
-          <option value={vid}>{gs?.players[k?.playerId ?? ""]?.name ?? k?.playerId} strength {k?.strength} at {vid}</option>
-        {/each}
-      </select>
-    </div>
-  {/if}
+  <p class="helper">Click an enemy knight to remove it.</p>
+  <button class="board-select-btn" onclick={() => {
+    store.setPendingAction({ type: "progress_select_knight", card: "Treason" });
+    onClose();
+  }}>Select on board</button>
 {:else if canPlayNow && card.name === "Diplomacy"}
-  {#if openRoadEdges.length === 0}
-    <p class="helper" style="color:#f87171">No open roads on the board.</p>
-  {:else}
-    <div class="picker-row">
-      <label for="dip-eid">Road to remove</label>
-      <select id="dip-eid" bind:value={selectedDipEid}>
-        {#each openRoadEdges as eid}
-          {@const road = gs?.board.edges[eid]}
-          <option value={eid}>{gs?.players[road?.playerId ?? ""]?.name ?? road?.playerId}'s road</option>
-        {/each}
-      </select>
-    </div>
-  {/if}
+  <p class="helper">Click an open enemy road to remove it.</p>
+  <button class="board-select-btn" onclick={() => {
+    store.setPendingAction({ type: "progress_select_edge", card: "Diplomacy" });
+    onClose();
+  }}>Select on board</button>
 {/if}
 
 <div class="actions">
@@ -580,17 +394,17 @@
         card.name === "Crane" ||
         card.name === "RoadBuilding" ||
         card.name === "Smithing" ||
-        (card.name === "Medicine" && mySettlements.length > 0) ||
-        (card.name === "Engineering" && myUnwalledCities.length > 0) ||
-        (card.name === "Merchant" && hexesAdjacentToMe().length > 0) ||
-        (card.name === "Invention" && numberableHexes.length >= 2) ||
-        (card.name === "Taxation" && eligibleRobberHexes.length > 0) ||
+        card.name === "Medicine" ||
+        card.name === "Engineering" ||
+        card.name === "Merchant" ||
+        card.name === "Invention" ||
+        card.name === "Taxation" ||
         card.name === "CommercialHarbor" ||
         (card.name === "Espionage" && !!selectedTargetPid && espTargetCards.length > 0) ||
         (card.name === "GuildDues" && !!selectedTargetPid && gdTargetResources.length > 0) ||
-        (card.name === "Intrigue" && opponentKnightsOnNetwork().length > 0 && !!selectedOpKnightVid) ||
-        (card.name === "Treason" && allOpponentKnights.length > 0 && !!selectedOpKnightVid) ||
-        (card.name === "Diplomacy" && openRoadEdges.length > 0 && !!selectedDipEid)))}
+        card.name === "Intrigue" ||
+        card.name === "Treason" ||
+        card.name === "Diplomacy"))}
     {#if card.name === "Alchemy" && alchemyLateMessage && !canPlayNow}
       <p id="alchemy-late-message" class="inline-status" role="status" aria-live="polite">
         Use Alchemy before rolling the dice next turn.
@@ -672,5 +486,22 @@
     padding: 0.4rem 0.75rem;
     font-size: 0.82rem;
     font-weight: 700;
+  }
+
+  .board-select-btn {
+    background: #3a5e1e;
+    color: #f5c842;
+    border: 1px solid #6dbf6d;
+    border-radius: 7px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.79rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 0.6rem;
+    width: 100%;
+  }
+
+  .board-select-btn:hover {
+    background: #4a7a28;
   }
 </style>

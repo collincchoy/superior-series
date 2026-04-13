@@ -339,11 +339,11 @@ class CatanStore {
       this.roomCode = await this.net.hostGame("player1");
       this.setConnectionStatus("connected", "Room created");
       this.screen = "waiting";
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.net = null;
       this.setConnectionStatus(
         "disconnected",
-        e?.message ?? "Failed to host",
+        (e instanceof Error ? e.message : String(e)) ?? "Failed to host",
         true,
       );
       this.setLobbyStatus(`Failed: ${e?.message ?? "unknown error"}`, "error");
@@ -419,11 +419,11 @@ class CatanStore {
     try {
       await this.net.joinGame(code, name, savedPid ?? undefined);
       this.setConnectionStatus("connected", "Connected to host");
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.net = null;
       this.setConnectionStatus(
         "disconnected",
-        e?.message ?? "connection error",
+        (e instanceof Error ? e.message : String(e)) ?? "Failed to join",
         true,
       );
       this.setLobbyStatus(

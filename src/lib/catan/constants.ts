@@ -85,8 +85,8 @@ export const HARBOR_SETUPS: HarborSetup[] = [
 
 // ─── Progress Card Decks ───────────────────────────────────────────────────────
 
-function repeat<T>(val: T, count: number): T[] {
-  return Array.from({ length: count }, () => ({ ...(val as any) }));
+function repeat<T extends object>(val: T, count: number): T[] {
+  return Array.from({ length: count }, () => ({ ...val }));
 }
 
 function card(
@@ -94,7 +94,7 @@ function card(
   track: ImprovementTrack,
   isVP = false,
 ): ProgressCard {
-  return { name: name as any, track, isVP };
+  return { name: name as ProgressCardName, track, isVP };
 }
 
 export const SCIENCE_DECK: ProgressCard[] = [

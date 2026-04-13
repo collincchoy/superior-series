@@ -15,6 +15,27 @@ import { applyAction } from "./game.js";
 import { chooseBotAction } from "./ai.js";
 import { getActingPlayerIds } from "./turnActors.js";
 
+// ─── PeerJS Interface Definitions ──────────────────────────────────────────────
+
+interface DataConnection {
+  on(event: string, callback: (...args: unknown[]) => void): void;
+  send(data: unknown): void;
+  close(): void;
+}
+
+interface PeerInstance {
+  id: string;
+  on(event: "open", callback: (id: string) => void): void;
+  on(event: "error", callback: (err: Error) => void): void;
+  on(event: "connection", callback: (conn: DataConnection) => void): void;
+  connect(peerId: string): DataConnection;
+  destroy(): void;
+}
+
+interface PeerConstructor {
+  new (): PeerInstance;
+}
+
 export type NetMessage =
   | { type: "join"; name: string; pid?: PlayerId } // pid present on reconnect
   | { type: "welcome"; pid: PlayerId; state: GameState }
@@ -44,15 +65,15 @@ export interface NetworkCallbacks {
 // ─── Network Manager ──────────────────────────────────────────────────────────
 
 export class CatanNetwork {
-  private peer: any = null;
-  private connections: Map<PlayerId, any> = new Map();
+  private peer: PeerInstance | null = null;
+  private connections: Map<PlayerId, DataConnection> = new Map();
   private isHost = false;
   private localPid: PlayerId | null = null;
   private state: GameState | null = null;
   private callbacks: NetworkCallbacks;
-  private pendingJoins: Array<{ conn: any; name: string }> = [];
+  private pendingJoins: Array<{ conn: DataConnection; name: string }> = [];
   private lastAdminSnapshot: GameState | null = null;
-  private connToPid: WeakMap<any, PlayerId> = new WeakMap();
+  private connToPid: WeakMap<DataConnection, PlayerId> = new WeakMap();
 
   constructor(callbacks: NetworkCallbacks) {
     this.callbacks = callbacks;
@@ -77,9 +98,9 @@ export class CatanNetwork {
         this.callbacks.onConnectionStatusChange?.("connected", "Hosting room");
         resolve(id);
       });
-      this.peer.on("error", (err: any) => reject(err));
+      this.peer.on("error", (err: Error) => reject(err));
 
-      this.peer.on("connection", (conn: any) => {
+      this.peer.on("connection", (conn: DataConnection) => {
         conn.on("open", () => {
           conn.on("data", (msg: NetMessage) =>
             this.handleHostMessage(conn, msg),
@@ -88,7 +109,7 @@ export class CatanNetwork {
         conn.on("close", () => {
           this.handleHostConnectionClosed(conn, "Connection closed");
         });
-        conn.on("error", (e: any) => {
+        conn.on("error", (e: Error) => {
           console.warn("[host] conn error", e);
           this.handleHostConnectionClosed(conn, "Connection error");
         });
@@ -125,7 +146,7 @@ export class CatanNetwork {
     Object.assign(this.callbacks, callbacks);
   }
 
-  private handleHostMessage(conn: any, msg: NetMessage) {
+  private handleHostMessage(conn: DataConnection, msg: NetMessage) {
     if (msg.type === "join") {
       if (!this.state) {
         // Game not started yet — queue until initHostState is called
@@ -192,7 +213,7 @@ export class CatanNetwork {
     }
   }
 
-  private handleHostConnectionClosed(conn: any, detail: string) {
+  private handleHostConnectionClosed(conn: DataConnection, detail: string) {
     const pid = this.connToPid.get(conn);
     if (!pid) return;
     this.connToPid.delete(conn);
@@ -246,8 +267,8 @@ export class CatanNetwork {
       this.callbacks.onStateUpdate(this.state);
       this.broadcastState();
       this.runBotTurns();
-    } catch (e: any) {
-      const msg = e?.message ?? "Invalid action";
+    } catch (e: unknown) {
+      const msg = (e instanceof Error ? e.message : String(e)) ?? "Invalid action";
       console.error("[catan] applyAction failed:", msg, action);
       // Show error to host directly
       this.callbacks.onError(msg);
@@ -329,14 +350,14 @@ export class CatanNetwork {
         settled = true;
         resolve();
       };
-      const safeReject = (err: any) => {
+      const safeReject = (err: Error) => {
         if (settled) return;
         settled = true;
         reject(err);
       };
 
       this.peer = new Peer();
-      this.peer.on("error", (err: any) => {
+      this.peer.on("error", (err: Error) => {
         this.callbacks.onConnectionStatusChange?.("disconnected", err?.message ?? "Peer error");
         if (!settled) safeReject(err);
       });
@@ -373,12 +394,12 @@ export class CatanNetwork {
           conn.on("close", () => {
             this.callbacks.onConnectionStatusChange?.("disconnected", "Lost connection to host");
           });
-          conn.on("error", (err: any) => {
+          conn.on("error", (err: Error) => {
             this.callbacks.onConnectionStatusChange?.("disconnected", err?.message ?? "Host connection error");
           });
           this.connections.set("host", conn);
         });
-        conn.on("error", (err: any) => {
+        conn.on("error", (err: Error) => {
           this.callbacks.onConnectionStatusChange?.("disconnected", err?.message ?? "Failed to connect to host");
           if (!settled) safeReject(err);
         });
@@ -430,9 +451,9 @@ export class CatanNetwork {
 
 // ─── PeerJS Loader ────────────────────────────────────────────────────────────
 
-let PeerClass: any = null;
+let PeerClass: PeerConstructor | null = null;
 
-async function loadPeer(): Promise<any> {
+async function loadPeer(): Promise<PeerConstructor> {
   if (PeerClass) return PeerClass;
   // In browser: load from CDN via script tag if not already loaded
   if (typeof window !== "undefined") {

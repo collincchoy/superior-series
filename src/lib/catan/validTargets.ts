@@ -4,7 +4,7 @@
  * Pure — no DOM, no side effects.
  */
 
-import type { GameState, PlayerId, VertexId, EdgeId, HexId } from "./types.js";
+import type { GameState, PlayerId, VertexId, EdgeId, HexId, ProgressCardName } from "./types.js";
 import {
   canBuildRoad,
   canBuildSettlement,
@@ -17,6 +17,9 @@ import {
   canPlaceSettlement,
   canPlaceFreeRoad,
   canPromoteFreeKnight,
+  canMoveKnight,
+  isOnPlayerNetwork,
+  isOpenRoad,
 } from "./rules.js";
 import { buildGraph } from "./board.js";
 import { isPlayerActing } from "./turnActors.js";
@@ -30,7 +33,16 @@ export type PendingAction =
   | { type: "build_city_wall" }
   | { type: "recruit_knight" }
   | { type: "promote_knight" }
-  | { type: "activate_knight" };
+  | { type: "activate_knight" }
+  // Progress card board selections
+  | { type: "progress_select_vertex"; card: "Engineering" | "Medicine" }
+  | { type: "progress_select_knight"; card: "Intrigue" | "Treason" }
+  | { type: "progress_select_hex"; card: "Merchant" | "Taxation" }
+  | { type: "progress_select_edge"; card: "Diplomacy" }
+  | { type: "progress_select_hex_pair"; card: "Invention"; picked: HexId[] }
+  // Knight move (two-step)
+  | { type: "move_knight_from" }
+  | { type: "move_knight_to"; from: VertexId };
 
 export interface ValidTargets {
   validVertices: Set<VertexId>;
@@ -111,6 +123,109 @@ export function computeValidTargets(
             canActivateKnight(board, me, vid as VertexId)
           )
             validVertices.add(vid as VertexId);
+        });
+        break;
+      case "progress_select_vertex":
+        if (pending.card === "Engineering") {
+          // Engineering: own cities without walls
+          Object.entries(board.vertices).forEach(([vid, b]) => {
+            if (
+              b?.type === "city" &&
+              b.playerId === pid &&
+              !b.hasWall
+            )
+              validVertices.add(vid as VertexId);
+          });
+        } else if (pending.card === "Medicine") {
+          // Medicine: own settlements
+          Object.entries(board.vertices).forEach(([vid, b]) => {
+            if (
+              b?.type === "settlement" &&
+              b.playerId === pid
+            )
+              validVertices.add(vid as VertexId);
+          });
+        }
+        break;
+      case "progress_select_knight":
+        if (pending.card === "Intrigue") {
+          // Intrigue: opponent knights on player's network
+          Object.entries(board.knights).forEach(([vid, k]) => {
+            if (k?.playerId !== pid && isOnPlayerNetwork(board, graph, pid, vid as VertexId)) {
+              validVertices.add(vid as VertexId);
+            }
+          });
+        } else if (pending.card === "Treason") {
+          // Treason: any opponent knight
+          Object.entries(board.knights).forEach(([vid, k]) => {
+            if (k?.playerId !== pid) {
+              validVertices.add(vid as VertexId);
+            }
+          });
+        }
+        break;
+      case "progress_select_hex":
+        if (pending.card === "Merchant") {
+          // Merchant: hexes adjacent to own buildings
+          const myVertices = new Set<VertexId>();
+          Object.entries(board.vertices).forEach(([vid, b]) => {
+            if (b?.playerId === pid) myVertices.add(vid as VertexId);
+          });
+          Object.keys(board.hexes).forEach((hid) => {
+            const hexVertices = graph.verticesOfHex[hid as HexId] ?? [];
+            if (hexVertices.some((v) => myVertices.has(v))) {
+              validHexes.add(hid as HexId);
+            }
+          });
+        } else if (pending.card === "Taxation") {
+          // Taxation: all non-desert hexes when robber active
+          if (state.barbarian.robberActive) {
+            Object.values(board.hexes).forEach((h) => {
+              if (h.terrain !== "desert") validHexes.add(h.id);
+            });
+          }
+        }
+        break;
+      case "progress_select_edge":
+        if (pending.card === "Diplomacy") {
+          // Diplomacy: open opponent roads (roads with a disconnected endpoint)
+          Object.entries(board.edges).forEach(([eid, road]) => {
+            if (road && road.playerId !== pid && isOpenRoad(board, graph, eid as EdgeId)) {
+              validEdges.add(eid as EdgeId);
+            }
+          });
+        }
+        break;
+      case "progress_select_hex_pair":
+        if (pending.card === "Invention") {
+          // Invention: hexes with numbers not in [2,6,8,12], excluding picked
+          const picked = new Set(pending.picked);
+          const invalidNumbers = new Set([2, 6, 8, 12]);
+          Object.values(board.hexes).forEach((h) => {
+            if (
+              h.number !== null &&
+              !invalidNumbers.has(h.number) &&
+              !picked.has(h.id)
+            ) {
+              validHexes.add(h.id);
+            }
+          });
+        }
+        break;
+      case "move_knight_from":
+        // Move knight: own active knights
+        Object.entries(board.knights).forEach(([vid, k]) => {
+          if (k?.playerId === pid && k.active) {
+            validVertices.add(vid as VertexId);
+          }
+        });
+        break;
+      case "move_knight_to":
+        // Move knight: valid destinations for this knight
+        Object.keys(graph.vertices).forEach((vid) => {
+          if (canMoveKnight(board, graph, pid, pending.from, vid as VertexId)) {
+            validVertices.add(vid as VertexId);
+          }
         });
         break;
     }
