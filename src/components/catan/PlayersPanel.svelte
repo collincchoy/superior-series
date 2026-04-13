@@ -32,6 +32,10 @@
     politics: "⚔️",
   };
 
+  function openAbilityInfo(track: ImprovementTrack) {
+    store.openInfoModal({ kind: "city-improvement-ability", track });
+  }
+
   const TRACK_SORT_ORDER: Record<ImprovementTrack, number> = {
     science: 0,
     trade: 1,
@@ -136,21 +140,24 @@
         {/if}
       </span>
       <div class="improvements-row">
-        <span
-          class:zero={p.improvements.science === 0}
-          style={`color:${TRACK_COLORS.science}`}
-          >{TRACK_LABEL.science}{p.improvements.science}</span
-        >
-        <span
-          class:zero={p.improvements.trade === 0}
-          style={`color:${TRACK_COLORS.trade}`}
-          >{TRACK_LABEL.trade}{p.improvements.trade}</span
-        >
-        <span
-          class:zero={p.improvements.politics === 0}
-          style={`color:${TRACK_COLORS.politics}`}
-          >{TRACK_LABEL.politics}{p.improvements.politics}</span
-        >
+        {#each (["science", "trade", "politics"] as ImprovementTrack[]) as track}
+          {@const level = p.improvements[track]}
+          {@const isL3 = level >= 3}
+          {#if isL3}
+            <button
+              class="improve-badge level3"
+              style="color:{TRACK_COLORS[track]}"
+              title="{track} level {level} — click to view level 3 ability"
+              onclick={() => openAbilityInfo(track)}
+            >{TRACK_LABEL[track]}{level}</button>
+          {:else}
+            <span
+              class="improve-badge"
+              class:zero={level === 0}
+              style="color:{TRACK_COLORS[track]}"
+            >{TRACK_LABEL[track]}{level}</span>
+          {/if}
+        {/each}
       </div>
       <div class="cards-row">
         <span class="cards">{cards} 🃏</span>
@@ -304,6 +311,29 @@
     gap: 0.35rem;
     font-size: 0.66rem;
     font-weight: 700;
+  }
+
+  .improve-badge {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-size: 0.66rem;
+    font-weight: 700;
+    cursor: default;
+    line-height: 1;
+  }
+
+  button.improve-badge {
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 0 2px;
+  }
+
+  .improve-badge.level3 {
+    text-shadow: 0 0 5px gold, 0 0 2px gold;
+    outline: 1px solid rgba(255, 215, 0, 0.45);
+    outline-offset: 1px;
   }
 
   .zero {

@@ -14,6 +14,7 @@ import type {
   ProgressCard,
   HexId,
   TerrainType,
+  ImprovementTrack,
 } from "./types.js";
 import { createInitialState } from "./game.js";
 import type { BoardPreset } from "./game.js";
@@ -64,6 +65,10 @@ export type InfoModalState =
     }
   | {
       kind: "knight-levels";
+    }
+  | {
+      kind: "city-improvement-ability";
+      track: ImprovementTrack;
     };
 
 class CatanStore {
@@ -79,7 +84,7 @@ class CatanStore {
   hostName = $state("Player 1");
   pendingHumans = $state<string[]>([]);
   bots = $state<Array<{ name: string }>>([]);
-  boardPreset = $state<BoardPreset>("A");
+  boardPreset = $state<BoardPreset>("random");
   lobbyStatus = $state("");
   lobbyStatusKind = $state<"info" | "error">("info");
 

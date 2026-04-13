@@ -6,6 +6,7 @@
   import ProgressCardPlayView from "./ProgressCardPlayView.svelte";
   import BuildCostsView from "./BuildCostsView.svelte";
   import KnightLevelsView from "./KnightLevelsView.svelte";
+  import CityImprovementAbilityView from "./CityImprovementAbilityView.svelte";
 
   let modal = $derived(store.infoModal);
   let open = $state(false);
@@ -22,6 +23,12 @@
     store.closeInfoModal();
   }
 
+  const TRACK_LABEL: Record<string, string> = {
+    science: "Science",
+    trade: "Trade",
+    politics: "Politics",
+  };
+
   let title = $derived(
     !modal
       ? "Info"
@@ -29,7 +36,9 @@
         ? PROGRESS_CARD_INFO[modal.card.name].title
         : modal.kind === "build-costs"
           ? "Build Costs"
-          : "Knight Levels",
+          : modal.kind === "city-improvement-ability"
+            ? `${TRACK_LABEL[modal.track] ?? modal.track} — Level 3 Ability`
+            : "Knight Levels",
   );
 </script>
 
@@ -47,6 +56,8 @@
       <ProgressCardInfoView card={modal.card} helperText="" />
     {:else if modal.kind === "build-costs"}
       <BuildCostsView />
+    {:else if modal.kind === "city-improvement-ability"}
+      <CityImprovementAbilityView track={modal.track} />
     {:else}
       <KnightLevelsView />
     {/if}

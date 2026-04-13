@@ -27,6 +27,14 @@
   import { buildGraph } from "../../lib/catan/board.js";
   import { TRACK_COMMODITY, BUILD_COSTS } from "../../lib/catan/constants.js";
   import CatanPopover from "./CatanPopover.svelte";
+
+  const scienceResources: (keyof Resources)[] = [
+    "brick",
+    "lumber",
+    "ore",
+    "grain",
+    "wool",
+  ];
   let {
     gameState,
     localPid,
@@ -338,6 +346,21 @@
         Return Knight to Supply
       </button>
     {/if}
+  {:else if gameState.phase === "SCIENCE_SELECT_RESOURCE" && gameState.pendingScienceBonus?.pid === pid}
+    <div class="science-bonus">
+      <p class="action-instruction">🔬 Science level 3: take 1 free resource</p>
+      <div class="science-picks">
+        {#each scienceResources as key}
+          <button
+            class="card-pick-btn"
+            onclick={() =>
+              send({ type: "SELECT_SCIENCE_RESOURCE", pid, resource: key })}
+          >
+            {CARD_EMOJI[key]}
+          </button>
+        {/each}
+      </div>
+    </div>
   {:else if gameState.phase === "ROLL_DICE"}
     <button
       class="roll-dice-btn"
@@ -770,6 +793,36 @@
     font-size: 0.76rem;
     color: #f5c842;
     line-height: 1.4;
+  }
+
+  .science-bonus {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.2rem 0;
+  }
+
+  .science-picks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    justify-content: center;
+  }
+
+  .card-pick-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 0.4rem 0.55rem;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .card-pick-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: #2e9e4f;
   }
   .unavailable-popover {
     min-width: 165px;
