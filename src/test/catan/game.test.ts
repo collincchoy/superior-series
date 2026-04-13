@@ -16,6 +16,7 @@ import type {
   PlayerId,
   VertexId,
   EdgeId,
+  HexId,
 } from "../../lib/catan/types.js";
 
 const graph = buildGraph();
@@ -2115,5 +2116,224 @@ describe("unimplemented trade actions return state unchanged", () => {
     expect(after.version).toBe(state.version + 1);
     expect(after.players).toEqual(state.players);
     expect(after.board).toEqual(state.board);
+  });
+});
+
+// ─── TRADE_BANK validation guard ─────────────────────────────────────────────
+
+describe("TRADE_BANK validation guard", () => {
+  it("is a no-op when give amount is below the required ratio", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const before = state.players[pid]!.resources.grain;
+    // Default ratio for grain with no harbors is 4:1; giving 3 is invalid
+    const after = applyAction(state, {
+      type: "TRADE_BANK",
+      pid,
+      give: { grain: 3 },
+      get: { ore: 1 },
+    });
+    expect(after.players[pid]!.resources.grain).toBe(before);
+    expect(after.players[pid]!.resources.ore).toBe(
+      state.players[pid]!.resources.ore,
+    );
+  });
+
+  it("applies the trade when give amount meets the required ratio", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const before = state.players[pid]!.resources.grain;
+    const after = applyAction(state, {
+      type: "TRADE_BANK",
+      pid,
+      give: { grain: 4 },
+      get: { ore: 1 },
+    });
+    expect(after.players[pid]!.resources.grain).toBe(before - 4);
+    expect(after.players[pid]!.resources.ore).toBe(
+      state.players[pid]!.resources.ore + 1,
+    );
+  });
+});
+
+// ─── Science level 3 — no-production bonus ────────────────────────────────────
+
+describe("Science level 3 — no-production bonus", () => {
+  /** Find a roll value (2–12, not 7) that produces nothing for the given player. */
+  function findZeroProductionRollFor(
+    state: GameState,
+    pid: PlayerId,
+  ): number | null {
+    const playerVids = new Set(
+      Object.entries(state.board.vertices)
+        .filter(([, b]) => b?.playerId === pid)
+        .map(([v]) => v),
+    );
+    const productiveNumbers = new Set<number>();
+    for (const [hid, hex] of Object.entries(state.board.hexes)) {
+      if (hex.number === null) continue;
+      const verts = graph.verticesOfHex[hid as HexId] ?? [];
+      if (verts.some((v) => playerVids.has(v))) {
+        productiveNumbers.add(hex.number);
+      }
+    }
+    for (let n = 2; n <= 12; n++) {
+      if (n !== 7 && !productiveNumbers.has(n)) return n;
+    }
+    return null;
+  }
+
+  it("rolling a non-7 where active player gets zero production triggers SCIENCE_SELECT_RESOURCE when science >= 3", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    state = {
+      ...state,
+      phase: "ROLL_DICE",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          improvements: { ...state.players[pid]!.improvements, science: 3 },
+        },
+      },
+    };
+    const nonprodRoll = findZeroProductionRollFor(state, pid);
+    if (nonprodRoll === null) return; // pragma: skip if board leaves no zero-prod number
+    const d1 = Math.min(nonprodRoll - 1, 6);
+    const d2 = nonprodRoll - d1;
+    const after = applyAction(state, {
+      type: "ROLL_DICE",
+      pid,
+      result: [d1, d2, "politics" as const],
+    });
+    expect(after.phase).toBe("SCIENCE_SELECT_RESOURCE");
+    expect(after.pendingScienceBonus?.pid).toBe(pid);
+  });
+
+  it("rolling 7 never triggers the science L3 bonus", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    state = {
+      ...state,
+      phase: "ROLL_DICE",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          improvements: { ...state.players[pid]!.improvements, science: 3 },
+        },
+      },
+    };
+    const after = applyAction(state, {
+      type: "ROLL_DICE",
+      pid,
+      result: [3, 4, "ship" as const],
+    });
+    expect(after.phase).not.toBe("SCIENCE_SELECT_RESOURCE");
+    expect(after.pendingScienceBonus).toBeNull();
+  });
+
+  it("does not trigger science L3 bonus when science < 3", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    state = {
+      ...state,
+      phase: "ROLL_DICE",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          improvements: { ...state.players[pid]!.improvements, science: 2 },
+        },
+      },
+    };
+    const nonprodRoll = findZeroProductionRollFor(state, pid);
+    if (nonprodRoll === null) return;
+    const d1 = Math.min(nonprodRoll - 1, 6);
+    const d2 = nonprodRoll - d1;
+    const after = applyAction(state, {
+      type: "ROLL_DICE",
+      pid,
+      result: [d1, d2, "politics" as const],
+    });
+    expect(after.phase).not.toBe("SCIENCE_SELECT_RESOURCE");
+    expect(after.pendingScienceBonus).toBeNull();
+  });
+
+  it("does not trigger science L3 bonus when the player already gained production", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    state = {
+      ...state,
+      phase: "ROLL_DICE",
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          improvements: { ...state.players[pid]!.improvements, science: 3 },
+        },
+      },
+    };
+    // Find a productive roll for this player
+    const { hexNum } = findSettlementAndHex(state, pid);
+    if (hexNum === 0) return;
+    const d1 = Math.min(hexNum - 1, 6);
+    const d2 = hexNum - d1;
+    const after = applyAction(state, {
+      type: "ROLL_DICE",
+      pid,
+      result: [d1, d2, "politics" as const],
+    });
+    expect(after.phase).not.toBe("SCIENCE_SELECT_RESOURCE");
+    expect(after.pendingScienceBonus).toBeNull();
+  });
+
+  it("SELECT_SCIENCE_RESOURCE gives 1 resource and transitions to ACTION", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    state = {
+      ...state,
+      phase: "SCIENCE_SELECT_RESOURCE" as const,
+      pendingScienceBonus: { pid },
+    };
+    const before = state.players[pid]!.resources.ore;
+    const after = applyAction(state, {
+      type: "SELECT_SCIENCE_RESOURCE",
+      pid,
+      resource: "ore",
+    });
+    expect(after.players[pid]!.resources.ore).toBe(before + 1);
+    expect(after.phase).toBe("ACTION");
+    expect(after.pendingScienceBonus).toBeNull();
+  });
+
+  it("SELECT_SCIENCE_RESOURCE transitions to RESOLVE_PROGRESS_DRAW when one is pending", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+    state = {
+      ...state,
+      phase: "SCIENCE_SELECT_RESOURCE" as const,
+      pendingScienceBonus: { pid },
+      pendingProgressDraw: { remaining: [pid], track: "trade" },
+    };
+    const after = applyAction(state, {
+      type: "SELECT_SCIENCE_RESOURCE",
+      pid,
+      resource: "grain",
+    });
+    expect(after.phase).toBe("RESOLVE_PROGRESS_DRAW");
+    expect(after.pendingScienceBonus).toBeNull();
+  });
+
+  it("SELECT_SCIENCE_RESOURCE is ignored when phase is not SCIENCE_SELECT_RESOURCE", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const before = state.players[pid]!.resources.ore;
+    const after = applyAction(state, {
+      type: "SELECT_SCIENCE_RESOURCE",
+      pid,
+      resource: "ore",
+    });
+    expect(after.players[pid]!.resources.ore).toBe(before);
   });
 });

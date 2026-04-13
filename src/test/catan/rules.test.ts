@@ -26,6 +26,7 @@ import {
   canImproveCity,
   canDrawProgress,
   canTradeBank,
+  canPromoteFreeKnight,
 } from "../../lib/catan/rules.js";
 
 // ─── Test setup helpers ───────────────────────────────────────────────────────
@@ -731,5 +732,122 @@ describe("canDrawProgress", () => {
       progressCards: [vpCard, nonVpCard, nonVpCard, nonVpCard, nonVpCard],
     });
     expect(canDrawProgress(player)).toBe(false);
+  });
+});
+
+// ─── canPromoteKnight — politics level 3 gate ────────────────────────────────
+
+describe("canPromoteKnight — politics level 3 gate", () => {
+  it("allows promoting strength-1 to strength-2 regardless of politics level", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      resources: { ...emptyResources(), ore: 1, wool: 1 },
+      improvements: { science: 0, trade: 0, politics: 0 },
+    });
+    const vid = getFirstVertex();
+    board.knights[vid] = { playerId: "p1", strength: 1, active: false };
+    expect(canPromoteKnight(board, player, vid)).toBe(true);
+  });
+
+  it("rejects promoting strength-2 to strength-3 when politics < 3", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      resources: { ...emptyResources(), ore: 1, wool: 1 },
+      improvements: { science: 0, trade: 0, politics: 2 },
+    });
+    const vid = getFirstVertex();
+    board.knights[vid] = { playerId: "p1", strength: 2, active: false };
+    expect(canPromoteKnight(board, player, vid)).toBe(false);
+  });
+
+  it("allows promoting strength-2 to strength-3 when politics >= 3", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      resources: { ...emptyResources(), ore: 1, wool: 1 },
+      improvements: { science: 0, trade: 0, politics: 3 },
+    });
+    const vid = getFirstVertex();
+    board.knights[vid] = { playerId: "p1", strength: 2, active: false };
+    expect(canPromoteKnight(board, player, vid)).toBe(true);
+  });
+});
+
+describe("canPromoteFreeKnight — politics level 3 gate", () => {
+  it("rejects strength-2 promotion when politics < 3", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      improvements: { science: 0, trade: 0, politics: 2 },
+    });
+    const vid = getFirstVertex();
+    board.knights[vid] = { playerId: "p1", strength: 2, active: false };
+    expect(canPromoteFreeKnight(board, player, vid)).toBe(false);
+  });
+
+  it("allows strength-2 promotion when politics >= 3", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      improvements: { science: 0, trade: 0, politics: 3 },
+    });
+    const vid = getFirstVertex();
+    board.knights[vid] = { playerId: "p1", strength: 2, active: false };
+    expect(canPromoteFreeKnight(board, player, vid)).toBe(true);
+  });
+});
+
+// ─── canTradeBank — Trade level 3 ability ────────────────────────────────────
+
+describe("canTradeBank — Trade level 3: 2 identical commodities", () => {
+  it("allows trading 2 identical commodities for 1 resource when trade >= 3", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      resources: { ...emptyResources(), cloth: 2 },
+      improvements: { science: 0, trade: 3, politics: 0 },
+    });
+    expect(canTradeBank(player, board, { cloth: 2 }, { ore: 1 })).toBe(true);
+  });
+
+  it("allows trading 2 identical commodities for 1 commodity when trade >= 3", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      resources: { ...emptyResources(), coin: 2 },
+      improvements: { science: 0, trade: 3, politics: 0 },
+    });
+    expect(canTradeBank(player, board, { coin: 2 }, { cloth: 1 })).toBe(true);
+  });
+
+  it("rejects 2-commodity trade when trade < 3", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      resources: { ...emptyResources(), cloth: 2 },
+      improvements: { science: 0, trade: 2, politics: 0 },
+    });
+    expect(canTradeBank(player, board, { cloth: 2 }, { ore: 1 })).toBe(false);
+  });
+
+  it("rejects when giving only 1 commodity (not 2)", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      resources: { ...emptyResources(), cloth: 1 },
+      improvements: { science: 0, trade: 3, politics: 0 },
+    });
+    expect(canTradeBank(player, board, { cloth: 1 }, { ore: 1 })).toBe(false);
+  });
+
+  it("does not apply the 2:1 ability to basic resources (e.g. ore)", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      resources: { ...emptyResources(), ore: 2 },
+      improvements: { science: 0, trade: 3, politics: 0 },
+    });
+    expect(canTradeBank(player, board, { ore: 2 }, { brick: 1 })).toBe(false);
+  });
+
+  it("rejects when player lacks sufficient commodities", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      resources: { ...emptyResources(), cloth: 1 },
+      improvements: { science: 0, trade: 3, politics: 0 },
+    });
+    expect(canTradeBank(player, board, { cloth: 2 }, { ore: 1 })).toBe(false);
   });
 });
