@@ -53,7 +53,6 @@ export type InfoModalState =
       kind: "progress";
       card: ProgressCard;
       canPlayNow: boolean;
-      canAutoPlay: boolean;
       helperText: string;
     }
   | {

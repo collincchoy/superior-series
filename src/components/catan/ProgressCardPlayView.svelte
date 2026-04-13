@@ -12,9 +12,11 @@
     Resources,
     VertexId,
   } from "../../lib/catan/types.js";
-  import { buildGraph } from "../../lib/catan/board.js";
   import { computeVP } from "../../lib/catan/game.js";
-  import { isOnPlayerNetwork, isOpenRoad } from "../../lib/catan/rules.js";
+  import {
+    computeValidTargets,
+    type PendingAction,
+  } from "../../lib/catan/validTargets.js";
 
   let {
     card,
@@ -27,8 +29,6 @@
     helperText: string;
     onClose: () => void;
   } = $props();
-
-  const graph = buildGraph();
 
   const RESOURCE_OPTIONS: ResourceType[] = [
     "brick",
@@ -69,6 +69,16 @@
   let gs = $derived(store.gameState);
   let myPid = $derived(store.localPid);
 
+  const targetCount = (pending: PendingAction): number => {
+    if (!gs || !myPid) return 0;
+    const targets = computeValidTargets(gs, myPid, pending);
+    return (
+      targets.validVertices.size +
+      targets.validEdges.size +
+      targets.validHexes.size
+    );
+  };
+
 
 
   let opponents = $derived(
@@ -80,6 +90,113 @@
       ? opponents.filter((p) => computeVP(gs, p) >= computeVP(gs, myPid))
       : ([] as PlayerId[]),
   );
+
+  let canUseState = $derived.by(() => {
+    if (!canPlayNow) {
+      return {
+        enabled: false,
+        reason:
+          card.name === "Alchemy"
+            ? "Alchemy can only be used before rolling."
+            : "This card can only be used during your action phase.",
+      };
+    }
+
+    if (!gs || !myPid) {
+      return { enabled: false, reason: "Waiting for game state." };
+    }
+
+    const me = gs.players[myPid]!;
+
+    switch (card.name) {
+      case "Medicine": {
+        if ((me.resources.grain ?? 0) < 1 || (me.resources.ore ?? 0) < 2) {
+          return { enabled: false, reason: "Need 1 grain and 2 ore." };
+        }
+        if (me.supply.cities <= 0) {
+          return { enabled: false, reason: "No cities left in your supply." };
+        }
+        return targetCount({ type: "progress_select_vertex", card: "Medicine" }) >
+          0
+          ? { enabled: true, reason: "" }
+          : { enabled: false, reason: "No valid settlement to upgrade." };
+      }
+      case "Engineering": {
+        if (me.supply.cityWalls <= 0) {
+          return {
+            enabled: false,
+            reason: "No city walls left in your supply.",
+          };
+        }
+        return targetCount({ type: "progress_select_vertex", card: "Engineering" }) >
+          0
+          ? { enabled: true, reason: "" }
+          : { enabled: false, reason: "No valid city for a wall." };
+      }
+      case "Merchant":
+        return targetCount({ type: "progress_select_hex", card: "Merchant" }) > 0
+          ? { enabled: true, reason: "" }
+          : {
+              enabled: false,
+              reason: "No adjacent land hex available for Merchant.",
+            };
+      case "Invention":
+        return targetCount({
+          type: "progress_select_hex_pair",
+          card: "Invention",
+          picked: [],
+        }) >= 2
+          ? { enabled: true, reason: "" }
+          : {
+              enabled: false,
+              reason: "No legal pair of number hexes to swap.",
+            };
+      case "Taxation":
+        return gs.barbarian.robberActive
+          ? { enabled: true, reason: "" }
+          : {
+              enabled: false,
+              reason:
+                "Taxation requires the robber to be active after the first barbarian attack.",
+            };
+      case "Diplomacy":
+        return targetCount({ type: "progress_select_edge", card: "Diplomacy" }) > 0
+          ? { enabled: true, reason: "" }
+          : { enabled: false, reason: "No open road to target." };
+      case "Intrigue":
+        return targetCount({ type: "progress_select_knight", card: "Intrigue" }) > 0
+          ? { enabled: true, reason: "" }
+          : { enabled: false, reason: "No valid enemy knight on your network." };
+      case "Treason":
+        return targetCount({ type: "progress_select_knight", card: "Treason" }) > 0
+          ? { enabled: true, reason: "" }
+          : { enabled: false, reason: "No enemy knight to remove." };
+      case "CommercialHarbor":
+        return (me.resources[selectedComHarborResource] ?? 0) > 0
+          ? { enabled: true, reason: "" }
+          : { enabled: false, reason: "You must offer a resource you have." };
+      case "Espionage": {
+        const hasStealable = opponents.some(
+          (p) => (gs.players[p]?.progressCards ?? []).filter((c) => !c.isVP).length > 0,
+        );
+        return hasStealable
+          ? { enabled: true, reason: "" }
+          : { enabled: false, reason: "No opponent has a stealable progress card." };
+      }
+      case "GuildDues": {
+        const hasEligible = opponentsGdEligible.some((p) => {
+          const resources = gs.players[p]?.resources;
+          if (!resources) return false;
+          return Object.values(resources).some((v) => (v ?? 0) > 0);
+        });
+        return hasEligible
+          ? { enabled: true, reason: "" }
+          : { enabled: false, reason: "No eligible opponent with cards to take." };
+      }
+      default:
+        return { enabled: true, reason: "" };
+    }
+  });
 
 
 
@@ -117,6 +234,8 @@
   function playProgress() {
     const pid = store.localPid;
     if (!pid) return;
+
+    if (!canUseState.enabled) return;
 
     if (!canPlayNow) {
       if (card.name === "Alchemy") alchemyLateMessage = true;
@@ -214,7 +333,7 @@
   }
 </script>
 
-<p class="helper">{helperText}</p>
+<p class="helper">{canUseState.enabled ? helperText : canUseState.reason}</p>
 
 {#if canPlayNow && card.name === "ResourceMonopoly"}
   <div class="picker-row">
@@ -273,25 +392,29 @@
   </div>
 {:else if canPlayNow && card.name === "Medicine"}
   <p class="helper">Click a settlement on the board to upgrade it.</p>
-  <button class="board-select-btn" onclick={() => {
+  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
+    if (!canUseState.enabled) return;
     store.setPendingAction({ type: "progress_select_vertex", card: "Medicine" });
     onClose();
   }}>Select on board</button>
 {:else if canPlayNow && card.name === "Engineering"}
   <p class="helper">Click a city on the board to add a wall.</p>
-  <button class="board-select-btn" onclick={() => {
+  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
+    if (!canUseState.enabled) return;
     store.setPendingAction({ type: "progress_select_vertex", card: "Engineering" });
     onClose();
   }}>Select on board</button>
 {:else if canPlayNow && card.name === "Merchant"}
   <p class="helper">Click a land hex adjacent to your buildings to place the merchant.</p>
-  <button class="board-select-btn" onclick={() => {
+  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
+    if (!canUseState.enabled) return;
     store.setPendingAction({ type: "progress_select_hex", card: "Merchant" });
     onClose();
   }}>Select on board</button>
 {:else if canPlayNow && card.name === "Invention"}
   <p class="helper">Click two number hexes (not 2, 6, 8, or 12) to swap their values.</p>
-  <button class="board-select-btn" onclick={() => {
+  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
+    if (!canUseState.enabled) return;
     store.setPendingAction({ type: "progress_select_hex_pair", card: "Invention", picked: [] });
     onClose();
   }}>Select on board</button>
@@ -300,7 +423,8 @@
     <p class="helper" style="color:#f87171">Taxation requires the robber to be active (after first barbarian attack).</p>
   {:else}
     <p class="helper">Click a hex to move the robber there.</p>
-    <button class="board-select-btn" onclick={() => {
+    <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
+      if (!canUseState.enabled) return;
       store.setPendingAction({ type: "progress_select_hex", card: "Taxation" });
       onClose();
     }}>Select on board</button>
@@ -366,19 +490,22 @@
   {/if}
 {:else if canPlayNow && card.name === "Intrigue"}
   <p class="helper">Click an enemy knight on your network to displace it.</p>
-  <button class="board-select-btn" onclick={() => {
+  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
+    if (!canUseState.enabled) return;
     store.setPendingAction({ type: "progress_select_knight", card: "Intrigue" });
     onClose();
   }}>Select on board</button>
 {:else if canPlayNow && card.name === "Treason"}
   <p class="helper">Click an enemy knight to remove it.</p>
-  <button class="board-select-btn" onclick={() => {
+  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
+    if (!canUseState.enabled) return;
     store.setPendingAction({ type: "progress_select_knight", card: "Treason" });
     onClose();
   }}>Select on board</button>
 {:else if canPlayNow && card.name === "Diplomacy"}
   <p class="helper">Click an open enemy road to remove it.</p>
-  <button class="board-select-btn" onclick={() => {
+  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
+    if (!canUseState.enabled) return;
     store.setPendingAction({ type: "progress_select_edge", card: "Diplomacy" });
     onClose();
   }}>Select on board</button>
@@ -414,6 +541,7 @@
       class="confirm"
       type="button"
       onclick={playProgress}
+      disabled={!canUseState.enabled}
       aria-describedby={card.name === "Alchemy" && alchemyLateMessage && !canPlayNow
         ? "alchemy-late-message"
         : undefined}
@@ -503,5 +631,11 @@
 
   .board-select-btn:hover {
     background: #4a7a28;
+  }
+
+  .board-select-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: grayscale(0.2);
   }
 </style>

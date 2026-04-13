@@ -389,13 +389,6 @@ export const PROGRESS_CARD_INFO: Record<ProgressCardName, ProgressCardInfo> = {
   },
 };
 
-export const PROGRESS_AUTO_PLAY_CARDS = new Set<ProgressCardName>([
-  "Irrigation",
-  "Mining",
-  "Sabotage",
-  "Encouragement",
-]);
-
 export const PROGRESS_CARD_BY_NAME: Record<ProgressCardName, ProgressCard> = {
   Alchemy: { name: "Alchemy", track: "science", isVP: false },
   Crane: { name: "Crane", track: "science", isVP: false },

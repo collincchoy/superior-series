@@ -7,7 +7,6 @@
   } from "../../lib/catan/types.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import {
-    PROGRESS_AUTO_PLAY_CARDS,
     PROGRESS_CARD_INFO,
   } from "../../lib/catan/constants.js";
   import { CARD_EMOJI, RESOURCE_KEYS } from "./cardEmoji.js";
@@ -49,21 +48,8 @@
     return phase === "ACTION";
   }
 
-  function playCard(cardName: ProgressCardName) {
-    store.sendAction({
-      type: "PLAY_PROGRESS",
-      pid: me.id,
-      card: cardName,
-    });
-  }
-
   function onCardTap(cardName: ProgressCardName, isVP: boolean, track: ImprovementTrack) {
     const canPlay = canPlayNow(cardName, isVP);
-    const canAutoPlay = canPlay && PROGRESS_AUTO_PLAY_CARDS.has(cardName);
-    if (canAutoPlay) {
-      playCard(cardName);
-      return;
-    }
     const info = PROGRESS_CARD_INFO[cardName];
     const CARD_HELPER: Partial<Record<ProgressCardName, string>> = {
       RoadBuilding: "Click 'Use Card' then place up to 2 roads free on the board.",
@@ -90,7 +76,6 @@
       kind: "progress",
       card: { name: cardName, track, isVP },
       canPlayNow: canPlay,
-      canAutoPlay,
       helperText,
     });
   }
