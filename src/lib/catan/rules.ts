@@ -330,6 +330,25 @@ export function canDisplaceKnight(
   return canReachVertex(board, graph, playerId, from, target);
 }
 
+export function canChaseRobber(
+  board: BoardState,
+  graph: CatanGraph,
+  playerId: PlayerId,
+  knightVid: VertexId,
+): boolean {
+  // Robber must be active and placed on a hex
+  const robberHex = Object.values(board.hexes).find((h) => h.hasRobber);
+  if (!robberHex) return false;
+
+  // Knight must exist, be owned, and be active
+  const knight = board.knights[knightVid];
+  if (!knight || knight.playerId !== playerId || !knight.active) return false;
+
+  // Knight vertex must be adjacent to the robber hex
+  const hexVertices = graph.verticesOfHex[robberHex.id] ?? [];
+  return hexVertices.includes(knightVid);
+}
+
 // ─── City Improvements ────────────────────────────────────────────────────────
 
 export function canImproveCity(

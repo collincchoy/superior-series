@@ -22,6 +22,7 @@ import {
   canActivateKnight,
   canMoveKnight,
   canDisplaceKnight,
+  canChaseRobber,
   canImproveCity,
   canDrawProgress,
   canTradeBank,
@@ -496,6 +497,91 @@ describe("canDisplaceKnight", () => {
   });
 });
 
+// ─── canChaseRobber ───────────────────────────────────────────────────────────
+
+describe("canChaseRobber", () => {
+  it("succeeds when own active knight is adjacent to the robber hex", () => {
+    const board = makeBoard();
+    const vertices = Object.keys(graph.vertices) as VertexId[];
+    const vid = vertices[0]!;
+
+    // Find a hex adjacent to vid
+    const adjacentHexId = graph.hexesOfVertex[vid]?.[0];
+    if (!adjacentHexId) throw new Error("no hex adjacent to vertex");
+
+    board.hexes[adjacentHexId] = {
+      ...board.hexes[adjacentHexId]!,
+      hasRobber: true,
+    };
+    board.knights[vid] = { playerId: "p1", strength: 1, active: true };
+
+    expect(canChaseRobber(board, graph, "p1", vid)).toBe(true);
+  });
+
+  it("fails when knight is not adjacent to the robber hex", () => {
+    const board = makeBoard();
+    const vertices = Object.keys(graph.vertices) as VertexId[];
+    const knightVid = vertices[0]!;
+
+    // Place robber on a hex NOT adjacent to knightVid
+    const knightHexes = new Set(graph.hexesOfVertex[knightVid] ?? []);
+    const nonAdjacentHex = Object.keys(board.hexes).find(
+      (hid) => !knightHexes.has(hid as any),
+    );
+    if (!nonAdjacentHex) throw new Error("no non-adjacent hex found");
+
+    board.hexes[nonAdjacentHex] = {
+      ...board.hexes[nonAdjacentHex]!,
+      hasRobber: true,
+    };
+    board.knights[knightVid] = { playerId: "p1", strength: 1, active: true };
+
+    expect(canChaseRobber(board, graph, "p1", knightVid)).toBe(false);
+  });
+
+  it("fails when knight is inactive", () => {
+    const board = makeBoard();
+    const vertices = Object.keys(graph.vertices) as VertexId[];
+    const vid = vertices[0]!;
+    const adjacentHexId = graph.hexesOfVertex[vid]?.[0];
+    if (!adjacentHexId) throw new Error("no hex adjacent to vertex");
+
+    board.hexes[adjacentHexId] = {
+      ...board.hexes[adjacentHexId]!,
+      hasRobber: true,
+    };
+    board.knights[vid] = { playerId: "p1", strength: 1, active: false };
+
+    expect(canChaseRobber(board, graph, "p1", vid)).toBe(false);
+  });
+
+  it("fails when robber is not on the board", () => {
+    const board = makeBoard();
+    const vertices = Object.keys(graph.vertices) as VertexId[];
+    const vid = vertices[0]!;
+    board.knights[vid] = { playerId: "p1", strength: 1, active: true };
+    // No hex has hasRobber: true in makeBoard()
+
+    expect(canChaseRobber(board, graph, "p1", vid)).toBe(false);
+  });
+
+  it("fails when knight belongs to a different player", () => {
+    const board = makeBoard();
+    const vertices = Object.keys(graph.vertices) as VertexId[];
+    const vid = vertices[0]!;
+    const adjacentHexId = graph.hexesOfVertex[vid]?.[0];
+    if (!adjacentHexId) throw new Error("no hex adjacent to vertex");
+
+    board.hexes[adjacentHexId] = {
+      ...board.hexes[adjacentHexId]!,
+      hasRobber: true,
+    };
+    board.knights[vid] = { playerId: "p2", strength: 1, active: true };
+
+    expect(canChaseRobber(board, graph, "p1", vid)).toBe(false);
+  });
+});
+
 // ─── canImproveCity ───────────────────────────────────────────────────────────
 
 describe("canImproveCity", () => {
@@ -569,9 +655,7 @@ describe("canTradeBank", () => {
     board.merchantHex = merchantHex;
     board.merchantOwner = "p1";
 
-    expect(
-      canTradeBank(player, board, { lumber: 2 }, { brick: 1 }),
-    ).toBe(true);
+    expect(canTradeBank(player, board, { lumber: 2 }, { brick: 1 })).toBe(true);
   });
 
   it("does not allow another player to use the merchant trade bonus", () => {
@@ -587,9 +671,9 @@ describe("canTradeBank", () => {
     board.merchantHex = merchantHex;
     board.merchantOwner = "p1";
 
-    expect(
-      canTradeBank(player, board, { lumber: 2 }, { brick: 1 }),
-    ).toBe(false);
+    expect(canTradeBank(player, board, { lumber: 2 }, { brick: 1 })).toBe(
+      false,
+    );
   });
 
   it("only applies the merchant bonus to the resource on the merchant hex", () => {
@@ -605,9 +689,7 @@ describe("canTradeBank", () => {
     board.merchantHex = merchantHex;
     board.merchantOwner = "p1";
 
-    expect(canTradeBank(player, board, { wool: 2 }, { brick: 1 })).toBe(
-      false,
-    );
+    expect(canTradeBank(player, board, { wool: 2 }, { brick: 1 })).toBe(false);
   });
 });
 

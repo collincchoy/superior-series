@@ -20,6 +20,8 @@
     canActivateKnight,
     canImproveCity,
     canRelocateDisplacedKnight,
+    canDisplaceKnight,
+    canChaseRobber,
     playerHasCity,
   } from "../../lib/catan/rules.js";
   import { buildGraph } from "../../lib/catan/board.js";
@@ -66,6 +68,7 @@
   let board = $derived(gameState.board);
   let me = $derived(gameState.players[localPid]!);
   let pid = $derived(localPid);
+  let activatedThisTurn = $derived(new Set(gameState.knightsActivatedThisTurn));
 
   let canRoad = $derived(
     Object.keys(graph.edges).some((eid) =>
@@ -108,6 +111,38 @@
     Object.entries(board.knights).some(
       ([vid, k]) => k?.playerId === pid && canActivateAt(vid as VertexId),
     ),
+  );
+  let canMove = $derived(
+    Object.entries(board.knights).some(
+      ([vid, k]) =>
+        k?.playerId === pid &&
+        k.active &&
+        !activatedThisTurn.has(vid as VertexId),
+    ),
+  );
+  let canDisplace = $derived(
+    Object.entries(board.knights).some(([fromVid, k]) => {
+      if (
+        !k ||
+        k.playerId !== pid ||
+        !k.active ||
+        activatedThisTurn.has(fromVid as VertexId)
+      ) return false;
+      return Object.entries(board.knights).some(
+        ([toVid, t]) =>
+          t !== null &&
+          t.playerId !== pid &&
+          canDisplaceKnight(board, graph, pid, fromVid as VertexId, toVid as VertexId),
+      );
+    }),
+  );
+  let canChaseRobberNow = $derived(
+    gameState.barbarian.robberActive &&
+      Object.entries(board.knights).some(([vid, k]) =>
+        k?.playerId === pid &&
+        !activatedThisTurn.has(vid as VertexId) &&
+        canChaseRobber(board, graph, pid, vid as VertexId),
+      ),
   );
   let canRelocateDisplaced = $derived.by(() =>
     Object.keys(graph.vertices).some((vid) =>
@@ -206,6 +241,34 @@
     const mine = Object.entries(board.knights).filter(([, k]) => k?.playerId === pid);
     if (mine.length === 0) return "No knights on the board.";
     if (mine.every(([, k]) => k!.active)) return "All of your knights are already active.";
+  }
+  function moveKnightReason(): string | undefined {
+    const mine = Object.entries(board.knights).filter(([, k]) => k?.playerId === pid);
+    if (mine.length === 0) return "No knights on the board.";
+    if (mine.every(([, k]) => !k!.active)) return "No active knights to move (activate one first).";
+    if (mine.some(([vid, k]) => k!.active && activatedThisTurn.has(vid as VertexId))) {
+      return "A knight activated this turn cannot take a knight action until next turn.";
+    }
+  }
+  function displaceKnightReason(): string | undefined {
+    const active = Object.entries(board.knights).filter(
+      ([, k]) => k?.playerId === pid && k.active,
+    );
+    if (active.length === 0) return "No active knights to attack with.";
+    if (active.some(([vid]) => activatedThisTurn.has(vid as VertexId))) {
+      return "A knight activated this turn cannot take a knight action until next turn.";
+    }
+    return "No weaker opponent knights are reachable from your knights.";
+  }
+  function chaseRobberReason(): string | undefined {
+    const active = Object.entries(board.knights).filter(
+      ([, k]) => k?.playerId === pid && k.active,
+    );
+    if (active.length === 0) return "No active knights. Activate a knight adjacent to the robber.";
+    if (active.some(([vid]) => activatedThisTurn.has(vid as VertexId))) {
+      return "A knight activated this turn cannot take a knight action until next turn.";
+    }
+    return "No active knight is adjacent to the robber.";
   }
   function improveCost(track: ImprovementTrack): Partial<Resources> {
     const level = me.improvements[track];
@@ -452,8 +515,81 @@
           >🛡️ Activate</button
           >
         {/if}
+
+        {#if pendingAction?.type === "move_knight_from" || pendingAction?.type === "move_knight_to"}
+          <button class="action-btn active" onclick={() => pending(null)}
+            >Cancel Move</button
+          >
+        {:else}
+          <button
+            class="action-btn"
+            class:disabled={!canMove}
+            aria-disabled={!canMove}
+            onclick={(e) =>
+              canMove
+                ? pending({ type: "move_knight_from" })
+                : showUnavailablePopover(
+                    e,
+                    "🚶 Move Knight",
+                    {},
+                    moveKnightReason(),
+                  )}
+          >🚶 Move</button
+          >
+        {/if}
+
+        {#if pendingAction?.type === "displace_knight_from" || pendingAction?.type === "displace_knight_to"}
+          <button class="action-btn active" onclick={() => pending(null)}
+            >Cancel Displace</button
+          >
+        {:else}
+          <button
+            class="action-btn"
+            class:disabled={!canDisplace}
+            aria-disabled={!canDisplace}
+            onclick={(e) =>
+              canDisplace
+                ? pending({ type: "displace_knight_from" })
+                : showUnavailablePopover(
+                    e,
+                    "⚔️ Displace Knight",
+                    {},
+                    displaceKnightReason(),
+                  )}
+          >⚔️ Displace</button
+          >
+        {/if}
       </div>
     </div>
+
+    {#if gameState.barbarian.robberActive}
+      <div class="action-group">
+        <span class="group-label">Robber</span>
+        <div class="group-btns">
+          {#if pendingAction?.type === "chase_robber_from" || pendingAction?.type === "chase_robber_hex"}
+            <button class="action-btn active" onclick={() => pending(null)}
+              >Cancel Chase</button
+            >
+          {:else}
+            <button
+              class="action-btn"
+              class:disabled={!canChaseRobberNow}
+              aria-disabled={!canChaseRobberNow}
+              onclick={(e) =>
+                canChaseRobberNow
+                  ? pending({ type: "chase_robber_from" })
+                  : showUnavailablePopover(
+                      e,
+                      "🏃 Chase Robber",
+                      {},
+                      chaseRobberReason(),
+                    )}
+            >🏃 Chase Robber</button
+            >
+          {/if}
+        </div>
+      </div>
+    {/if}
 
     <div class="action-group">
       <span class="group-label">Improve</span>

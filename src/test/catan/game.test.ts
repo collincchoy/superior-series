@@ -1285,6 +1285,132 @@ describe("displaced knight resolution", () => {
   });
 });
 
+describe("knight activation timing", () => {
+  it("does not allow a knight activated this turn to move", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const from = Object.keys(graph.vertices)[0] as VertexId;
+    const edge = (graph.edgesOfVertex[from] ?? [])[0]!;
+    const [vA, vB] = graph.verticesOfEdge[edge]!;
+    const to = (vA === from ? vB : vA)!;
+
+    const activatedState: GameState = {
+      ...state,
+      phase: "ACTION",
+      board: {
+        ...state.board,
+        edges: { ...state.board.edges, [edge]: { playerId: pid } },
+        knights: {
+          ...state.board.knights,
+          [from]: { playerId: pid, strength: 1, active: true },
+        },
+      },
+      knightsActivatedThisTurn: [from],
+    };
+
+    const next = applyAction(activatedState, {
+      type: "MOVE_KNIGHT",
+      pid,
+      from,
+      to,
+    });
+
+    expect(next.board.knights[from]?.playerId).toBe(pid);
+    expect(next.board.knights[to]).toBeNull();
+  });
+
+  it("does not allow a knight activated this turn to displace", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const from = Object.keys(graph.vertices)[0] as VertexId;
+    const edge = (graph.edgesOfVertex[from] ?? [])[0]!;
+    const [vA, vB] = graph.verticesOfEdge[edge]!;
+    const target = (vA === from ? vB : vA)!;
+
+    const activatedState: GameState = {
+      ...state,
+      phase: "ACTION",
+      board: {
+        ...state.board,
+        edges: { ...state.board.edges, [edge]: { playerId: pid } },
+        knights: {
+          ...state.board.knights,
+          [from]: { playerId: pid, strength: 2, active: true },
+          [target]: { playerId: "p2", strength: 1, active: false },
+        },
+      },
+      knightsActivatedThisTurn: [from],
+    };
+
+    const next = applyAction(activatedState, {
+      type: "DISPLACE_KNIGHT",
+      pid,
+      from,
+      target,
+    });
+
+    expect(next.phase).toBe("ACTION");
+    expect(next.pendingDisplace).toBeNull();
+    expect(next.board.knights[from]?.playerId).toBe(pid);
+    expect(next.board.knights[target]?.playerId).toBe("p2");
+  });
+
+  it("does not allow a knight activated this turn to chase the robber", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const robberHex = Object.values(state.board.hexes)[0]!;
+    const destinationHex = Object.values(state.board.hexes).find(
+      (hex) => hex.id !== robberHex.id,
+    )!;
+    const knight = (graph.verticesOfHex[robberHex.id] ?? [])[0]!;
+
+    const activatedState: GameState = {
+      ...state,
+      phase: "ACTION",
+      barbarian: { ...state.barbarian, robberActive: true },
+      board: {
+        ...state.board,
+        hexes: {
+          ...state.board.hexes,
+          [robberHex.id]: { ...robberHex, hasRobber: true },
+        },
+        knights: {
+          ...state.board.knights,
+          [knight]: { playerId: pid, strength: 1, active: true },
+        },
+      },
+      knightsActivatedThisTurn: [knight],
+    };
+
+    const next = applyAction(activatedState, {
+      type: "CHASE_ROBBER",
+      pid,
+      knight,
+      hid: destinationHex.id,
+      stealFrom: null,
+    });
+
+    expect(next.board.hexes[robberHex.id]?.hasRobber).toBe(true);
+    expect(next.board.hexes[destinationHex.id]?.hasRobber).toBe(false);
+    expect(next.board.knights[knight]?.active).toBe(true);
+  });
+
+  it("clears activated-this-turn tracking at end of turn", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const knight = Object.keys(graph.vertices)[0] as VertexId;
+    const activatedState: GameState = {
+      ...state,
+      phase: "ACTION",
+      knightsActivatedThisTurn: [knight],
+    };
+
+    const next = applyAction(activatedState, { type: "END_TURN", pid });
+
+    expect(next.knightsActivatedThisTurn).toEqual([]);
+  });
+});
+
 // ─── computeVP ────────────────────────────────────────────────────────────────
 
 describe("computeVP", () => {

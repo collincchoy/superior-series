@@ -336,6 +336,7 @@ export function createInitialState(
     pendingFreeRoads: null,
     pendingKnightPromotions: null,
     pendingCommercialHarbor: null,
+    knightsActivatedThisTurn: [],
     progressEffects: {
       craneDiscountPlayerId: null,
       merchantFleet: null,
@@ -945,6 +946,9 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           ...s.board,
           knights: { ...s.board.knights, [vid]: { ...knight, active: true } },
         },
+        knightsActivatedThisTurn: s.knightsActivatedThisTurn.includes(vid)
+          ? s.knightsActivatedThisTurn
+          : [...s.knightsActivatedThisTurn, vid],
       };
       s = log(
         s,
@@ -958,6 +962,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
 
     case "MOVE_KNIGHT": {
       const { pid, from, to } = action;
+      if (s.knightsActivatedThisTurn.includes(from)) return s;
       const knight = s.board.knights[from]!;
       s = {
         ...s,
@@ -976,6 +981,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
 
     case "DISPLACE_KNIGHT": {
       const { pid, from, target } = action;
+      if (s.knightsActivatedThisTurn.includes(from)) return s;
       const myKnight = s.board.knights[from]!;
       const theirKnight = s.board.knights[target]!;
 
@@ -1047,7 +1053,12 @@ export function applyAction(state: GameState, action: GameAction): GameState {
 
     case "CHASE_ROBBER": {
       const { pid, knight, hid, stealFrom } = action;
-      const knightPiece = s.board.knights[knight]!;
+      if (s.phase !== "ACTION" || s.currentPlayerId !== pid) return s;
+      if (s.knightsActivatedThisTurn.includes(knight)) return s;
+      const knightPiece = s.board.knights[knight];
+      if (!knightPiece || knightPiece.playerId !== pid || !knightPiece.active)
+        return s;
+      if (!s.barbarian.robberActive) return s;
       // Deactivate knight
       s = {
         ...s,
@@ -1597,6 +1608,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         ...s,
         currentPlayerId: s.playerOrder[nextIdx]!,
         phase: "ROLL_DICE",
+        knightsActivatedThisTurn: [],
         progressEffects: {
           craneDiscountPlayerId:
             s.progressEffects.craneDiscountPlayerId === pid

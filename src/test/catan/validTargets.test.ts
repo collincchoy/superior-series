@@ -1196,6 +1196,27 @@ describe("computeValidTargets", () => {
       expect(targets.validVertices.has(opponentKnight)).toBe(false);
     });
 
+    it("move_knight_from excludes knights activated this turn", () => {
+      const activeKnight = vids[1]!;
+
+      const state: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          knights: {
+            ...actionState.board.knights,
+            [activeKnight]: { playerId: "p1", strength: 1, active: true },
+          },
+        },
+        knightsActivatedThisTurn: [activeKnight],
+      };
+
+      const targets = computeValidTargets(state, "p1", {
+        type: "move_knight_from",
+      });
+      expect(targets.validVertices.has(activeKnight)).toBe(false);
+    });
+
     it("move_knight_to highlights valid destinations for knight move", () => {
       const knightFromVid = vids[0]!;
       const validDestVid = vids[1]!;
@@ -1219,6 +1240,188 @@ describe("computeValidTargets", () => {
       expect(targets.validVertices.has(validDestVid)).toBe(true);
       expect(targets.validVertices.has(occupiedByBuildingVid)).toBe(false); // has building
       expect(targets.validVertices.has(knightFromVid)).toBe(false); // can't move to self
+    });
+
+    it("displace_knight_from highlights own active knights that can displace an opponent", () => {
+      const p1Edge = (graph.edgesOfVertex[vids[0]!] ?? [])[0]!;
+      const [va, vb] = graph.verticesOfEdge[p1Edge]!;
+      const targetVid = va === vids[0] ? vb! : va!;
+
+      const state: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          knights: {
+            ...actionState.board.knights,
+            [vids[0]!]: { playerId: "p1", strength: 2, active: true },
+            [targetVid]: { playerId: "p2", strength: 1, active: false },
+          },
+        },
+      };
+
+      const targets = computeValidTargets(state, "p1", {
+        type: "displace_knight_from",
+      });
+      expect(targets.validVertices.has(vids[0]!)).toBe(true);
+      expect(targets.validVertices.has(targetVid)).toBe(false); // opponent knight, not selectable
+    });
+
+    it("displace_knight_from excludes inactive own knights", () => {
+      const p1Edge = (graph.edgesOfVertex[vids[0]!] ?? [])[0]!;
+      const [va, vb] = graph.verticesOfEdge[p1Edge]!;
+      const targetVid = va === vids[0] ? vb! : va!;
+
+      const state: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          knights: {
+            ...actionState.board.knights,
+            [vids[0]!]: { playerId: "p1", strength: 2, active: false }, // inactive
+            [targetVid]: { playerId: "p2", strength: 1, active: false },
+          },
+        },
+      };
+
+      const targets = computeValidTargets(state, "p1", {
+        type: "displace_knight_from",
+      });
+      expect(targets.validVertices.has(vids[0]!)).toBe(false);
+    });
+
+    it("displace_knight_from excludes knights activated this turn", () => {
+      const p1Edge = (graph.edgesOfVertex[vids[0]!] ?? [])[0]!;
+      const [va, vb] = graph.verticesOfEdge[p1Edge]!;
+      const targetVid = va === vids[0] ? vb! : va!;
+
+      const state: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          knights: {
+            ...actionState.board.knights,
+            [vids[0]!]: { playerId: "p1", strength: 2, active: true },
+            [targetVid]: { playerId: "p2", strength: 1, active: false },
+          },
+        },
+        knightsActivatedThisTurn: [vids[0]!],
+      };
+
+      const targets = computeValidTargets(state, "p1", {
+        type: "displace_knight_from",
+      });
+      expect(targets.validVertices.has(vids[0]!)).toBe(false);
+    });
+
+    it("displace_knight_to highlights opponent knights reachable and weaker", () => {
+      const p1Edge = (graph.edgesOfVertex[vids[0]!] ?? [])[0]!;
+      const [va, vb] = graph.verticesOfEdge[p1Edge]!;
+      const weakOpponentVid = va === vids[0] ? vb! : va!;
+
+      const state: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          knights: {
+            ...actionState.board.knights,
+            [vids[0]!]: { playerId: "p1", strength: 2, active: true },
+            [weakOpponentVid]: { playerId: "p2", strength: 1, active: false },
+          },
+        },
+      };
+
+      const targets = computeValidTargets(state, "p1", {
+        type: "displace_knight_to",
+        from: vids[0]!,
+      });
+      expect(targets.validVertices.has(weakOpponentVid)).toBe(true);
+      expect(targets.validVertices.has(vids[0]!)).toBe(false); // own knight, not a valid target
+    });
+
+    it("chase_robber_from highlights own active knights adjacent to the robber", () => {
+      const robberHex = Object.values(actionState.board.hexes)[0]!;
+      const hexVertices = graph.verticesOfHex[robberHex.id] ?? [];
+      const adjacentVid = hexVertices[0]!;
+      const nonAdjacentVid = vids.find((v) => !hexVertices.includes(v))!;
+
+      const state: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          hexes: {
+            ...actionState.board.hexes,
+            [robberHex.id]: { ...robberHex, hasRobber: true },
+          },
+          knights: {
+            ...actionState.board.knights,
+            [adjacentVid]: { playerId: "p1", strength: 1, active: true },
+            [nonAdjacentVid]: { playerId: "p1", strength: 1, active: true },
+          },
+        },
+      };
+
+      const targets = computeValidTargets(state, "p1", {
+        type: "chase_robber_from",
+      });
+      expect(targets.validVertices.has(adjacentVid)).toBe(true);
+      expect(targets.validVertices.has(nonAdjacentVid)).toBe(false);
+    });
+
+    it("chase_robber_from excludes knights activated this turn", () => {
+      const robberHex = Object.values(actionState.board.hexes)[0]!;
+      const adjacentVid = (graph.verticesOfHex[robberHex.id] ?? [])[0]!;
+
+      const state: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          hexes: {
+            ...actionState.board.hexes,
+            [robberHex.id]: { ...robberHex, hasRobber: true },
+          },
+          knights: {
+            ...actionState.board.knights,
+            [adjacentVid]: { playerId: "p1", strength: 1, active: true },
+          },
+        },
+        knightsActivatedThisTurn: [adjacentVid],
+      };
+
+      const targets = computeValidTargets(state, "p1", {
+        type: "chase_robber_from",
+      });
+      expect(targets.validVertices.has(adjacentVid)).toBe(false);
+    });
+
+    it("chase_robber_hex highlights all non-robber hexes", () => {
+      const robberHex = Object.values(actionState.board.hexes)[0]!;
+      const hexVertices = graph.verticesOfHex[robberHex.id] ?? [];
+      const knightVid = hexVertices[0]!;
+
+      const state: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          hexes: {
+            ...actionState.board.hexes,
+            [robberHex.id]: { ...robberHex, hasRobber: true },
+          },
+          knights: {
+            ...actionState.board.knights,
+            [knightVid]: { playerId: "p1", strength: 1, active: true },
+          },
+        },
+      };
+
+      const targets = computeValidTargets(state, "p1", {
+        type: "chase_robber_hex",
+        knight: knightVid,
+      });
+      expect(targets.validHexes.has(robberHex.id)).toBe(false);
+      const expectedCount = Object.values(state.board.hexes).filter(
+        (h) => !h.hasRobber,
+      ).length;
+      expect(targets.validHexes.size).toBe(expectedCount);
     });
   });
 });

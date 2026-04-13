@@ -175,6 +175,12 @@
       store.setPendingAction({ type: "move_knight_to", from: vid });
     } else if (pendingAction?.type === "move_knight_to") {
       s({ type: "MOVE_KNIGHT", pid, from: pendingAction.from, to: vid });
+    } else if (pendingAction?.type === "displace_knight_from") {
+      store.setPendingAction({ type: "displace_knight_to", from: vid });
+    } else if (pendingAction?.type === "displace_knight_to") {
+      s({ type: "DISPLACE_KNIGHT", pid, from: pendingAction.from, target: vid });
+    } else if (pendingAction?.type === "chase_robber_from") {
+      store.setPendingAction({ type: "chase_robber_hex", knight: vid });
     }
   }
 
@@ -227,6 +233,15 @@
       );
       const stealFrom = adjacentBuildings[0]?.[1]?.playerId ?? null;
       s({ type: "MOVE_ROBBER", pid, hid, stealFrom });
+    } else if (pendingAction?.type === "chase_robber_hex") {
+      const adjacentBuildings = Object.entries(gameState.board.vertices).filter(
+        ([vid, b]) => {
+          if (!b || b.playerId === pid) return false;
+          return (graph.hexesOfVertex[vid as VertexId] ?? []).includes(hid);
+        },
+      );
+      const stealFrom = adjacentBuildings[0]?.[1]?.playerId ?? null;
+      s({ type: "CHASE_ROBBER", pid, knight: pendingAction.knight, hid, stealFrom });
     } else if (pendingAction?.type === "progress_select_hex") {
       s({ type: "PLAY_PROGRESS", pid, card: pendingAction.card, params: { hid } });
     } else if (pendingAction?.type === "progress_select_hex_pair") {

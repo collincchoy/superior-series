@@ -324,6 +324,8 @@ export interface GameState {
   pendingFreeRoads: PendingFreeRoads | null;
   pendingKnightPromotions: PendingKnightPromotions | null;
   pendingCommercialHarbor: PendingCommercialHarbor | null;
+  /** Knights activated during the current player's turn cannot take knight actions until next turn. */
+  knightsActivatedThisTurn: VertexId[];
   progressEffects: ProgressEffects;
   winner: PlayerId | null;
   /** Game log entries */

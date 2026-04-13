@@ -25,6 +25,8 @@ import {
   canPlaceFreeRoad,
   canPromoteFreeKnight,
   canMoveKnight,
+  canDisplaceKnight,
+  canChaseRobber,
   isOnPlayerNetwork,
   isOpenRoad,
 } from "./rules.js";
@@ -49,7 +51,13 @@ export type PendingAction =
   | { type: "progress_select_hex_pair"; card: "Invention"; picked: HexId[] }
   // Knight move (two-step)
   | { type: "move_knight_from" }
-  | { type: "move_knight_to"; from: VertexId };
+  | { type: "move_knight_to"; from: VertexId }
+  // Knight displace (two-step)
+  | { type: "displace_knight_from" }
+  | { type: "displace_knight_to"; from: VertexId }
+  // Chase robber (two-step)
+  | { type: "chase_robber_from" }
+  | { type: "chase_robber_hex"; knight: VertexId };
 
 export type PendingAdminAction =
   | { type: "admin_move_road_pick_from"; unsafe?: boolean; reason?: string }
@@ -110,6 +118,7 @@ export function computeValidTargets(
   const { board } = state;
   const me = state.players[localPid]!;
   const pid = localPid;
+  const activatedThisTurn = new Set(state.knightsActivatedThisTurn);
 
   if (state.phase === "ACTION" && pending) {
     switch (pending.type) {
@@ -260,7 +269,11 @@ export function computeValidTargets(
       case "move_knight_from":
         // Move knight: own active knights
         Object.entries(board.knights).forEach(([vid, k]) => {
-          if (k?.playerId === pid && k.active) {
+          if (
+            k?.playerId === pid &&
+            k.active &&
+            !activatedThisTurn.has(vid as VertexId)
+          ) {
             validVertices.add(vid as VertexId);
           }
         });
@@ -271,6 +284,67 @@ export function computeValidTargets(
           if (canMoveKnight(board, graph, pid, pending.from, vid as VertexId)) {
             validVertices.add(vid as VertexId);
           }
+        });
+        break;
+      case "displace_knight_from":
+        // Displace: own active knights that can reach and beat at least one opponent knight
+        Object.entries(board.knights).forEach(([fromVid, k]) => {
+          if (
+            !k ||
+            k.playerId !== pid ||
+            !k.active ||
+            activatedThisTurn.has(fromVid as VertexId)
+          ) {
+            return;
+          }
+          const canDisplace = Object.entries(board.knights).some(
+            ([toVid, t]) =>
+              t !== null &&
+              t.playerId !== pid &&
+              canDisplaceKnight(
+                board,
+                graph,
+                pid,
+                fromVid as VertexId,
+                toVid as VertexId,
+              ),
+          );
+          if (canDisplace) validVertices.add(fromVid as VertexId);
+        });
+        break;
+      case "displace_knight_to":
+        // Displace: reachable opponent knights weaker than our knight at `from`
+        Object.entries(board.knights).forEach(([toVid, t]) => {
+          if (t === null || t.playerId === pid) return;
+          if (
+            canDisplaceKnight(
+              board,
+              graph,
+              pid,
+              pending.from,
+              toVid as VertexId,
+            )
+          ) {
+            validVertices.add(toVid as VertexId);
+          }
+        });
+        break;
+      case "chase_robber_from":
+        // Chase robber: own active knights adjacent to the robber hex
+        Object.entries(board.knights).forEach(([vid, k]) => {
+          if (
+            k?.playerId === pid &&
+            !activatedThisTurn.has(vid as VertexId) &&
+            canChaseRobber(board, graph, pid, vid as VertexId)
+          ) {
+            validVertices.add(vid as VertexId);
+          }
+        });
+        break;
+      case "chase_robber_hex":
+        // All non-robber hexes are valid destinations
+        Object.values(board.hexes).forEach((h) => {
+          if (!h.hasRobber) validHexes.add(h.id);
         });
         break;
     }
