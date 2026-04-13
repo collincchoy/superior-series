@@ -1711,6 +1711,34 @@ describe("master control actions", () => {
     expect(next.pendingDiscard).toBeNull();
     expect(next.phase).toBe("ACTION");
   });
+
+  it("sets barbarian progress via host admin action", () => {
+    const state = buildActionState();
+
+    const next = applyAction(state, {
+      type: "ADMIN_SET_BARBARIAN_PROGRESS",
+      position: 6,
+      reason: "repair track",
+    });
+
+    expect(next.barbarian.position).toBe(6);
+  });
+
+  it("clamps barbarian progress to valid track bounds", () => {
+    const state = buildActionState();
+
+    const low = applyAction(state, {
+      type: "ADMIN_SET_BARBARIAN_PROGRESS",
+      position: -2,
+    });
+    const high = applyAction(state, {
+      type: "ADMIN_SET_BARBARIAN_PROGRESS",
+      position: 99,
+    });
+
+    expect(low.barbarian.position).toBe(0);
+    expect(high.barbarian.position).toBe(7);
+  });
 });
 
 // ─── Longest road tie-break ───────────────────────────────────────────────────

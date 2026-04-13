@@ -31,6 +31,7 @@
   let grantCardName = $state<ProgressCardName | "">("");
   let grantCardType = $state<CardType>("brick");
   let grantCardAmount = $state(1);
+  let barbarianProgress = $state(0);
 
   let togglePid = $state("");
 
@@ -53,6 +54,10 @@
     if (!availableCardNames.includes(grantCardName as ProgressCardName)) {
       grantCardName = "";
     }
+  });
+
+  $effect(() => {
+    barbarianProgress = gameState.barbarian.position;
   });
 
   function currentReason() {
@@ -123,6 +128,15 @@
   function formatPending(value: unknown) {
     if (value === null) return "none";
     return JSON.stringify(value);
+  }
+
+  function setBarbarianProgress() {
+    const position = Math.max(0, Math.min(7, Math.floor(Number(barbarianProgress) || 0)));
+    sendAdmin({
+      type: "ADMIN_SET_BARBARIAN_PROGRESS",
+      position,
+      reason: currentReason(),
+    });
   }
 </script>
 
@@ -228,6 +242,18 @@
 
       <div class="section">
         <h4>Game State</h4>
+        <div class="row barbarian-controls">
+          <span class="barbarian-label">Barbarian track</span>
+          <input
+            class="text amount-input"
+            type="number"
+            min="0"
+            max="7"
+            step="1"
+            bind:value={barbarianProgress}
+          />
+          <button class="btn" onclick={setBarbarianProgress}>Set Track</button>
+        </div>
         <div class="pending-grid">
           <span>pendingProgressDraw</span>
           <code>{formatPending(gameState.pendingProgressDraw)}</code>
@@ -257,51 +283,56 @@
 
       <div class="section">
         <h4>Treasury</h4>
-        <p class="treasury-hint">Use this to compensate players after glitches without restarting.</p>
-        <div class="treasury-grid">
-          <span class="treasury-label">Player</span>
-          <select bind:value={grantPid}>
-            {#each players as { pid, player }}
-              <option value={pid}>{player.name}</option>
-            {/each}
-          </select>
-
-          <span class="treasury-label">Progress card</span>
-          <div class="treasury-actions">
-            <select bind:value={grantTrack}>
-              <option value="science">Science</option>
-              <option value="trade">Trade</option>
-              <option value="politics">Politics</option>
-            </select>
-            <select bind:value={grantCardName}>
-              <option value="">Top of deck</option>
-              {#each availableCardNames as name}
-                <option value={name}>{name}</option>
+        <div class="treasury-wrapper">
+          <div class="treasury-row">
+            <span class="treasury-label">Player</span>
+            <select bind:value={grantPid}>
+              {#each players as { pid, player }}
+                <option value={pid}>{player.name}</option>
               {/each}
             </select>
-            <button class="btn" onclick={grantProgress}>Grant Progress</button>
           </div>
 
-          <span class="treasury-label">Resource / commodity</span>
-          <div class="treasury-actions">
-            <select bind:value={grantCardType}>
-              <option value="brick">Brick</option>
-              <option value="lumber">Lumber</option>
-              <option value="ore">Ore</option>
-              <option value="grain">Grain</option>
-              <option value="wool">Wool</option>
-              <option value="cloth">Cloth</option>
-              <option value="coin">Coin</option>
-              <option value="paper">Paper</option>
-            </select>
-            <input
-              class="text amount-input"
-              type="number"
-              min="1"
-              step="1"
-              bind:value={grantCardAmount}
-            />
-            <button class="btn" onclick={grantCards}>Grant Cards</button>
+          <div class="treasury-subsection">
+            <p class="subsection-title">Grant Progress Cards</p>
+            <div class="grant-progress-section">
+              <select bind:value={grantTrack}>
+                <option value="science">Science</option>
+                <option value="trade">Trade</option>
+                <option value="politics">Politics</option>
+              </select>
+              <select bind:value={grantCardName}>
+                <option value="">Top of deck</option>
+                {#each availableCardNames as name}
+                  <option value={name}>{name}</option>
+                {/each}
+              </select>
+              <button class="btn grant-btn" onclick={grantProgress}>Grant Progress</button>
+            </div>
+          </div>
+
+          <div class="treasury-subsection">
+            <p class="subsection-title">Grant Resources / Commodities</p>
+            <div class="grant-resources-section">
+              <select bind:value={grantCardType}>
+                <option value="brick">Brick</option>
+                <option value="lumber">Lumber</option>
+                <option value="ore">Ore</option>
+                <option value="grain">Grain</option>
+                <option value="wool">Wool</option>
+                <option value="cloth">Cloth</option>
+                <option value="coin">Coin</option>
+                <option value="paper">Paper</option>
+              </select>
+              <input
+                class="text amount-input"
+                type="number"
+                min="1"
+                step="1"
+                bind:value={grantCardAmount}
+              />
+              <button class="btn grant-btn" onclick={grantCards}>Grant Cards</button>
+            </div>
           </div>
         </div>
       </div>
@@ -440,6 +471,15 @@
     text-overflow: ellipsis;
   }
 
+  .barbarian-controls {
+    margin-bottom: 0.35rem;
+  }
+
+  .barbarian-label {
+    color: #9cb29c;
+    font-size: 0.75rem;
+  }
+
   .inspector-grid {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -451,16 +491,17 @@
     color: #9cb29c;
   }
 
-  .treasury-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.35rem;
+  .treasury-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
   }
 
-  .treasury-hint {
-    margin: 0;
-    color: #c7d3c7;
-    font-size: 0.73rem;
+  .treasury-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.35rem;
+    align-items: center;
   }
 
   .treasury-label {
@@ -468,10 +509,38 @@
     font-size: 0.75rem;
   }
 
-  .treasury-actions {
+  .treasury-subsection {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .subsection-title {
+    color: #9cb29c;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin: 0;
+    padding: 0;
+  }
+
+  .grant-progress-section {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 0.35rem;
+  }
+
+  .grant-progress-section .grant-btn {
+    grid-column: 1 / -1;
+  }
+
+  .grant-resources-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem;
+  }
+
+  .grant-resources-section .grant-btn {
+    grid-column: 1 / -1;
   }
 
   .amount-input {

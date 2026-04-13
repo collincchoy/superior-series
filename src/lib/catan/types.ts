@@ -479,6 +479,11 @@ export type GameAction =
       reason?: string;
     }
   | {
+      type: "ADMIN_SET_BARBARIAN_PROGRESS";
+      position: number;
+      reason?: string;
+    }
+  | {
       type: "ADMIN_END_GAME";
       winner: PlayerId | null;
       reason?: string;

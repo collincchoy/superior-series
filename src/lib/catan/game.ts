@@ -1555,6 +1555,23 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       );
     }
 
+    case "ADMIN_SET_BARBARIAN_PROGRESS": {
+      const { position, reason } = action;
+      const nextPosition = Math.max(0, Math.min(7, Math.floor(position)));
+      if (nextPosition === s.barbarian.position) return s;
+
+      return log(
+        {
+          ...s,
+          barbarian: {
+            ...s.barbarian,
+            position: nextPosition,
+          },
+        },
+        `[MASTER] Barbarian progress set to ${nextPosition}/7${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
     case "ADMIN_END_GAME": {
       return {
         ...s,
