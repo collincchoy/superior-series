@@ -364,7 +364,8 @@ export function computeAdminTargets(
       break;
     case "admin_move_knight_pick_to":
       Object.entries(state.board.knights).forEach(([vid, k]) => {
-        if (!k && !state.board.vertices[vid]) validVertices.add(vid as VertexId);
+        if (!k && !state.board.vertices[vid])
+          validVertices.add(vid as VertexId);
       });
       break;
     case "admin_swap_number_pick_a":
