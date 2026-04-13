@@ -257,6 +257,7 @@
 
       <div class="section">
         <h4>Treasury</h4>
+        <p class="treasury-hint">Use this to compensate players after glitches without restarting.</p>
         <div class="treasury-grid">
           <span class="treasury-label">Player</span>
           <select bind:value={grantPid}>
@@ -456,6 +457,12 @@
     gap: 0.35rem;
   }
 
+  .treasury-hint {
+    margin: 0;
+    color: #c7d3c7;
+    font-size: 0.73rem;
+  }
+
   .treasury-label {
     color: #9cb29c;
     font-size: 0.75rem;
@@ -474,6 +481,10 @@
   @media (max-width: 560px) {
     .treasury-actions {
       grid-template-columns: 1fr;
+    }
+
+    .treasury-actions .btn {
+      width: 100%;
     }
   }
 </style>
