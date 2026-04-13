@@ -44,13 +44,17 @@ import CatanApp from "../components/catan/CatanApp.svelte";
         font-family: system-ui, sans-serif;
         background: #1a3a1a;
         color: #f0e8d0;
-        --font-display: 'MedievalSharp', cursive;
+        --font-display: "MedievalSharp", cursive;
       }
 
       #app {
         height: 100%;
         display: flex;
         flex-direction: column;
+        /* Support iOS safe areas (notch, home indicator) Connected to viewport-fit=cover */
+        padding-top: env(safe-area-inset-top, 0px);
+        /* idk why but my iphone 12 mini doesn't need the padding-bottom here if viewport-fit=cover as PWA*/
+        /* padding-bottom: env(safe-area-inset-bottom, 0px); */
       }
     </style>
   </head>
