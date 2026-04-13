@@ -17,9 +17,9 @@
 
   const TRACK_ABILITY: Record<ImprovementTrack, string> = {
     science:
-      "When you roll the dice and receive no production (excluding a 7), take 1 resource of your choice from the bank.",
+      "During each production phase, if you receive no production (excluding a 7), take 1 resource of your choice from the bank.",
     trade:
-      "Once on each of your turns, you may trade any 2 identical commodities for any 1 resource or commodity directly with the bank.",
+      "You may trade any 2 identical commodities for any 1 resource or commodity directly with the bank.",
     politics:
       "You may promote strong knights (strength 2) to mighty knights (strength 3).",
   };
