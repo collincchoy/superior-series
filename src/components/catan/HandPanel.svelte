@@ -9,7 +9,8 @@
   import {
     PROGRESS_CARD_INFO,
   } from "../../lib/catan/constants.js";
-  import { CARD_EMOJI, RESOURCE_KEYS } from "./cardEmoji.js";
+  import { RESOURCE_KEYS } from "./cardEmoji.js";
+  import ResourcePill from "./ResourcePill.svelte";
 
   let {
     me,
@@ -20,17 +21,6 @@
     canPlayProgress: boolean;
     phase: TurnPhase;
   } = $props();
-
-  const RESOURCE_COLORS: Record<keyof Player["resources"], string> = {
-    brick: "#c8622a",
-    lumber: "#2d7a2d",
-    ore: "#7a7a7a",
-    grain: "#d4b800",
-    wool: "#6dbf6d",
-    cloth: "#f1c232",
-    coin: "#2f6fe4",
-    paper: "#2e9e4f",
-  };
 
   const TRACK_COLORS: Record<ImprovementTrack, string> = {
     science: "#2e9e4f",
@@ -86,9 +76,7 @@
   <div class="hand-cards">
     {#each RESOURCE_KEYS as k}
       {#if me.resources[k] > 0}
-        <span class="card card-{k}" style={`background:${RESOURCE_COLORS[k]}`}>
-          {CARD_EMOJI[k]}×{me.resources[k]}
-        </span>
+        <ResourcePill resource={k} count={me.resources[k]} />
       {/if}
     {/each}
   </div>
@@ -127,16 +115,6 @@
     flex-wrap: wrap;
     gap: 0.24rem;
     margin-bottom: 0.22rem;
-  }
-
-  .card {
-    border-radius: 6px;
-    border: 1px solid rgba(0, 0, 0, 0.3);
-    padding: 0.15rem 0.4rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #102010;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
 
   .progress-cards {
