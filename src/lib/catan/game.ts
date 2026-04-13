@@ -198,7 +198,10 @@ function resourceCostTokens(cost: Partial<Resources>): string[] {
   return logResourceDeltaTokens(cost, -1);
 }
 
-function tradeDetailsText(give: Partial<Resources>, get: Partial<Resources>): string {
+function tradeDetailsText(
+  give: Partial<Resources>,
+  get: Partial<Resources>,
+): string {
   return appendLogTokens("", [
     ...logResourceDeltaTokens(give, -1),
     ...logResourceDeltaTokens(get, 1),
@@ -1208,16 +1211,32 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         const responder = s.players[pid]!;
         const initiator = s.players[initiatorPid]!;
         if ((responder.resources[commodity] ?? 0) < 1) return s;
-        const responderRemove: Partial<CommodityType extends keyof Resources ? Record<CommodityType, number> : Record<string, number>> = {
+        const responderRemove: Partial<
+          CommodityType extends keyof Resources
+            ? Record<CommodityType, number>
+            : Record<string, number>
+        > = {
           [commodity]: 1,
         } as Partial<Resources>;
-        const responderAdd: Partial<ResourceType extends keyof Resources ? Record<ResourceType, number> : Record<string, number>> = {
+        const responderAdd: Partial<
+          ResourceType extends keyof Resources
+            ? Record<ResourceType, number>
+            : Record<string, number>
+        > = {
           [resource]: 1,
         } as Partial<Resources>;
-        const initiatorRemove: Partial<ResourceType extends keyof Resources ? Record<ResourceType, number> : Record<string, number>> = {
+        const initiatorRemove: Partial<
+          ResourceType extends keyof Resources
+            ? Record<ResourceType, number>
+            : Record<string, number>
+        > = {
           [resource]: 1,
         } as Partial<Resources>;
-        const initiatorAdd: Partial<CommodityType extends keyof Resources ? Record<CommodityType, number> : Record<string, number>> = {
+        const initiatorAdd: Partial<
+          CommodityType extends keyof Resources
+            ? Record<CommodityType, number>
+            : Record<string, number>
+        > = {
           [commodity]: 1,
         } as Partial<Resources>;
         s = {
@@ -1227,14 +1246,20 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             [pid]: {
               ...responder,
               resources: addResources(
-                subtractResources(responder.resources, responderRemove as Partial<Resources>),
+                subtractResources(
+                  responder.resources,
+                  responderRemove as Partial<Resources>,
+                ),
                 responderAdd as Partial<Resources>,
               ),
             },
             [initiatorPid]: {
               ...initiator,
               resources: addResources(
-                subtractResources(initiator.resources, initiatorRemove as Partial<Resources>),
+                subtractResources(
+                  initiator.resources,
+                  initiatorRemove as Partial<Resources>,
+                ),
                 initiatorAdd as Partial<Resources>,
               ),
             },
@@ -1970,7 +1995,9 @@ function applyProgressCard(
 ): GameState {
   // Helper to safely extract params properties
   const getParam = <T = unknown>(key: string): T | undefined =>
-    (params && typeof params === "object" && key in params ? (params as Record<string, unknown>)[key] : undefined) as T | undefined;
+    (params && typeof params === "object" && key in params
+      ? (params as Record<string, unknown>)[key]
+      : undefined) as T | undefined;
 
   let s = state;
   const player = s.players[pid]!;
@@ -1994,6 +2021,9 @@ function applyProgressCard(
     players: { ...s.players, [pid]: { ...player, progressCards: newCards } },
   };
   s = log(s, `${player.name} played ${progressCardTag(cardName)}.`);
+
+  // Update player reference to the card-removed version for use in switch cases
+  const playerAfterCardRemoval = s.players[pid]!;
 
   switch (cardName) {
     case "Alchemy": {
@@ -2071,28 +2101,28 @@ function applyProgressCard(
     case "Medicine": {
       const targetVid = getParam<VertexId>("vid");
       if (!targetVid) {
-        return state;
+        return s;
       }
       const vertex = s.board.vertices[targetVid];
       if (!vertex || vertex.type !== "settlement" || vertex.playerId !== pid)
         break;
-      if ((player.resources.grain ?? 0) < 1 || (player.resources.ore ?? 0) < 2)
+      if ((playerAfterCardRemoval.resources.grain ?? 0) < 1 || (playerAfterCardRemoval.resources.ore ?? 0) < 2)
         break;
-      if (player.supply.cities <= 0) break;
+      if (playerAfterCardRemoval.supply.cities <= 0) break;
       s = {
         ...s,
         players: {
           ...s.players,
           [pid]: {
-            ...player,
-            resources: subtractResources(player.resources, {
+            ...playerAfterCardRemoval,
+            resources: subtractResources(playerAfterCardRemoval.resources, {
               grain: 1,
               ore: 2,
             }),
             supply: {
-              ...player.supply,
-              settlements: player.supply.settlements + 1,
-              cities: player.supply.cities - 1,
+              ...playerAfterCardRemoval.supply,
+              settlements: playerAfterCardRemoval.supply.settlements + 1,
+              cities: playerAfterCardRemoval.supply.cities - 1,
             },
           },
         },
@@ -2122,7 +2152,7 @@ function applyProgressCard(
     case "Merchant": {
       const targetHex = getParam<HexId>("hid");
       if (!targetHex) {
-        return state;
+        return s;
       }
       const mGraph = buildGraph();
       const mVerts = mGraph.verticesOfHex[targetHex] ?? [];
@@ -2151,7 +2181,7 @@ function applyProgressCard(
     }
     case "ResourceMonopoly": {
       const resource = getParam<ResourceType>("resource");
-      if (!resource) return state;
+      if (!resource) return s;
       let gained = 0;
       for (const [oppId, opp] of Object.entries(s.players)) {
         if (oppId === pid) continue;
@@ -2206,7 +2236,7 @@ function applyProgressCard(
     }
     case "MerchantFleet": {
       const cardType = getParam<keyof Resources>("cardType");
-      if (!cardType) return state;
+      if (!cardType) return s;
       s = {
         ...s,
         progressEffects: {
@@ -2221,7 +2251,7 @@ function applyProgressCard(
     }
     case "TradeMonopoly": {
       const commodity = getParam<CommodityType>("commodity");
-      if (!commodity) return state;
+      if (!commodity) return s;
       let gained = 0;
       for (const [oppId, opp] of Object.entries(s.players)) {
         if (oppId === pid) continue;
@@ -2324,7 +2354,7 @@ function applyProgressCard(
     case "Engineering": {
       const engVid = getParam<VertexId>("vid");
       if (!engVid) {
-        return state;
+        return s;
       }
       const engCity = s.board.vertices[engVid];
       if (
@@ -2334,16 +2364,16 @@ function applyProgressCard(
         engCity.hasWall
       )
         break;
-      if (player.supply.cityWalls <= 0) break;
+      if (playerAfterCardRemoval.supply.cityWalls <= 0) break;
       s = {
         ...s,
         players: {
           ...s.players,
           [pid]: {
-            ...player,
+            ...playerAfterCardRemoval,
             supply: {
-              ...player.supply,
-              cityWalls: player.supply.cityWalls - 1,
+              ...playerAfterCardRemoval.supply,
+              cityWalls: playerAfterCardRemoval.supply.cityWalls - 1,
             },
           },
         },
@@ -2361,7 +2391,7 @@ function applyProgressCard(
       const hid1 = getParam<HexId>("hid1");
       const hid2 = getParam<HexId>("hid2");
       if (!hid1 || !hid2 || hid1 === hid2) {
-        return state;
+        return s;
       }
       const invHex1 = s.board.hexes[hid1];
       const invHex2 = s.board.hexes[hid2];
@@ -2388,11 +2418,11 @@ function applyProgressCard(
     }
     case "Taxation": {
       if (!s.barbarian.robberActive) {
-        return state;
+        return s;
       }
       const taxHid = getParam<HexId>("hid");
       if (!taxHid) {
-        return state;
+        return s;
       }
       const taxGraph = buildGraph();
       const taxHexes = Object.fromEntries(
@@ -2416,7 +2446,7 @@ function applyProgressCard(
     case "Diplomacy": {
       const dipEid = getParam<EdgeId>("eid");
       if (!dipEid) {
-        return state;
+        return s;
       }
       const dipGraph = buildGraph();
       const dipRoad = s.board.edges[dipEid];
@@ -2447,7 +2477,7 @@ function applyProgressCard(
     case "Intrigue": {
       const intVid = getParam<VertexId>("vid");
       if (!intVid) {
-        return state;
+        return s;
       }
       const intGraph = buildGraph();
       const intKnight = s.board.knights[intVid];
@@ -2471,7 +2501,7 @@ function applyProgressCard(
       const trsPlaceVid = getParam<VertexId>("placeVid");
       const trsPlaceStrength = getParam<KnightStrength>("placeStrength");
       if (!trsVid) {
-        return state;
+        return s;
       }
       const trsKnight = s.board.knights[trsVid];
       if (!trsKnight || trsKnight.playerId === pid) break;
@@ -2543,7 +2573,7 @@ function applyProgressCard(
     case "CommercialHarbor": {
       const chResource = getParam<ResourceType>("resource");
       if (!chResource) {
-        return state;
+        return s;
       }
       const chPlayer = s.players[pid]!;
       if ((chPlayer.resources[chResource] ?? 0) <= 0) {
@@ -2564,7 +2594,7 @@ function applyProgressCard(
     case "Espionage": {
       const espTarget = getParam<PlayerId>("targetPid");
       if (!espTarget || espTarget === pid) {
-        return state;
+        return s;
       }
       const espTargetPlayer = s.players[espTarget];
       if (!espTargetPlayer) break;
@@ -2594,7 +2624,7 @@ function applyProgressCard(
       const gdTarget = getParam<PlayerId>("targetPid");
       const gdCards = getParam<Partial<Resources>>("takeCards");
       if (!gdTarget || !gdCards || gdTarget === pid) {
-        return state;
+        return s;
       }
       const gdTargetPlayer = s.players[gdTarget];
       if (!gdTargetPlayer) break;

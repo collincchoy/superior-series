@@ -4,7 +4,14 @@
  * Pure — no DOM, no side effects.
  */
 
-import type { GameState, PlayerId, VertexId, EdgeId, HexId, ProgressCardName } from "./types.js";
+import type {
+  GameState,
+  PlayerId,
+  VertexId,
+  EdgeId,
+  HexId,
+  ProgressCardName,
+} from "./types.js";
 import {
   canBuildRoad,
   canBuildSettlement,
@@ -129,20 +136,13 @@ export function computeValidTargets(
         if (pending.card === "Engineering") {
           // Engineering: own cities without walls
           Object.entries(board.vertices).forEach(([vid, b]) => {
-            if (
-              b?.type === "city" &&
-              b.playerId === pid &&
-              !b.hasWall
-            )
+            if (b?.type === "city" && b.playerId === pid && !b.hasWall)
               validVertices.add(vid as VertexId);
           });
         } else if (pending.card === "Medicine") {
           // Medicine: own settlements
           Object.entries(board.vertices).forEach(([vid, b]) => {
-            if (
-              b?.type === "settlement" &&
-              b.playerId === pid
-            )
+            if (b?.type === "settlement" && b.playerId === pid)
               validVertices.add(vid as VertexId);
           });
         }
@@ -151,7 +151,10 @@ export function computeValidTargets(
         if (pending.card === "Intrigue") {
           // Intrigue: opponent knights on player's network
           Object.entries(board.knights).forEach(([vid, k]) => {
-            if (k?.playerId !== pid && isOnPlayerNetwork(board, graph, pid, vid as VertexId)) {
+            if (
+              k?.playerId !== pid &&
+              isOnPlayerNetwork(board, graph, pid, vid as VertexId)
+            ) {
               validVertices.add(vid as VertexId);
             }
           });
@@ -190,7 +193,11 @@ export function computeValidTargets(
         if (pending.card === "Diplomacy") {
           // Diplomacy: open opponent roads (roads with a disconnected endpoint)
           Object.entries(board.edges).forEach(([eid, road]) => {
-            if (road && road.playerId !== pid && isOpenRoad(board, graph, eid as EdgeId)) {
+            if (
+              road &&
+              road.playerId !== pid &&
+              isOpenRoad(board, graph, eid as EdgeId)
+            ) {
               validEdges.add(eid as EdgeId);
             }
           });

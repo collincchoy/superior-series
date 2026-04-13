@@ -352,19 +352,55 @@ describe("computeValidTargets", () => {
       // Complete setup so we have a road network
       const settleVid = vids[0]!;
       const e1 = (graph.edgesOfVertex[settleVid] ?? [])[0]!;
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: settleVid, building: "settlement" });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: settleVid,
+        building: "settlement",
+      });
       state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: e1 });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[5]!, building: "settlement" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[10]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[15]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]! });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[5]!,
+        building: "settlement",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[10]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: vids[15]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p1",
+        eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]!,
+      });
 
       // Extend p1's road network by 1 extra hop so a valid settlement vertex exists
       // (immediate road endpoint is adjacent to the settlement, blocked by distance rule)
-      const e1FarVid = (graph.verticesOfEdge[e1] ?? []).find((v) => v !== settleVid) as VertexId;
-      const extraEdge = (graph.edgesOfVertex[e1FarVid] ?? []).find((e) => e !== e1) as EdgeId;
+      const e1FarVid = (graph.verticesOfEdge[e1] ?? []).find(
+        (v) => v !== settleVid,
+      ) as VertexId;
+      const extraEdge = (graph.edgesOfVertex[e1FarVid] ?? []).find(
+        (e) => e !== e1,
+      ) as EdgeId;
 
       const actionState: GameState = {
         ...state,
@@ -372,7 +408,19 @@ describe("computeValidTargets", () => {
         currentPlayerId: "p1",
         players: {
           ...state.players,
-          p1: { ...state.players["p1"]!, resources: { brick: 5, lumber: 5, ore: 5, grain: 5, wool: 5, cloth: 0, coin: 0, paper: 0 } },
+          p1: {
+            ...state.players["p1"]!,
+            resources: {
+              brick: 5,
+              lumber: 5,
+              ore: 5,
+              grain: 5,
+              wool: 5,
+              cloth: 0,
+              coin: 0,
+              paper: 0,
+            },
+          },
         },
         board: {
           ...state.board,
@@ -380,7 +428,9 @@ describe("computeValidTargets", () => {
         },
       };
 
-      const targets = computeValidTargets(actionState, "p1", { type: "build_settlement" });
+      const targets = computeValidTargets(actionState, "p1", {
+        type: "build_settlement",
+      });
       expect(targets.validVertices.size).toBeGreaterThan(0);
       expect(targets.validEdges.size).toBe(0);
       // Vertices already occupied should not be valid
@@ -391,15 +441,47 @@ describe("computeValidTargets", () => {
     it("build_city returns only own settlement vertices", () => {
       let state = createInitialState(makePlayers(2));
       const vids = Object.keys(graph.vertices) as VertexId[];
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[0]!, building: "settlement" });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: vids[0]!,
+        building: "settlement",
+      });
       const e1 = (graph.edgesOfVertex[vids[0]!] ?? [])[0]!;
       state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: e1 });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[5]!, building: "settlement" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[10]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[15]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]! });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[5]!,
+        building: "settlement",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[10]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: vids[15]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p1",
+        eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]!,
+      });
 
       // p1 has a settlement at vids[0] and a city at vids[15]; only vids[0] is a valid upgrade
       const actionState: GameState = {
@@ -408,11 +490,25 @@ describe("computeValidTargets", () => {
         currentPlayerId: "p1",
         players: {
           ...state.players,
-          p1: { ...state.players["p1"]!, resources: { brick: 5, lumber: 5, ore: 5, grain: 5, wool: 5, cloth: 0, coin: 0, paper: 0 } },
+          p1: {
+            ...state.players["p1"]!,
+            resources: {
+              brick: 5,
+              lumber: 5,
+              ore: 5,
+              grain: 5,
+              wool: 5,
+              cloth: 0,
+              coin: 0,
+              paper: 0,
+            },
+          },
         },
       };
 
-      const targets = computeValidTargets(actionState, "p1", { type: "build_city" });
+      const targets = computeValidTargets(actionState, "p1", {
+        type: "build_city",
+      });
       expect(targets.validVertices.has(vids[0]!)).toBe(true); // own settlement
       expect(targets.validVertices.has(vids[15]!)).toBe(false); // already a city
       expect(targets.validVertices.has(vids[5]!)).toBe(false); // opponent's settlement
@@ -422,14 +518,50 @@ describe("computeValidTargets", () => {
     it("build_city_wall returns only own unwalled city vertices", () => {
       let state = createInitialState(makePlayers(2));
       const vids = Object.keys(graph.vertices) as VertexId[];
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[0]!, building: "settlement" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: (graph.edgesOfVertex[vids[0]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[5]!, building: "settlement" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[10]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[15]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]! });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: vids[0]!,
+        building: "settlement",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p1",
+        eid: (graph.edgesOfVertex[vids[0]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[5]!,
+        building: "settlement",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[10]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: vids[15]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p1",
+        eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]!,
+      });
 
       // Inject a walled city for p1 at vids[20] to test exclusion
       const walled = vids[20]!;
@@ -439,18 +571,37 @@ describe("computeValidTargets", () => {
         currentPlayerId: "p1",
         players: {
           ...state.players,
-          p1: { ...state.players["p1"]!, resources: { brick: 5, lumber: 5, ore: 5, grain: 5, wool: 5, cloth: 0, coin: 0, paper: 0 } },
+          p1: {
+            ...state.players["p1"]!,
+            resources: {
+              brick: 5,
+              lumber: 5,
+              ore: 5,
+              grain: 5,
+              wool: 5,
+              cloth: 0,
+              coin: 0,
+              paper: 0,
+            },
+          },
         },
         board: {
           ...state.board,
           vertices: {
             ...state.board.vertices,
-            [walled]: { type: "city", playerId: "p1", hasWall: true, metropolis: null },
+            [walled]: {
+              type: "city",
+              playerId: "p1",
+              hasWall: true,
+              metropolis: null,
+            },
           },
         },
       };
 
-      const targets = computeValidTargets(actionState, "p1", { type: "build_city_wall" });
+      const targets = computeValidTargets(actionState, "p1", {
+        type: "build_city_wall",
+      });
       // p1's unwalled city at vids[15] should be valid
       expect(targets.validVertices.has(vids[15]!)).toBe(true);
       // p1's walled city should NOT be valid
@@ -465,15 +616,47 @@ describe("computeValidTargets", () => {
     it("recruit_knight returns empty vertices connected to own road network", () => {
       let state = createInitialState(makePlayers(2));
       const vids = Object.keys(graph.vertices) as VertexId[];
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[0]!, building: "settlement" });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: vids[0]!,
+        building: "settlement",
+      });
       const e1 = (graph.edgesOfVertex[vids[0]!] ?? [])[0]!;
       state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: e1 });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[5]!, building: "settlement" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[10]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[15]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]! });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[5]!,
+        building: "settlement",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[10]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: vids[15]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p1",
+        eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]!,
+      });
 
       const actionState: GameState = {
         ...state,
@@ -481,11 +664,25 @@ describe("computeValidTargets", () => {
         currentPlayerId: "p1",
         players: {
           ...state.players,
-          p1: { ...state.players["p1"]!, resources: { brick: 5, lumber: 5, ore: 5, grain: 5, wool: 5, cloth: 0, coin: 0, paper: 0 } },
+          p1: {
+            ...state.players["p1"]!,
+            resources: {
+              brick: 5,
+              lumber: 5,
+              ore: 5,
+              grain: 5,
+              wool: 5,
+              cloth: 0,
+              coin: 0,
+              paper: 0,
+            },
+          },
         },
       };
 
-      const targets = computeValidTargets(actionState, "p1", { type: "recruit_knight" });
+      const targets = computeValidTargets(actionState, "p1", {
+        type: "recruit_knight",
+      });
       expect(targets.validVertices.size).toBeGreaterThan(0);
       // Vertices already occupied by buildings or knights are not valid
       expect(targets.validVertices.has(vids[0]!)).toBe(false);
@@ -496,14 +693,50 @@ describe("computeValidTargets", () => {
       let state = createInitialState(makePlayers(2));
       const vids = Object.keys(graph.vertices) as VertexId[];
       // Complete setup
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[0]!, building: "settlement" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: (graph.edgesOfVertex[vids[0]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[5]!, building: "settlement" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[10]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[15]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]! });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: vids[0]!,
+        building: "settlement",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p1",
+        eid: (graph.edgesOfVertex[vids[0]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[5]!,
+        building: "settlement",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[10]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: vids[15]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p1",
+        eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]!,
+      });
 
       const myKnightVid = vids[2]!;
       const enemyKnightVid = vids[3]!;
@@ -518,8 +751,20 @@ describe("computeValidTargets", () => {
           ...state.players,
           p1: {
             ...state.players["p1"]!,
-            resources: { brick: 5, lumber: 5, ore: 5, grain: 5, wool: 5, cloth: 0, coin: 0, paper: 0 },
-            supply: { ...state.players["p1"]!.supply, knights: { 1: 2, 2: 2, 3: 2 } },
+            resources: {
+              brick: 5,
+              lumber: 5,
+              ore: 5,
+              grain: 5,
+              wool: 5,
+              cloth: 0,
+              coin: 0,
+              paper: 0,
+            },
+            supply: {
+              ...state.players["p1"]!.supply,
+              knights: { 1: 2, 2: 2, 3: 2 },
+            },
           },
         },
         board: {
@@ -533,10 +778,12 @@ describe("computeValidTargets", () => {
         },
       };
 
-      const targets = computeValidTargets(actionState, "p1", { type: "promote_knight" });
-      expect(targets.validVertices.has(myKnightVid)).toBe(true);      // own strength-1 → can promote
-      expect(targets.validVertices.has(enemyKnightVid)).toBe(false);  // opponent's knight
-      expect(targets.validVertices.has(maxKnightVid)).toBe(false);    // already max strength
+      const targets = computeValidTargets(actionState, "p1", {
+        type: "promote_knight",
+      });
+      expect(targets.validVertices.has(myKnightVid)).toBe(true); // own strength-1 → can promote
+      expect(targets.validVertices.has(enemyKnightVid)).toBe(false); // opponent's knight
+      expect(targets.validVertices.has(maxKnightVid)).toBe(false); // already max strength
       expect(targets.validEdges.size).toBe(0);
     });
 
@@ -544,14 +791,50 @@ describe("computeValidTargets", () => {
       let state = createInitialState(makePlayers(2));
       const vids = Object.keys(graph.vertices) as VertexId[];
       // Complete setup
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[0]!, building: "settlement" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: (graph.edgesOfVertex[vids[0]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[5]!, building: "settlement" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[10]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[15]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]! });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: vids[0]!,
+        building: "settlement",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p1",
+        eid: (graph.edgesOfVertex[vids[0]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[5]!,
+        building: "settlement",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[10]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: vids[15]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p1",
+        eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]!,
+      });
 
       const inactiveKnightVid = vids[2]!;
       const activeKnightVid = vids[3]!;
@@ -566,7 +849,16 @@ describe("computeValidTargets", () => {
           p1: {
             ...state.players["p1"]!,
             // grain: 1 is the cost to activate a knight
-            resources: { brick: 0, lumber: 0, ore: 0, grain: 1, wool: 0, cloth: 0, coin: 0, paper: 0 },
+            resources: {
+              brick: 0,
+              lumber: 0,
+              ore: 0,
+              grain: 1,
+              wool: 0,
+              cloth: 0,
+              coin: 0,
+              paper: 0,
+            },
           },
         },
         board: {
@@ -580,10 +872,12 @@ describe("computeValidTargets", () => {
         },
       };
 
-      const targets = computeValidTargets(actionState, "p1", { type: "activate_knight" });
-      expect(targets.validVertices.has(inactiveKnightVid)).toBe(true);   // own inactive → activatable
-      expect(targets.validVertices.has(activeKnightVid)).toBe(false);    // already active
-      expect(targets.validVertices.has(enemyKnightVid)).toBe(false);     // opponent's knight
+      const targets = computeValidTargets(actionState, "p1", {
+        type: "activate_knight",
+      });
+      expect(targets.validVertices.has(inactiveKnightVid)).toBe(true); // own inactive → activatable
+      expect(targets.validVertices.has(activeKnightVid)).toBe(false); // already active
+      expect(targets.validVertices.has(enemyKnightVid)).toBe(false); // opponent's knight
       expect(targets.validEdges.size).toBe(0);
     });
   });
@@ -596,19 +890,73 @@ describe("computeValidTargets", () => {
       let state = createInitialState(makePlayers(3));
       vids = Object.keys(graph.vertices) as VertexId[];
       // Complete setup
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[0]!, building: "settlement" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: (graph.edgesOfVertex[vids[0]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[5]!, building: "settlement" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p3", vid: vids[10]!, building: "settlement" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p3", eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]! });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: vids[0]!,
+        building: "settlement",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p1",
+        eid: (graph.edgesOfVertex[vids[0]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[5]!,
+        building: "settlement",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[5]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p3",
+        vid: vids[10]!,
+        building: "settlement",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p3",
+        eid: (graph.edgesOfVertex[vids[10]!] ?? [])[0]!,
+      });
       // R2
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p3", vid: vids[15]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p3", eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p2", vid: vids[20]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p2", eid: (graph.edgesOfVertex[vids[20]!] ?? [])[0]! });
-      state = applyAction(state, { type: "PLACE_BUILDING", pid: "p1", vid: vids[25]!, building: "city" });
-      state = applyAction(state, { type: "PLACE_ROAD", pid: "p1", eid: (graph.edgesOfVertex[vids[25]!] ?? [])[0]! });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p3",
+        vid: vids[15]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p3",
+        eid: (graph.edgesOfVertex[vids[15]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p2",
+        vid: vids[20]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p2",
+        eid: (graph.edgesOfVertex[vids[20]!] ?? [])[0]!,
+      });
+      state = applyAction(state, {
+        type: "PLACE_BUILDING",
+        pid: "p1",
+        vid: vids[25]!,
+        building: "city",
+      });
+      state = applyAction(state, {
+        type: "PLACE_ROAD",
+        pid: "p1",
+        eid: (graph.edgesOfVertex[vids[25]!] ?? [])[0]!,
+      });
 
       actionState = {
         ...state,
@@ -629,13 +977,26 @@ describe("computeValidTargets", () => {
           ...actionState.board,
           vertices: {
             ...actionState.board.vertices,
-            [cityWithWall]: { type: "city", playerId: "p1", hasWall: true, metropolis: null },
-            [ownCity]: { type: "city", playerId: "p1", hasWall: false, metropolis: null },
+            [cityWithWall]: {
+              type: "city",
+              playerId: "p1",
+              hasWall: true,
+              metropolis: null,
+            },
+            [ownCity]: {
+              type: "city",
+              playerId: "p1",
+              hasWall: false,
+              metropolis: null,
+            },
           },
         },
       };
 
-      const targets = computeValidTargets(state, "p1", { type: "progress_select_vertex", card: "Engineering" });
+      const targets = computeValidTargets(state, "p1", {
+        type: "progress_select_vertex",
+        card: "Engineering",
+      });
       expect(targets.validVertices.has(ownCity)).toBe(true);
       expect(targets.validVertices.has(cityWithWall)).toBe(false); // has wall
       expect(targets.validVertices.has(opponentCity)).toBe(false); // not own
@@ -646,7 +1007,10 @@ describe("computeValidTargets", () => {
       const ownCity = vids[25]!;
       const opponentSettlement = vids[5]!;
 
-      const targets = computeValidTargets(actionState, "p1", { type: "progress_select_vertex", card: "Medicine" });
+      const targets = computeValidTargets(actionState, "p1", {
+        type: "progress_select_vertex",
+        card: "Medicine",
+      });
       expect(targets.validVertices.has(ownSettlement)).toBe(true);
       expect(targets.validVertices.has(ownCity)).toBe(false); // not a settlement
       expect(targets.validVertices.has(opponentSettlement)).toBe(false); // not own
@@ -668,7 +1032,10 @@ describe("computeValidTargets", () => {
         },
       };
 
-      const targets = computeValidTargets(state, "p1", { type: "progress_select_knight", card: "Intrigue" });
+      const targets = computeValidTargets(state, "p1", {
+        type: "progress_select_knight",
+        card: "Intrigue",
+      });
       // Own knights must never be valid
       expect(targets.validVertices.has(ownKnightVid)).toBe(false);
       // p2 knight may or may not be on network - just verify it's considered
@@ -691,7 +1058,10 @@ describe("computeValidTargets", () => {
         },
       };
 
-      const targets = computeValidTargets(state, "p1", { type: "progress_select_knight", card: "Treason" });
+      const targets = computeValidTargets(state, "p1", {
+        type: "progress_select_knight",
+        card: "Treason",
+      });
       expect(targets.validVertices.has(opponentKnightVid)).toBe(true);
       expect(targets.validVertices.has(ownKnightVid)).toBe(false);
     });
@@ -714,7 +1084,10 @@ describe("computeValidTargets", () => {
         }
       }
 
-      const targets = computeValidTargets(actionState, "p1", { type: "progress_select_hex", card: "Merchant" });
+      const targets = computeValidTargets(actionState, "p1", {
+        type: "progress_select_hex",
+        card: "Merchant",
+      });
       for (const hid of hexesAdjacentToP1) {
         expect(targets.validHexes.has(hid as any)).toBe(true);
       }
@@ -724,7 +1097,10 @@ describe("computeValidTargets", () => {
     });
 
     it("progress_select_hex for Taxation highlights all non-desert hexes when robber is active", () => {
-      const targets = computeValidTargets(actionState, "p1", { type: "progress_select_hex", card: "Taxation" });
+      const targets = computeValidTargets(actionState, "p1", {
+        type: "progress_select_hex",
+        card: "Taxation",
+      });
       for (const hex of Object.values(actionState.board.hexes)) {
         if (hex.terrain === "desert") {
           expect(targets.validHexes.has(hex.id)).toBe(false);
@@ -740,7 +1116,10 @@ describe("computeValidTargets", () => {
         barbarian: { ...actionState.barbarian, robberActive: false },
       };
 
-      const targets = computeValidTargets(inactiveRobberState, "p1", { type: "progress_select_hex", card: "Taxation" });
+      const targets = computeValidTargets(inactiveRobberState, "p1", {
+        type: "progress_select_hex",
+        card: "Taxation",
+      });
       expect(targets.validHexes.size).toBe(0);
     });
 
@@ -751,15 +1130,22 @@ describe("computeValidTargets", () => {
       // We just verify that p1's roads are never valid targets and that the function doesn't crash.
       const p1RoadEdge = (graph.edgesOfVertex[vids[0]!] ?? [])[0]!;
 
-      const targets = computeValidTargets(actionState, "p1", { type: "progress_select_edge", card: "Diplomacy" });
-      
+      const targets = computeValidTargets(actionState, "p1", {
+        type: "progress_select_edge",
+        card: "Diplomacy",
+      });
+
       // p1's own roads should never be valid for Diplomacy (can only target opponent roads)
       expect(targets.validEdges.has(p1RoadEdge)).toBe(false);
     });
 
     it("progress_select_hex_pair for Invention highlights hexes with numbers not in [2,6,8,12]", () => {
       const invalidNumbers = new Set([2, 6, 8, 12]);
-      const targets = computeValidTargets(actionState, "p1", { type: "progress_select_hex_pair", card: "Invention", picked: [] });
+      const targets = computeValidTargets(actionState, "p1", {
+        type: "progress_select_hex_pair",
+        card: "Invention",
+        picked: [],
+      });
 
       for (const hex of Object.values(actionState.board.hexes)) {
         if (hex.number !== null && invalidNumbers.has(hex.number)) {
@@ -771,9 +1157,10 @@ describe("computeValidTargets", () => {
     });
 
     it("progress_select_hex_pair for Invention excludes already picked hexes", () => {
-      const hid1 = Object.values(actionState.board.hexes)
-        .find((h) => h.number !== null && ![2, 6, 8, 12].includes(h.number))?.id!;
-      
+      const hid1 = Object.values(actionState.board.hexes).find(
+        (h) => h.number !== null && ![2, 6, 8, 12].includes(h.number),
+      )?.id!;
+
       const targets = computeValidTargets(actionState, "p1", {
         type: "progress_select_hex_pair",
         card: "Invention",
@@ -801,7 +1188,9 @@ describe("computeValidTargets", () => {
         },
       };
 
-      const targets = computeValidTargets(state, "p1", { type: "move_knight_from" });
+      const targets = computeValidTargets(state, "p1", {
+        type: "move_knight_from",
+      });
       expect(targets.validVertices.has(activeKnight)).toBe(true);
       expect(targets.validVertices.has(inactiveKnight)).toBe(false);
       expect(targets.validVertices.has(opponentKnight)).toBe(false);
@@ -823,7 +1212,10 @@ describe("computeValidTargets", () => {
         },
       };
 
-      const targets = computeValidTargets(state, "p1", { type: "move_knight_to", from: knightFromVid });
+      const targets = computeValidTargets(state, "p1", {
+        type: "move_knight_to",
+        from: knightFromVid,
+      });
       expect(targets.validVertices.has(validDestVid)).toBe(true);
       expect(targets.validVertices.has(occupiedByBuildingVid)).toBe(false); // has building
       expect(targets.validVertices.has(knightFromVid)).toBe(false); // can't move to self
