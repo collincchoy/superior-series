@@ -525,7 +525,7 @@
 
   .grant-progress-section {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 0.35rem;
   }
 
@@ -541,19 +541,5 @@
 
   .grant-resources-section .grant-btn {
     grid-column: 1 / -1;
-  }
-
-  .amount-input {
-    width: 100%;
-  }
-
-  @media (max-width: 560px) {
-    .treasury-actions {
-      grid-template-columns: 1fr;
-    }
-
-    .treasury-actions .btn {
-      width: 100%;
-    }
   }
 </style>
