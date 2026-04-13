@@ -278,6 +278,14 @@ export interface PendingCommercialHarbor {
   remainingPids: PlayerId[];
 }
 
+export type PendingStateField =
+  | "pendingDisplace"
+  | "pendingProgressDraw"
+  | "pendingDiscard"
+  | "pendingFreeRoads"
+  | "pendingKnightPromotions"
+  | "pendingCommercialHarbor";
+
 export interface ProgressEffects {
   craneDiscountPlayerId: PlayerId | null;
   merchantFleet: {
@@ -453,9 +461,21 @@ export type GameAction =
       reason?: string;
     }
   | {
+      type: "ADMIN_GRANT_CARDS";
+      pid: PlayerId;
+      cards: Partial<Resources>;
+      reason?: string;
+    }
+  | {
       type: "ADMIN_SET_PLAYER_BOT";
       pid: PlayerId;
       isBot: boolean;
+      reason?: string;
+    }
+  | {
+      type: "ADMIN_CLEAR_PENDING_STATE";
+      fields: PendingStateField[];
+      phase?: TurnPhase;
       reason?: string;
     }
   | {

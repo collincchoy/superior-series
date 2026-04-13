@@ -1627,6 +1627,36 @@ describe("master control actions", () => {
     expect(next.players.p2!.progressCards.length).toBe(beforeHand + 1);
   });
 
+  it("grants any mix of resource and commodity cards to a target player", () => {
+    const state = buildActionState();
+    const before = state.players.p2!.resources;
+
+    const next = applyAction(state, {
+      type: "ADMIN_GRANT_CARDS",
+      pid: "p2",
+      cards: { brick: 2, paper: 1, coin: 3 },
+      reason: "repair",
+    });
+
+    expect(next.players.p2!.resources.brick).toBe(before.brick + 2);
+    expect(next.players.p2!.resources.paper).toBe(before.paper + 1);
+    expect(next.players.p2!.resources.coin).toBe(before.coin + 3);
+  });
+
+  it("ignores ADMIN_GRANT_CARDS when all granted amounts are zero", () => {
+    const state = buildActionState();
+    const before = state.players.p2!.resources;
+
+    const next = applyAction(state, {
+      type: "ADMIN_GRANT_CARDS",
+      pid: "p2",
+      cards: { brick: 0, wool: 0, cloth: 0 },
+      reason: "no-op",
+    });
+
+    expect(next.players.p2!.resources).toEqual(before);
+  });
+
   it("converts a human player to bot mode", () => {
     const state = buildActionState();
     expect(state.players.p2!.isBot).toBe(false);
@@ -1639,6 +1669,47 @@ describe("master control actions", () => {
     });
 
     expect(next.players.p2!.isBot).toBe(true);
+  });
+
+  it("clears selected pending state fields via host admin action", () => {
+    const state = buildActionState();
+    const next = applyAction(
+      {
+        ...state,
+        phase: "RESOLVE_PROGRESS_DRAW",
+        pendingProgressDraw: { remaining: ["p2"], track: "science" },
+        pendingDiscard: { remaining: { p1: 2 } },
+      },
+      {
+        type: "ADMIN_CLEAR_PENDING_STATE",
+        fields: ["pendingProgressDraw"],
+        reason: "unstick draw",
+      },
+    );
+
+    expect(next.pendingProgressDraw).toBeNull();
+    expect(next.pendingDiscard).toEqual({ remaining: { p1: 2 } });
+    expect(next.phase).toBe("RESOLVE_PROGRESS_DRAW");
+  });
+
+  it("can clear pending state and set a recovery phase in one admin action", () => {
+    const state = buildActionState();
+    const next = applyAction(
+      {
+        ...state,
+        phase: "DISCARD",
+        pendingDiscard: { remaining: { p1: 2, p2: 1 } },
+      },
+      {
+        type: "ADMIN_CLEAR_PENDING_STATE",
+        fields: ["pendingDiscard"],
+        phase: "ACTION",
+        reason: "recover from stuck discard",
+      },
+    );
+
+    expect(next.pendingDiscard).toBeNull();
+    expect(next.phase).toBe("ACTION");
   });
 });
 

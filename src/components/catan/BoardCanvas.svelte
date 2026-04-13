@@ -9,9 +9,13 @@
   } from "../../lib/catan/types.js";
   import type {
     PendingAction,
+    PendingAdminAction,
     ValidTargets,
   } from "../../lib/catan/validTargets.js";
-  import { computeValidTargets } from "../../lib/catan/validTargets.js";
+  import {
+    computeValidTargets,
+    computeAdminTargets,
+  } from "../../lib/catan/validTargets.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import { isPlayerActing } from "../../lib/catan/turnActors.js";
   import {
@@ -44,9 +48,15 @@
 
   const graph = buildGraph();
 
-  let targets: ValidTargets = $derived(
-    computeValidTargets(gameState, localPid, pendingAction),
-  );
+  let targets: ValidTargets = $derived.by(() => {
+    const base = computeValidTargets(gameState, localPid, pendingAction);
+    const admin = computeAdminTargets(gameState, store.pendingAdminAction);
+    return {
+      validVertices: new Set([...base.validVertices, ...admin.validVertices]),
+      validEdges: new Set([...base.validEdges, ...admin.validEdges]),
+      validHexes: new Set([...base.validHexes, ...admin.validHexes]),
+    };
+  });
   let isMyTurn = $derived(isPlayerActing(gameState, localPid));
 
   const KNIGHT_EMOJI = "⚔️";
@@ -117,6 +127,11 @@
   }
 
   function onVertexClick(vid: VertexId) {
+    const admin = store.pendingAdminAction;
+    if (admin) {
+      handleAdminVertexClick(admin, vid);
+      return;
+    }
     if (!isMyTurn) return;
     const pid = localPid;
     function s(action: GameAction) {
@@ -164,6 +179,11 @@
   }
 
   function onEdgeClick(eid: EdgeId) {
+    const admin = store.pendingAdminAction;
+    if (admin) {
+      handleAdminEdgeClick(admin, eid);
+      return;
+    }
     if (!isMyTurn) return;
     const pid = localPid;
     function s(action: GameAction) {
@@ -186,6 +206,11 @@
   }
 
   function onHexClick(hid: HexId) {
+    const admin = store.pendingAdminAction;
+    if (admin) {
+      handleAdminHexClick(admin, hid);
+      return;
+    }
     if (!isMyTurn) return;
     const pid = localPid;
     function s(action: GameAction) {
@@ -211,6 +236,122 @@
       } else {
         store.setPendingAction({ type: "progress_select_hex_pair", card: "Invention", picked });
       }
+    }
+  }
+
+  function finishAdminAction(action: GameAction) {
+    store.sendAction(action);
+    store.setPendingAdminAction(null);
+    store.setMasterControlOpen(true);
+  }
+
+  function handleAdminVertexClick(admin: PendingAdminAction, vid: VertexId) {
+    if (admin.type === "admin_move_building_pick_from") {
+      const source = gameState.board.vertices[vid];
+      if (!source) return;
+      store.setPendingAdminAction({
+        type: "admin_move_building_pick_to",
+        from: vid,
+        pid: source.playerId,
+        unsafe: admin.unsafe,
+        reason: admin.reason,
+      });
+      return;
+    }
+    if (admin.type === "admin_move_building_pick_to") {
+      finishAdminAction({
+        type: "ADMIN_MOVE_BUILDING",
+        pid: admin.pid,
+        fromVid: admin.from,
+        toVid: vid,
+        unsafe: admin.unsafe,
+        reason: admin.reason,
+      });
+      return;
+    }
+    if (admin.type === "admin_move_knight_pick_from") {
+      const source = gameState.board.knights[vid];
+      if (!source) return;
+      store.setPendingAdminAction({
+        type: "admin_move_knight_pick_to",
+        from: vid,
+        pid: source.playerId,
+        unsafe: admin.unsafe,
+        reason: admin.reason,
+      });
+      return;
+    }
+    if (admin.type === "admin_move_knight_pick_to") {
+      finishAdminAction({
+        type: "ADMIN_MOVE_KNIGHT",
+        pid: admin.pid,
+        fromVid: admin.from,
+        toVid: vid,
+        unsafe: admin.unsafe,
+        reason: admin.reason,
+      });
+    }
+  }
+
+  function handleAdminEdgeClick(admin: PendingAdminAction, eid: EdgeId) {
+    if (admin.type === "admin_move_road_pick_from") {
+      const source = gameState.board.edges[eid];
+      if (!source) return;
+      store.setPendingAdminAction({
+        type: "admin_move_road_pick_to",
+        from: eid,
+        pid: source.playerId,
+        unsafe: admin.unsafe,
+        reason: admin.reason,
+      });
+      return;
+    }
+    if (admin.type === "admin_move_road_pick_to") {
+      finishAdminAction({
+        type: "ADMIN_MOVE_ROAD",
+        pid: admin.pid,
+        fromEid: admin.from,
+        toEid: eid,
+        unsafe: admin.unsafe,
+        reason: admin.reason,
+      });
+    }
+  }
+
+  function handleAdminHexClick(admin: PendingAdminAction, hid: HexId) {
+    if (admin.type === "admin_swap_number_pick_a") {
+      if (gameState.board.hexes[hid]?.number === null) return;
+      store.setPendingAdminAction({
+        type: "admin_swap_number_pick_b",
+        hidA: hid,
+        reason: admin.reason,
+      });
+      return;
+    }
+    if (admin.type === "admin_swap_number_pick_b") {
+      finishAdminAction({
+        type: "ADMIN_SWAP_NUMBER_TOKENS",
+        hidA: admin.hidA,
+        hidB: hid,
+        reason: admin.reason,
+      });
+      return;
+    }
+    if (admin.type === "admin_swap_hex_pick_a") {
+      store.setPendingAdminAction({
+        type: "admin_swap_hex_pick_b",
+        hidA: hid,
+        reason: admin.reason,
+      });
+      return;
+    }
+    if (admin.type === "admin_swap_hex_pick_b") {
+      finishAdminAction({
+        type: "ADMIN_SWAP_HEXES",
+        hidA: admin.hidA,
+        hidB: hid,
+        reason: admin.reason,
+      });
     }
   }
 

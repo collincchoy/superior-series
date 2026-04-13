@@ -51,6 +51,44 @@ export type PendingAction =
   | { type: "move_knight_from" }
   | { type: "move_knight_to"; from: VertexId };
 
+export type PendingAdminAction =
+  | { type: "admin_move_road_pick_from"; unsafe?: boolean; reason?: string }
+  | {
+      type: "admin_move_road_pick_to";
+      from: EdgeId;
+      pid: PlayerId;
+      unsafe?: boolean;
+      reason?: string;
+    }
+  | {
+      type: "admin_move_building_pick_from";
+      unsafe?: boolean;
+      reason?: string;
+    }
+  | {
+      type: "admin_move_building_pick_to";
+      from: VertexId;
+      pid: PlayerId;
+      unsafe?: boolean;
+      reason?: string;
+    }
+  | {
+      type: "admin_move_knight_pick_from";
+      unsafe?: boolean;
+      reason?: string;
+    }
+  | {
+      type: "admin_move_knight_pick_to";
+      from: VertexId;
+      pid: PlayerId;
+      unsafe?: boolean;
+      reason?: string;
+    }
+  | { type: "admin_swap_number_pick_a"; reason?: string }
+  | { type: "admin_swap_number_pick_b"; hidA: HexId; reason?: string }
+  | { type: "admin_swap_hex_pick_a"; reason?: string }
+  | { type: "admin_swap_hex_pick_b"; hidA: HexId; reason?: string };
+
 export interface ValidTargets {
   validVertices: Set<VertexId>;
   validEdges: Set<EdgeId>;
@@ -283,6 +321,72 @@ export function computeValidTargets(
       )
         validVertices.add(vid as VertexId);
     });
+  }
+
+  return { validVertices, validEdges, validHexes };
+}
+
+export function computeAdminTargets(
+  state: GameState,
+  pending: PendingAdminAction | null,
+): ValidTargets {
+  const validVertices = new Set<VertexId>();
+  const validEdges = new Set<EdgeId>();
+  const validHexes = new Set<HexId>();
+
+  if (!pending) return { validVertices, validEdges, validHexes };
+
+  switch (pending.type) {
+    case "admin_move_road_pick_from":
+      Object.entries(state.board.edges).forEach(([eid, road]) => {
+        if (road) validEdges.add(eid as EdgeId);
+      });
+      break;
+    case "admin_move_road_pick_to":
+      Object.entries(state.board.edges).forEach(([eid, road]) => {
+        if (!road) validEdges.add(eid as EdgeId);
+      });
+      break;
+    case "admin_move_building_pick_from":
+      Object.entries(state.board.vertices).forEach(([vid, b]) => {
+        if (b) validVertices.add(vid as VertexId);
+      });
+      break;
+    case "admin_move_building_pick_to":
+      Object.entries(state.board.vertices).forEach(([vid, b]) => {
+        if (!b && !state.board.knights[vid]) validVertices.add(vid as VertexId);
+      });
+      break;
+    case "admin_move_knight_pick_from":
+      Object.entries(state.board.knights).forEach(([vid, k]) => {
+        if (k) validVertices.add(vid as VertexId);
+      });
+      break;
+    case "admin_move_knight_pick_to":
+      Object.entries(state.board.knights).forEach(([vid, k]) => {
+        if (!k && !state.board.vertices[vid]) validVertices.add(vid as VertexId);
+      });
+      break;
+    case "admin_swap_number_pick_a":
+      Object.values(state.board.hexes).forEach((h) => {
+        if (h.number !== null) validHexes.add(h.id);
+      });
+      break;
+    case "admin_swap_number_pick_b":
+      Object.values(state.board.hexes).forEach((h) => {
+        if (h.number !== null && h.id !== pending.hidA) validHexes.add(h.id);
+      });
+      break;
+    case "admin_swap_hex_pick_a":
+      Object.values(state.board.hexes).forEach((h) => {
+        validHexes.add(h.id);
+      });
+      break;
+    case "admin_swap_hex_pick_b":
+      Object.values(state.board.hexes).forEach((h) => {
+        if (h.id !== pending.hidA) validHexes.add(h.id);
+      });
+      break;
   }
 
   return { validVertices, validEdges, validHexes };

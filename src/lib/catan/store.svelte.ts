@@ -19,7 +19,7 @@ import { createInitialState } from "./game.js";
 import type { BoardPreset } from "./game.js";
 import { CatanNetwork } from "./network.js";
 import { PLAYER_COLORS } from "./constants.js";
-import type { PendingAction } from "./validTargets.js";
+import type { PendingAction, PendingAdminAction } from "./validTargets.js";
 import {
   computePlayerCardDeltaEvents,
   getProducingHexIds,
@@ -72,6 +72,7 @@ class CatanStore {
   gameState = $state<GameState | null>(null);
   localPid = $state<PlayerId | null>(null);
   pendingAction = $state<PendingAction | null>(null);
+  pendingAdminAction = $state<PendingAdminAction | null>(null);
 
   // ── Lobby / waiting room ──────────────────────────────────────────────────
   roomCode = $state<string | null>(null);
@@ -282,10 +283,15 @@ class CatanStore {
   sendAction(action: GameAction) {
     this.net?.sendAction(action);
     this.pendingAction = null;
+    this.pendingAdminAction = null;
   }
 
   setPendingAction(pa: PendingAction | null) {
     this.pendingAction = pa;
+  }
+
+  setPendingAdminAction(pa: PendingAdminAction | null) {
+    this.pendingAdminAction = pa;
   }
 
   addBot() {

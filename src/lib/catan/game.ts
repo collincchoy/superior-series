@@ -1495,6 +1495,31 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       );
     }
 
+    case "ADMIN_GRANT_CARDS": {
+      const { pid, cards, reason } = action;
+      const values = Object.values(cards).filter((n) => (n ?? 0) > 0);
+      if (values.length === 0) return s;
+
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...s.players[pid]!,
+            resources: addResources(s.players[pid]!.resources, cards),
+          },
+        },
+      };
+
+      return log(
+        s,
+        appendLogTokens(
+          `[MASTER] ${s.players[pid]?.name} receives cards${reason ? ` (${reason})` : ""}`,
+          logResourceDeltaTokens(cards, 1),
+        ),
+      );
+    }
+
     case "ADMIN_SET_PLAYER_BOT": {
       const { pid, isBot, reason } = action;
       const player = s.players[pid];
@@ -1509,6 +1534,24 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return log(
         s,
         `[MASTER] ${player.name} ${isBot ? "converted to bot" : "restored to human"}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    case "ADMIN_CLEAR_PENDING_STATE": {
+      const { fields, phase, reason } = action;
+      if (fields.length === 0 && !phase) return s;
+
+      const next: GameState = { ...s };
+      for (const field of fields) {
+        next[field] = null;
+      }
+      if (phase) next.phase = phase;
+
+      const cleared = fields.length > 0 ? fields.join(", ") : "none";
+      const phaseText = phase ? `; phase -> ${phase}` : "";
+      return log(
+        next,
+        `[MASTER] Cleared pending state: ${cleared}${phaseText}${reason ? ` (${reason})` : ""}`,
       );
     }
 

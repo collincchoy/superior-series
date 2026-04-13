@@ -5,7 +5,11 @@
     ImprovementTrack,
     ProgressCardName,
     GameAction,
+    PendingStateField,
+    CardType,
   } from "../../lib/catan/types.js";
+  import type { PendingAdminAction } from "../../lib/catan/validTargets.js";
+  import { getActingPlayerIds } from "../../lib/catan/turnActors.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import Modal from "./Modal.svelte";
 
@@ -22,30 +26,22 @@
   let unsafeMode = $state(false);
   let reason = $state("");
 
-  let moveRoadFrom = $state("");
-  let moveRoadTo = $state("");
-  let moveBuildingFrom = $state("");
-  let moveBuildingTo = $state("");
-  let moveKnightFrom = $state("");
-  let moveKnightTo = $state("");
-
-  let swapNumberA = $state("");
-  let swapNumberB = $state("");
-  let swapHexA = $state("");
-  let swapHexB = $state("");
-
   let grantPid = $state("");
   let grantTrack = $state<ImprovementTrack>("science");
   let grantCardName = $state<ProgressCardName | "">("");
+  let grantCardType = $state<CardType>("brick");
+  let grantCardAmount = $state(1);
 
   let togglePid = $state("");
 
   let players = $derived(
     gameState.playerOrder.map((pid) => ({ pid, player: gameState.players[pid]! })),
   );
-  let hexIds = $derived(Object.keys(gameState.board.hexes).sort());
   let availableCardNames = $derived(
     gameState.decks[grantTrack].map((c) => c.name),
+  );
+  let actingPlayers = $derived(
+    getActingPlayerIds(gameState).map((pid) => gameState.players[pid]?.name ?? pid),
   );
 
   $effect(() => {
@@ -65,61 +61,20 @@
 
   function sendAdmin(action: GameAction) {
     if (!store.isHostPlayer) {
-      store.showToast("Master controls are host-only", "error");
+      store.showToast("Control Panel is host-only", "error");
       return;
     }
     store.sendAction(action);
   }
 
-  function moveRoad() {
-    if (!moveRoadFrom || !moveRoadTo) return;
-    const src = gameState.board.edges[moveRoadFrom];
-    if (!src) {
-      store.showToast("No road found on source edge", "error");
+  function beginBoardSelection(action: PendingAdminAction) {
+    if (!store.isHostPlayer) {
+      store.showToast("Control Panel is host-only", "error");
       return;
     }
-    sendAdmin({
-      type: "ADMIN_MOVE_ROAD",
-      pid: src.playerId,
-      fromEid: moveRoadFrom,
-      toEid: moveRoadTo,
-      unsafe: unsafeMode,
-      reason: currentReason(),
-    });
-  }
-
-  function moveBuilding() {
-    if (!moveBuildingFrom || !moveBuildingTo) return;
-    const src = gameState.board.vertices[moveBuildingFrom];
-    if (!src) {
-      store.showToast("No building found on source vertex", "error");
-      return;
-    }
-    sendAdmin({
-      type: "ADMIN_MOVE_BUILDING",
-      pid: src.playerId,
-      fromVid: moveBuildingFrom,
-      toVid: moveBuildingTo,
-      unsafe: unsafeMode,
-      reason: currentReason(),
-    });
-  }
-
-  function moveKnight() {
-    if (!moveKnightFrom || !moveKnightTo) return;
-    const src = gameState.board.knights[moveKnightFrom];
-    if (!src) {
-      store.showToast("No knight found on source vertex", "error");
-      return;
-    }
-    sendAdmin({
-      type: "ADMIN_MOVE_KNIGHT",
-      pid: src.playerId,
-      fromVid: moveKnightFrom,
-      toVid: moveKnightTo,
-      unsafe: unsafeMode,
-      reason: currentReason(),
-    });
+    store.setPendingAdminAction(action);
+    open = false;
+    store.setMasterControlOpen(false);
   }
 
   function grantProgress() {
@@ -128,6 +83,16 @@
       pid: grantPid,
       track: grantTrack,
       cardName: grantCardName || undefined,
+      reason: currentReason(),
+    });
+  }
+
+  function grantCards() {
+    const amount = Math.max(1, Math.floor(Number(grantCardAmount) || 1));
+    sendAdmin({
+      type: "ADMIN_GRANT_CARDS",
+      pid: grantPid,
+      cards: { [grantCardType]: amount },
       reason: currentReason(),
     });
   }
@@ -146,37 +111,31 @@
     });
   }
 
-  let numberedHexIds = $derived(
-    hexIds.filter((hid) => gameState.board.hexes[hid]?.number !== null),
-  );
+  function clearPendingField(field: PendingStateField) {
+    sendAdmin({
+      type: "ADMIN_CLEAR_PENDING_STATE",
+      fields: [field],
+      phase: "ACTION",
+      reason: currentReason(),
+    });
+  }
+
+  function formatPending(value: unknown) {
+    if (value === null) return "none";
+    return JSON.stringify(value);
+  }
 </script>
 
-<Modal bind:open title="Wizard Panel" closeOnBackdrop={true}>
+<Modal bind:open title="Control Panel" closeOnBackdrop={true}>
   {#snippet children()}
-    <div class="wizard-shell">
-      <div class="wizard-banner">
-        <span class="spark">Master Mode</span>
-        <span class="sub">Host-only board surgery and debug tools</span>
-      </div>
+    <div class="control-panel-shell">
+      <p class="panel-description">Host-only recovery and debug controls. Changes are logged and can be undone.</p>
 
       <div class="section">
-        <h4>Safety</h4>
-        <label class="switch-row">
-          <input type="checkbox" bind:checked={unsafeMode} />
-          <span>Unsafe placement bypass (for emergency repairs)</span>
-        </label>
-        <input
-          class="text"
-          placeholder="Reason for audit log (optional)"
-          bind:value={reason}
-        />
-      </div>
-
-      <div class="section">
-        <h4>Quick Spells</h4>
+        <h4>Quick Actions</h4>
         <div class="row">
           <button class="btn" onclick={() => sendAdmin({ type: "ADMIN_UNDO_LAST" })}>
-            Undo Last Master Action
+            Undo Last Action
           </button>
           <button
             class="btn"
@@ -193,95 +152,156 @@
             End Game
           </button>
         </div>
+        <input
+          class="text"
+          placeholder="Reason for audit log (optional)"
+          bind:value={reason}
+        />
       </div>
 
       <div class="section">
         <h4>Board Surgery</h4>
+        <label class="switch-row">
+          <input type="checkbox" bind:checked={unsafeMode} />
+          <span>Unsafe movement checks (for emergency repairs)</span>
+        </label>
         <div class="row">
-          <input class="text" placeholder="Road from edge id" bind:value={moveRoadFrom} />
-          <input class="text" placeholder="Road to edge id" bind:value={moveRoadTo} />
-          <button class="btn" onclick={moveRoad}>Move Road</button>
-        </div>
-        <div class="row">
-          <input class="text" placeholder="Building from vertex id" bind:value={moveBuildingFrom} />
-          <input class="text" placeholder="Building to vertex id" bind:value={moveBuildingTo} />
-          <button class="btn" onclick={moveBuilding}>Move Building</button>
-        </div>
-        <div class="row">
-          <input class="text" placeholder="Knight from vertex id" bind:value={moveKnightFrom} />
-          <input class="text" placeholder="Knight to vertex id" bind:value={moveKnightTo} />
-          <button class="btn" onclick={moveKnight}>Move Knight</button>
-        </div>
-        <div class="row">
-          <select bind:value={swapNumberA}>
-            <option value="">Number token hex A</option>
-            {#each numberedHexIds as hid}<option value={hid}>{hid}</option>{/each}
-          </select>
-          <select bind:value={swapNumberB}>
-            <option value="">Number token hex B</option>
-            {#each numberedHexIds as hid}<option value={hid}>{hid}</option>{/each}
-          </select>
           <button
             class="btn"
             onclick={() =>
-              swapNumberA &&
-              swapNumberB &&
-              sendAdmin({
-                type: "ADMIN_SWAP_NUMBER_TOKENS",
-                hidA: swapNumberA,
-                hidB: swapNumberB,
+              beginBoardSelection({
+                type: "admin_move_road_pick_from",
+                unsafe: unsafeMode,
                 reason: currentReason(),
               })}
           >
-            Swap Number Tokens
+            Move Road (select on board)
           </button>
-        </div>
-        <div class="row">
-          <select bind:value={swapHexA}>
-            <option value="">Hex A</option>
-            {#each hexIds as hid}<option value={hid}>{hid}</option>{/each}
-          </select>
-          <select bind:value={swapHexB}>
-            <option value="">Hex B</option>
-            {#each hexIds as hid}<option value={hid}>{hid}</option>{/each}
-          </select>
           <button
             class="btn"
             onclick={() =>
-              swapHexA &&
-              swapHexB &&
-              sendAdmin({
-                type: "ADMIN_SWAP_HEXES",
-                hidA: swapHexA,
-                hidB: swapHexB,
+              beginBoardSelection({
+                type: "admin_move_building_pick_from",
+                unsafe: unsafeMode,
                 reason: currentReason(),
               })}
           >
-            Swap Hexes
+            Move Building (select on board)
           </button>
+        </div>
+        <div class="row">
+          <button
+            class="btn"
+            onclick={() =>
+              beginBoardSelection({
+                type: "admin_move_knight_pick_from",
+                unsafe: unsafeMode,
+                reason: currentReason(),
+              })}
+          >
+            Move Knight (select on board)
+          </button>
+          <button
+            class="btn"
+            onclick={() =>
+              beginBoardSelection({
+                type: "admin_swap_number_pick_a",
+                reason: currentReason(),
+              })}
+          >
+            Swap Number Tokens (select on board)
+          </button>
+        </div>
+        <div class="row">
+          <button
+            class="btn"
+            onclick={() =>
+              beginBoardSelection({
+                type: "admin_swap_hex_pick_a",
+                reason: currentReason(),
+              })}
+          >
+            Swap Hexes (select on board)
+          </button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h4>Game State</h4>
+        <div class="pending-grid">
+          <span>pendingProgressDraw</span>
+          <code>{formatPending(gameState.pendingProgressDraw)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingProgressDraw")}>Clear</button>
+
+          <span>pendingDiscard</span>
+          <code>{formatPending(gameState.pendingDiscard)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingDiscard")}>Clear</button>
+
+          <span>pendingDisplace</span>
+          <code>{formatPending(gameState.pendingDisplace)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingDisplace")}>Clear</button>
+
+          <span>pendingFreeRoads</span>
+          <code>{formatPending(gameState.pendingFreeRoads)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingFreeRoads")}>Clear</button>
+
+          <span>pendingKnightPromotions</span>
+          <code>{formatPending(gameState.pendingKnightPromotions)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingKnightPromotions")}>Clear</button>
+
+          <span>pendingCommercialHarbor</span>
+          <code>{formatPending(gameState.pendingCommercialHarbor)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingCommercialHarbor")}>Clear</button>
         </div>
       </div>
 
       <div class="section">
         <h4>Treasury</h4>
-        <div class="row">
+        <div class="treasury-grid">
+          <span class="treasury-label">Player</span>
           <select bind:value={grantPid}>
             {#each players as { pid, player }}
               <option value={pid}>{player.name}</option>
             {/each}
           </select>
-          <select bind:value={grantTrack}>
-            <option value="science">Science</option>
-            <option value="trade">Trade</option>
-            <option value="politics">Politics</option>
-          </select>
-          <select bind:value={grantCardName}>
-            <option value="">Top of deck</option>
-            {#each availableCardNames as name}
-              <option value={name}>{name}</option>
-            {/each}
-          </select>
-          <button class="btn" onclick={grantProgress}>Grant Progress</button>
+
+          <span class="treasury-label">Progress card</span>
+          <div class="treasury-actions">
+            <select bind:value={grantTrack}>
+              <option value="science">Science</option>
+              <option value="trade">Trade</option>
+              <option value="politics">Politics</option>
+            </select>
+            <select bind:value={grantCardName}>
+              <option value="">Top of deck</option>
+              {#each availableCardNames as name}
+                <option value={name}>{name}</option>
+              {/each}
+            </select>
+            <button class="btn" onclick={grantProgress}>Grant Progress</button>
+          </div>
+
+          <span class="treasury-label">Resource / commodity</span>
+          <div class="treasury-actions">
+            <select bind:value={grantCardType}>
+              <option value="brick">Brick</option>
+              <option value="lumber">Lumber</option>
+              <option value="ore">Ore</option>
+              <option value="grain">Grain</option>
+              <option value="wool">Wool</option>
+              <option value="cloth">Cloth</option>
+              <option value="coin">Coin</option>
+              <option value="paper">Paper</option>
+            </select>
+            <input
+              class="text amount-input"
+              type="number"
+              min="1"
+              step="1"
+              bind:value={grantCardAmount}
+            />
+            <button class="btn" onclick={grantCards}>Grant Cards</button>
+          </div>
         </div>
       </div>
 
@@ -302,6 +322,7 @@
         <div class="inspector-grid">
           <span>Phase</span><strong>{gameState.phase}</strong>
           <span>Current player</span><strong>{gameState.players[gameState.currentPlayerId]?.name}</strong>
+          <span>Acting players</span><strong>{actingPlayers.join(", ") || "none"}</strong>
           <span>Version</span><strong>{gameState.version}</strong>
           <span>Barbarians</span><strong>{gameState.barbarian.position}/7</strong>
         </div>
@@ -311,32 +332,17 @@
 </Modal>
 
 <style>
-  .wizard-shell {
+  .control-panel-shell {
     display: flex;
     flex-direction: column;
     gap: 0.7rem;
     animation: drift-in 180ms ease-out;
   }
 
-  .wizard-banner {
-    background: linear-gradient(120deg, rgba(245, 200, 66, 0.18), rgba(47, 111, 228, 0.14));
-    border: 1px solid rgba(245, 200, 66, 0.45);
-    border-radius: 10px;
-    padding: 0.55rem 0.7rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-  }
-
-  .spark {
-    color: #f5c842;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-  }
-
-  .sub {
+  .panel-description {
+    margin: 0;
     color: #c7d3c7;
-    font-size: 0.8rem;
+    font-size: 0.82rem;
   }
 
   .section {
@@ -388,6 +394,11 @@
     transition: transform 120ms ease, filter 120ms ease;
   }
 
+  .btn.small {
+    padding: 0.2rem 0.45rem;
+    font-size: 0.7rem;
+  }
+
   .btn:hover {
     filter: brightness(1.06);
   }
@@ -409,6 +420,25 @@
     color: #d6e3d6;
   }
 
+  .pending-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr auto;
+    gap: 0.3rem 0.5rem;
+    align-items: center;
+    font-size: 0.75rem;
+  }
+
+  .pending-grid code {
+    color: #dce9dc;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    padding: 0.15rem 0.3rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .inspector-grid {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -420,19 +450,30 @@
     color: #9cb29c;
   }
 
-  .inspector-grid strong {
-    color: #f0e8d0;
-    font-weight: 600;
+  .treasury-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
   }
 
-  @keyframes drift-in {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
+  .treasury-label {
+    color: #9cb29c;
+    font-size: 0.75rem;
+  }
+
+  .treasury-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .amount-input {
+    width: 100%;
+  }
+
+  @media (max-width: 560px) {
+    .treasury-actions {
+      grid-template-columns: 1fr;
     }
   }
 </style>

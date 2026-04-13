@@ -1,6 +1,9 @@
 <script lang="ts">
   import type { GameState, PlayerId } from "../../lib/catan/types.js";
-  import type { PendingAction } from "../../lib/catan/validTargets.js";
+  import type {
+    PendingAction,
+    PendingAdminAction,
+  } from "../../lib/catan/validTargets.js";
   import { isPlayerActing } from "../../lib/catan/turnActors.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import BoardCanvas from "./BoardCanvas.svelte";
@@ -27,9 +30,34 @@
   let isMyTurn = $derived(isPlayerActing(gameState, localPid));
   let showTrade = $state(false);
   let isHost = $derived(store.isHostPlayer);
-  let wizardOpen = $state(false);
   let isGameOver = $derived(gameState.phase === "GAME_OVER");
   let now = $state(Date.now());
+
+  function adminInstruction(pa: PendingAdminAction | null) {
+    if (!pa) return null;
+    switch (pa.type) {
+      case "admin_move_road_pick_from":
+        return "Move Road: select the road to move.";
+      case "admin_move_road_pick_to":
+        return "Move Road: select destination edge.";
+      case "admin_move_building_pick_from":
+        return "Move Building: select the building to move.";
+      case "admin_move_building_pick_to":
+        return "Move Building: select destination vertex.";
+      case "admin_move_knight_pick_from":
+        return "Move Knight: select the knight to move.";
+      case "admin_move_knight_pick_to":
+        return "Move Knight: select destination vertex.";
+      case "admin_swap_number_pick_a":
+        return "Swap Number Tokens: select first numbered hex.";
+      case "admin_swap_number_pick_b":
+        return "Swap Number Tokens: select second numbered hex.";
+      case "admin_swap_hex_pick_a":
+        return "Swap Hexes: select first hex.";
+      case "admin_swap_hex_pick_b":
+        return "Swap Hexes: select second hex.";
+    }
+  }
 
   $effect(() => {
     const id = setInterval(() => {
@@ -89,7 +117,7 @@
         {/if}
       </span>
       {#if isHost}
-        <button class="wizard-btn" onclick={() => (wizardOpen = true)}>
+        <button class="control-panel-btn" onclick={() => store.setMasterControlOpen(true)}>
           🪄 Control Panel
         </button>
       {/if}
@@ -134,9 +162,26 @@
     <button onclick={() => store.sendAction({ type: "PROGRESS_SKIP_FREE_PROMOTIONS", pid: localPid })}>Skip</button>
   </div>
 {/if}
+{#if store.pendingAdminAction}
+  <div class="pending-overlay">
+    <span>{adminInstruction(store.pendingAdminAction)}</span>
+    <button
+      onclick={() => {
+        store.setPendingAdminAction(null);
+        store.setMasterControlOpen(true);
+      }}
+    >
+      Cancel
+    </button>
+  </div>
+{/if}
 <InfoModal />
 {#if isHost}
-  <MasterControlModal {gameState} {localPid} bind:open={wizardOpen} />
+  <MasterControlModal
+    {gameState}
+    {localPid}
+    bind:open={store.masterControlOpen}
+  />
 {/if}
 
 {#if isGameOver}
@@ -232,7 +277,7 @@
     opacity: 0.92;
   }
 
-  .wizard-btn {
+  .control-panel-btn {
     background: linear-gradient(120deg, #2f6fe4, #4f8ff8);
     color: #f0e8d0;
     border: 1px solid #8ab4ff;
