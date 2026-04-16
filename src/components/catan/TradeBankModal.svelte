@@ -24,7 +24,7 @@
 
   const COMMODITY_KEYS: (keyof Resources)[] = ["cloth", "coin", "paper"];
 
-  let ratios = $derived(() => {
+  let ratios = $derived.by(() => {
     const r: Record<keyof Resources, number> = {
       brick: 4,
       lumber: 4,
@@ -44,7 +44,7 @@
   });
 
   let canGive = $derived(
-    RESOURCE_KEYS.filter((k) => me.resources[k] >= ratios()[k]),
+    RESOURCE_KEYS.filter((k) => me.resources[k] >= ratios[k]),
   );
   let canGiveCommodity2 = $derived(
     isTradeL3
@@ -76,7 +76,7 @@
       store.sendAction({
         type: "TRADE_BANK",
         pid: localPid,
-        give: { [giveKey]: ratios()[giveKey] },
+        give: { [giveKey]: ratios[giveKey] },
         get: { [getKey]: 1 },
       });
     } else {
@@ -119,7 +119,7 @@
             onclick={() => (giveKey = k)}
           >
             {CARD_EMOJI[k]}
-            {k}×{ratios()[k]}
+            {k}×{ratios[k]}
           </button>
         {/each}
         {#if canGive.length === 0}
