@@ -11,6 +11,7 @@
   import PlayersPanel from "./PlayersPanel.svelte";
   import DiscardModal from "./DiscardModal.svelte";
   import TradeBankModal from "./TradeBankModal.svelte";
+  import PlayerTradeModal from "./PlayerTradeModal.svelte";
   import InfoModal from "./InfoModal.svelte";
   import CommercialHarborModal from "./CommercialHarborModal.svelte";
   import MasterControlModal from "./MasterControlModal.svelte";
@@ -29,6 +30,7 @@
 
   let isMyTurn = $derived(isPlayerActing(gameState, localPid));
   let showTrade = $state(false);
+  let showPlayerTrade = $state(false);
   let isHost = $derived(store.isHostPlayer);
   let isGameOver = $derived(gameState.phase === "GAME_OVER");
   let now = $state(Date.now());
@@ -141,6 +143,7 @@
       {pendingAction}
       {isMyTurn}
       bind:showTrade
+      bind:showPlayerTrade
     />
   </div>
 </div>
@@ -149,6 +152,7 @@
 {#if showTrade}
   <TradeBankModal {gameState} {localPid} bind:open={showTrade} />
 {/if}
+<PlayerTradeModal {gameState} {localPid} bind:openInitiate={showPlayerTrade} />
 <CommercialHarborModal {gameState} {localPid} />
 {#if gameState.pendingFreeRoads?.pid === localPid}
   <div class="pending-overlay">

@@ -40,11 +40,13 @@
     localPid,
     pendingAction,
     showTrade = $bindable(false),
+    showPlayerTrade = $bindable(false),
   }: {
     gameState: GameState;
     localPid: PlayerId;
     pendingAction: PendingAction | null;
     showTrade: boolean;
+    showPlayerTrade: boolean;
   } = $props();
 
   const graph = buildGraph();
@@ -77,6 +79,10 @@
   let me = $derived(gameState.players[localPid]!);
   let pid = $derived(localPid);
   let activatedThisTurn = $derived(new Set(gameState.knightsActivatedThisTurn));
+
+  let pendingTrade = $derived(gameState.pendingTradeOffer);
+  let waitingForTradeResponse = $derived(pendingTrade?.initiatorPid === pid);
+  let tradeOfferForMe = $derived(pendingTrade?.targetPids.includes(pid) ?? false);
 
   let canRoad = $derived(
     Object.keys(graph.edges).some((eid) =>
@@ -370,6 +376,12 @@
     <button class="action-btn active" disabled
       >Click a hex to move robber…</button
     >
+  {:else if gameState.phase === "ACTION" && tradeOfferForMe}
+    <div class="trade-hint-panel">
+      <p class="trade-hint-msg">
+        🤝 You have an incoming trade offer!
+      </p>
+    </div>
   {:else if gameState.phase === "ACTION"}
     <div class="action-group">
       <div class="group-head">
@@ -641,7 +653,10 @@
 
     <div class="group-btns">
       <button class="action-btn" onclick={() => (showTrade = true)}
-        >🏦 Trade</button
+        >🏦 Bank</button
+      >
+      <button class="action-btn" onclick={() => (showPlayerTrade = true)}
+        >🤝 Trade</button
       >
       <button
         class="action-btn end-turn"
@@ -879,5 +894,16 @@
     .action-btn, .roll-dice-btn { transition: none; animation: none; }
     .action-btn:hover:not(:disabled):not(.disabled),
     .roll-dice-btn:hover { transform: none; box-shadow: none; }
+  }
+
+  .trade-hint-panel {
+    padding: 0.6rem 0.5rem;
+    text-align: center;
+  }
+
+  .trade-hint-msg {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #c8b47a;
   }
 </style>
