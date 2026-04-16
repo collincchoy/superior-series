@@ -338,6 +338,7 @@ export function createInitialState(
     pendingKnightPromotions: null,
     pendingCommercialHarbor: null,
     pendingScienceBonus: null,
+    pendingTradeOffer: null,
     knightsActivatedThisTurn: [],
     progressEffects: {
       craneDiscountPlayerId: null,
@@ -1380,17 +1381,98 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return s;
     }
 
-    case "TRADE_ACCEPT": {
-      const { from, to } = action;
-      const pending = s.pendingDisplace; // TODO: proper pending trade
+    case "TRADE_OFFER": {
+      const { from, to, offer, want } = action;
+      if (s.phase !== "ACTION" || s.currentPlayerId !== from) return s;
+      if (s.pendingTradeOffer) return s;
+      if (!Object.values(offer).some((v) => (v ?? 0) > 0)) return s;
+      if (!Object.values(want).some((v) => (v ?? 0) > 0)) return s;
+      // Deduplicate, remove self, validate all targets exist
+      const targetPids = [...new Set(to)].filter(
+        (pid) => pid !== from && s.players[pid],
+      );
+      if (targetPids.length === 0) return s;
+      for (const [k, v] of Object.entries(offer)) {
+        if (
+          (s.players[from]!.resources[k as keyof Resources] ?? 0) < (v ?? 0)
+        )
+          return s;
+      }
+      s = {
+        ...s,
+        pendingTradeOffer: { initiatorPid: from, targetPids, offer, want },
+      };
+      const targetNames = targetPids.map((p) => s.players[p]?.name).join(", ");
+      s = log(s, `${s.players[from]?.name} offered a trade to ${targetNames}.`);
       return s;
     }
 
-    // Player-to-player trading is not yet implemented; these are no-ops to
-    // prevent unhandled action warnings when clients send them.
-    case "TRADE_OFFER":
-    case "TRADE_REJECT":
+    case "TRADE_ACCEPT": {
+      const { from, to } = action;
+      const pending = s.pendingTradeOffer;
+      if (!pending || pending.initiatorPid !== from || !pending.targetPids.includes(to))
+        return s;
+      const initiator = s.players[from]!;
+      const responder = s.players[to]!;
+      for (const [k, v] of Object.entries(pending.want)) {
+        if (
+          (responder.resources[k as keyof Resources] ?? 0) < (v ?? 0)
+        )
+          return s;
+      }
+      s = {
+        ...s,
+        players: {
+          ...s.players,
+          [from]: {
+            ...initiator,
+            resources: addResources(
+              subtractResources(initiator.resources, pending.offer),
+              pending.want,
+            ),
+          },
+          [to]: {
+            ...responder,
+            resources: addResources(
+              subtractResources(responder.resources, pending.want),
+              pending.offer,
+            ),
+          },
+        },
+        pendingTradeOffer: null,
+      };
+      const tradeDetails = tradeDetailsText(pending.offer, pending.want);
+      s = log(
+        s,
+        appendLogTokens(
+          `${s.players[from]?.name} and ${s.players[to]?.name} made a deal.`,
+          tradeDetails.length > 0 ? tradeDetails.split(" ") : [],
+        ),
+      );
       return s;
+    }
+
+    case "TRADE_REJECT": {
+      const { from, to } = action;
+      const pending = s.pendingTradeOffer;
+      if (!pending || pending.initiatorPid !== from || !pending.targetPids.includes(to))
+        return s;
+      const remaining = pending.targetPids.filter((p) => p !== to);
+      s = remaining.length > 0
+        ? { ...s, pendingTradeOffer: { ...pending, targetPids: remaining } }
+        : { ...s, pendingTradeOffer: null };
+      s = log(s, `${s.players[to]?.name} declined the trade offer.`);
+      return s;
+    }
+
+    case "TRADE_CANCEL": {
+      const { from } = action;
+      const pending = s.pendingTradeOffer;
+      if (!pending || pending.initiatorPid !== from) return s;
+      s = { ...s, pendingTradeOffer: null };
+      s = log(s, `${s.players[from]?.name} cancelled their trade offer.`);
+      return s;
+    }
 
     // ── Host Master Controls ─────────────────────────────────────────────────
     case "ADMIN_MOVE_ROAD": {

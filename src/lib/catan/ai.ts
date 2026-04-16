@@ -62,6 +62,8 @@ export function chooseBotAction(state: GameState, pid: PlayerId): GameAction {
       return chooseRobberMove(state, pid, graph);
 
     case "ACTION":
+      if (state.pendingTradeOffer?.targetPids.includes(pid))
+        return chooseBotTradeResponse(state, pid);
       return chooseAction(state, pid, graph);
 
     case "KNIGHT_DISPLACE_RESPONSE":
@@ -356,6 +358,46 @@ function chooseRobberMove(
     hid: bestHexId,
     stealFrom: stealFrom ?? null,
   };
+}
+
+// ─── Trade Response ───────────────────────────────────────────────────────────
+
+const TRADE_WEIGHTS: Record<string, number> = {
+  ore: 3,
+  grain: 2.5,
+  cloth: 2.5,
+  coin: 2.5,
+  paper: 2.5,
+  brick: 2,
+  lumber: 2,
+  wool: 1.5,
+};
+
+function scoreResources(r: Partial<Resources>): number {
+  return Object.entries(r).reduce(
+    (total, [k, v]) => total + (TRADE_WEIGHTS[k] ?? 1) * (v ?? 0),
+    0,
+  );
+}
+
+function chooseBotTradeResponse(
+  state: GameState,
+  pid: PlayerId,
+): GameAction {
+  const pending = state.pendingTradeOffer!;
+  const bot = state.players[pid]!;
+  // Reject if bot can't afford what's being asked
+  for (const [k, v] of Object.entries(pending.want)) {
+    if ((bot.resources[k as keyof Resources] ?? 0) < (v ?? 0)) {
+      return { type: "TRADE_REJECT", from: pending.initiatorPid, to: pid };
+    }
+  }
+  // Accept if value received is at least 75% of value given
+  const receive = scoreResources(pending.offer);
+  const give = scoreResources(pending.want);
+  return receive >= give * 0.75
+    ? { type: "TRADE_ACCEPT", from: pending.initiatorPid, to: pid }
+    : { type: "TRADE_REJECT", from: pending.initiatorPid, to: pid };
 }
 
 // ─── Action Phase ─────────────────────────────────────────────────────────────

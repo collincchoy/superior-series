@@ -347,3 +347,85 @@ describe("chooseBotAction - knight promotion", () => {
     }
   });
 });
+
+// ─── Bot trade response ────────────────────────────────────────────────────────
+
+describe("chooseBotAction - trade response", () => {
+  function makePendingTradeState(opts: {
+    botResources?: Partial<typeof emptyResources extends () => infer R ? R : never>;
+    offer?: Partial<Parameters<typeof emptyResources>[0]>;
+    want?: Partial<Parameters<typeof emptyResources>[0]>;
+  } = {}) {
+    const base = buildActionState();
+    const [initiatorPid, botPid] = base.playerOrder as [string, string];
+    const botResources = { ...emptyResources(), ore: 3, grain: 3, wool: 3, brick: 3, lumber: 3, ...(opts.botResources ?? {}) };
+    return {
+      state: {
+        ...base,
+        currentPlayerId: initiatorPid,
+        phase: "ACTION" as const,
+        players: {
+          ...base.players,
+          [botPid]: { ...base.players[botPid]!, resources: botResources },
+        },
+        pendingTradeOffer: {
+          initiatorPid,
+          targetPids: [botPid],
+          offer: opts.offer ?? { brick: 2 },
+          want: opts.want ?? { ore: 2 },
+        },
+      },
+      botPid,
+      initiatorPid,
+    };
+  }
+
+  it("accepts a fair trade (equal value)", () => {
+    const { state, botPid, initiatorPid } = makePendingTradeState({
+      offer: { ore: 2 },
+      want: { ore: 2 },  // nonsensical but value-equal
+    });
+    // Use a clearly fair trade: give 2 ore, want 2 ore (same type, same amount)
+    const fairState = {
+      ...state,
+      pendingTradeOffer: {
+        initiatorPid,
+        targetPids: [botPid],
+        offer: { brick: 3 },
+        want: { brick: 3 },
+      },
+    };
+    const action = chooseBotAction(fairState, botPid);
+    expect(action.type).toBe("TRADE_ACCEPT");
+  });
+
+  it("accepts a favorable trade (bot gains more value)", () => {
+    // Bot gives wool (low value) and gets ore (high value)
+    const { state, botPid } = makePendingTradeState({
+      offer: { ore: 2 },   // initiator gives 2 ore (value 6)
+      want: { wool: 3 },   // initiator wants 3 wool from bot (value 4.5)
+    });
+    const action = chooseBotAction(state, botPid);
+    expect(action.type).toBe("TRADE_ACCEPT");
+  });
+
+  it("rejects a trade it cannot afford", () => {
+    const { state, botPid } = makePendingTradeState({
+      botResources: { ore: 0, grain: 0, wool: 0, brick: 0, lumber: 0 },
+      offer: { brick: 1 },
+      want: { ore: 1 },  // bot has 0 ore
+    });
+    const action = chooseBotAction(state, botPid);
+    expect(action.type).toBe("TRADE_REJECT");
+  });
+
+  it("rejects a heavily disadvantageous trade", () => {
+    // Bot gives 4 ore (value 12) for 1 wool (value 1.5) — very bad deal
+    const { state, botPid } = makePendingTradeState({
+      offer: { wool: 1 },
+      want: { ore: 4 },
+    });
+    const action = chooseBotAction(state, botPid);
+    expect(action.type).toBe("TRADE_REJECT");
+  });
+});

@@ -284,6 +284,16 @@ export interface PendingScienceBonus {
   pid: PlayerId;
 }
 
+export interface PendingTradeOffer {
+  initiatorPid: PlayerId;
+  /** Players who have not yet responded; offer stays live until empty or someone accepts */
+  targetPids: PlayerId[];
+  /** Resources the initiator gives to the accepting player */
+  offer: Partial<Resources>;
+  /** Resources the initiator wants from the accepting player */
+  want: Partial<Resources>;
+}
+
 export type PendingStateField =
   | "pendingDisplace"
   | "pendingProgressDraw"
@@ -291,7 +301,8 @@ export type PendingStateField =
   | "pendingFreeRoads"
   | "pendingKnightPromotions"
   | "pendingCommercialHarbor"
-  | "pendingScienceBonus";
+  | "pendingScienceBonus"
+  | "pendingTradeOffer";
 
 export interface ProgressEffects {
   craneDiscountPlayerId: PlayerId | null;
@@ -333,6 +344,8 @@ export interface GameState {
   pendingCommercialHarbor: PendingCommercialHarbor | null;
   /** Science level 3: active player must choose a free resource (non-7 zero-production roll) */
   pendingScienceBonus: PendingScienceBonus | null;
+  /** Active player-to-player trade offer waiting for the target to accept or reject */
+  pendingTradeOffer: PendingTradeOffer | null;
   /** Knights activated during the current player's turn cannot take knight actions until next turn. */
   knightsActivatedThisTurn: VertexId[];
   progressEffects: ProgressEffects;
@@ -425,12 +438,13 @@ export type GameAction =
   | {
       type: "TRADE_OFFER";
       from: PlayerId;
-      to: PlayerId;
+      to: PlayerId[];
       offer: Partial<Resources>;
       want: Partial<Resources>;
     }
   | { type: "TRADE_ACCEPT"; from: PlayerId; to: PlayerId }
   | { type: "TRADE_REJECT"; from: PlayerId; to: PlayerId }
+  | { type: "TRADE_CANCEL"; from: PlayerId; to: PlayerId }
   // Turn
   | { type: "END_TURN"; pid: PlayerId }
   // Host-only master controls

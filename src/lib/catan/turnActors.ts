@@ -17,6 +17,9 @@ export function getActingPlayerIds(state: GameState): PlayerId[] {
       return state.pendingScienceBonus ? [state.pendingScienceBonus.pid] : [];
 
     default:
+      if (state.pendingTradeOffer) {
+        return state.pendingTradeOffer.targetPids;
+      }
       return [state.currentPlayerId];
   }
 }
