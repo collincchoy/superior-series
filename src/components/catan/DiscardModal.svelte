@@ -5,10 +5,9 @@
     Resources,
   } from "../../lib/catan/types.js";
   import { store } from "../../lib/catan/store.svelte.js";
-  import { RESOURCE_KEYS } from "./cardEmoji.js";
   import DeltaChip from "./DeltaChip.svelte";
   import Modal from "./Modal.svelte";
-  import ResourcePill from "./ResourcePill.svelte";
+  import ResourceHandPicker from "./ResourceHandPicker.svelte";
 
   let { gameState, localPid }: { gameState: GameState; localPid: PlayerId } =
     $props();
@@ -28,18 +27,11 @@
 
   let remaining = $derived(Math.max(0, needed - selectedTotal));
 
-  function selectedCount(k: keyof Resources): number {
-    return selected[k] ?? 0;
-  }
-
-  function handCount(k: keyof Resources): number {
-    return Math.max(0, me.resources[k] - selectedCount(k));
-  }
-
   function adjust(k: keyof Resources, dir: number) {
     const cur = selected[k] ?? 0;
     if (dir > 0) {
-      if (selectedTotal >= needed || handCount(k) <= 0) return;
+      const remaining = Math.max(0, (me.resources[k] ?? 0) - cur);
+      if (selectedTotal >= needed || remaining <= 0) return;
       selected[k] = cur + 1;
       return;
     }
@@ -65,48 +57,14 @@
     {/if}
   </div>
 
-  <div class="transfer-layout">
-    <section class="pane">
-      <div class="pane-title">To discard</div>
-      <div class="pill-grid">
-        {#each RESOURCE_KEYS as k}
-          {#if selectedCount(k) > 0}
-            <button
-              type="button"
-              class="discard-pill"
-              onclick={() => adjust(k, -1)}
-              aria-label={`Remove ${k} from discard`}
-            >
-              <ResourcePill resource={k} count={selectedCount(k)} />
-            </button>
-          {/if}
-        {/each}
-        {#if selectedTotal === 0}
-          <div class="empty">No cards selected yet.</div>
-        {/if}
-      </div>
-    </section>
-
-    <section class="pane">
-      <div class="pane-title">Your hand</div>
-      <div class="pill-grid">
-        {#each RESOURCE_KEYS as k}
-          {#if me.resources[k] > 0}
-            <ResourcePill
-              resource={k}
-              count={handCount(k)}
-              interactive
-              touch
-              muted={handCount(k) === 0}
-              disabled={handCount(k) === 0 || selectedTotal >= needed}
-              title={`Add ${k} to discard`}
-              onclick={() => adjust(k, 1)}
-            />
-          {/if}
-        {/each}
-      </div>
-    </section>
-  </div>
+  <ResourceHandPicker
+    selectedLabel="To discard"
+    handLabel="Your hand"
+    selected={selected}
+    hand={me.resources}
+    onAdjust={(k, dir) => adjust(k, dir)}
+    maxTotal={needed}
+  />
 
   <div class="actions-row">
     <div class="tally" aria-live="polite">Selected: {selectedTotal} / {needed}</div>
@@ -131,61 +89,6 @@
     margin: 0;
     font-size: 0.82rem;
     color: #c8b47a;
-  }
-
-  .transfer-layout {
-    display: flex;
-    flex-direction: column;
-    gap: 0.55rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .pane {
-    border: 1px solid rgba(109, 191, 109, 0.24);
-    border-radius: 10px;
-    padding: 0.45rem;
-    background: rgba(7, 30, 10, 0.5);
-  }
-
-  .pane-title {
-    font-size: 0.73rem;
-    text-transform: uppercase;
-    color: #c8b47a;
-    margin-bottom: 0.35rem;
-    letter-spacing: 0.03em;
-  }
-
-  .pill-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.45rem;
-    min-height: 2.5rem;
-    align-content: flex-start;
-  }
-
-  .discard-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.2rem;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 10px;
-    padding: 0.16rem 0.2rem;
-    background: rgba(55, 20, 20, 0.3);
-    cursor: pointer;
-    min-height: 42px;
-  }
-
-  .discard-pill:hover {
-    filter: brightness(1.07);
-  }
-
-  .discard-pill:active {
-    transform: scale(0.98);
-  }
-
-  .empty {
-    color: #a0b0a0;
-    font-size: 0.82rem;
   }
 
   .actions-row {
@@ -218,14 +121,6 @@
   }
 
   @media (max-width: 720px) {
-    .transfer-layout {
-      gap: 0.5rem;
-    }
-
-    .pane {
-      padding: 0.5rem;
-    }
-
     .actions-row {
       flex-direction: column;
       align-items: stretch;
@@ -240,15 +135,4 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .discard-pill {
-      transition: none;
-    }
-
-    .discard-pill:hover,
-    .discard-pill:active {
-      filter: none;
-      transform: none;
-    }
-  }
 </style>
