@@ -19,7 +19,6 @@
   <div class="lobby">
     <div class="lobby-content">
       <h1>Catan: Cities &amp; Knights</h1>
-      <p class="flavor-text">The island awaits brave settlers…</p>
       <div class="lobby-section">
         <h2>🏰 Host a new game</h2>
         <div class="join-row">
@@ -59,6 +58,7 @@
       {#if store.lobbyStatus}
         <div class="lobby-status {store.lobbyStatusKind}">{store.lobbyStatus}</div>
       {/if}
+      <p class="flavor-text">The island awaits brave settlers…</p>
     </div>
   </div>
 </div>
@@ -66,6 +66,7 @@
 <style>
   .lobby-bg {
     position: relative;
+    height: 100%;
     min-height: 100%;
     background: #06040e;
     overflow: auto;
@@ -82,7 +83,7 @@
   }
 
   .lobby-content {
-    width: min(100%, 520px);
+    width: min(100%, 420px);
     display: flex;
     flex-direction: column;
     gap: 1.1rem;
@@ -95,6 +96,7 @@
     font-family: var(--font-display, cursive);
     letter-spacing: 0.03em;
     text-shadow: 2px 2px 0 rgba(16, 12, 30, 0.95);
+    margin-bottom: 1rem;
   }
 
   .flavor-text {
@@ -102,8 +104,7 @@
     font-size: 0.95rem;
     color: #bdd1bd;
     font-style: italic;
-    margin-top: -0.3rem;
-    margin-bottom: 0.2rem;
+    margin-top: 4rem;
     text-shadow: 1px 1px 0 rgba(10, 10, 10, 0.7);
   }
 
@@ -116,7 +117,7 @@
   }
 
   .lobby-section {
-    background: rgba(11, 17, 11, 0.92);
+    background: rgba(11, 17, 11, 0.52);
     border: 3px solid #c8b47a;
     box-shadow:
       inset 0 0 0 1px #5a420e,
@@ -196,12 +197,7 @@
     color: #e74c3c;
   }
 
-  @media (max-width: 520px) {
-    .lobby {
-      justify-content: flex-start;
-      padding-top: 1rem;
-    }
-
+  @media (max-width: 420px) {
     .btn-primary {
       width: 100%;
     }
