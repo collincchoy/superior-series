@@ -6,6 +6,7 @@
   let hostNameInput = $state("Player 1");
   let joinNameInput = $state("");
   let joinCodeInput = $state("");
+  let pixelBgEnabled = $state(true);
 
   // Read URL param on mount (not module scope — window doesn't exist at build time)
   onMount(() => {
@@ -14,8 +15,8 @@
   });
 </script>
 
-<div class="lobby-bg">
-  <PixelBackground />
+<div class="lobby-bg" class:pixel={pixelBgEnabled}>
+  {#if pixelBgEnabled}<PixelBackground />{/if}
   <div class="lobby">
     <div class="lobby-content">
       <h1>Catan: Cities &amp; Knights</h1>
@@ -61,6 +62,13 @@
       <p class="flavor-text">The island awaits brave settlers…</p>
     </div>
   </div>
+  <button
+    class="bg-toggle"
+    onclick={() => (pixelBgEnabled = !pixelBgEnabled)}
+    title={pixelBgEnabled ? "Disable background" : "Enable background"}
+  >
+    {pixelBgEnabled ? "✦" : "○"}
+  </button>
 </div>
 
 <style>
@@ -68,8 +76,12 @@
     position: relative;
     height: 100%;
     min-height: 100%;
-    background: #06040e;
+    background: #1a3a1a;
     overflow: auto;
+  }
+
+  .lobby-bg.pixel {
+    background: #06040e;
   }
 
   .lobby {
@@ -195,6 +207,29 @@
 
   .lobby-status.error {
     color: #e74c3c;
+  }
+
+  .bg-toggle {
+    position: absolute;
+    z-index: 2;
+    bottom: 0.75rem;
+    right: 0.75rem;
+    background: rgba(11, 17, 11, 0.7);
+    border: 1px solid #5a420e;
+    color: #c8b47a;
+    font-size: 0.75rem;
+    width: 1.8rem;
+    height: 1.8rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+  }
+
+  .bg-toggle:hover {
+    opacity: 1;
   }
 
   @media (max-width: 420px) {
