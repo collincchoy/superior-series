@@ -53,6 +53,8 @@
 
 <style>
   dialog {
+    position: fixed;
+    margin: auto;
     background: #1e2e1e;
     border: 2px solid #2c5f2e;
     border-radius: 10px;
