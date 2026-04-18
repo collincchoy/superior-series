@@ -7,8 +7,6 @@
 
 <svg
   class="pixel-scene"
-  viewBox="0 0 320 568"
-  preserveAspectRatio="xMidYMax meet"
   aria-hidden="true"
 >
   <defs>
@@ -22,26 +20,29 @@
     </filter>
   </defs>
 
-  <rect id="sky" x="0" y="0" width="320" height="568" fill="url(#skyGradient)" />
+  <!-- Sky and ground stretch to fill full container -->
+  <rect id="sky" x="0" y="0" width="100%" height="100%" fill="url(#skyGradient)" />
+  <rect id="ground" x="0" y="63.73%" width="100%" height="36.27%" fill="#0d1a0d" />
+  <rect x="0" y="63.03%" width="100%" height="1.06%" fill="#16291a" opacity="0.8" />
 
-  <g id="clouds" opacity="0.8">
-    <rect x="12" y="62" width="92" height="18" fill="#1a1228" />
-    <rect x="28" y="52" width="70" height="14" fill="#1a1228" />
-    <rect x="206" y="74" width="98" height="16" fill="#1a1228" />
-    <rect x="224" y="62" width="72" height="14" fill="#1a1228" />
-    <rect x="88" y="96" width="62" height="12" fill="#1a1228" />
-  </g>
+  <!-- Scene content maintains aspect ratio, anchored to bottom -->
+  <svg viewBox="0 0 320 568" preserveAspectRatio="xMidYMax meet" width="100%" height="100%">
+    <g id="clouds" opacity="0.8">
+      <rect x="12" y="62" width="92" height="18" fill="#1a1228" />
+      <rect x="28" y="52" width="70" height="14" fill="#1a1228" />
+      <rect x="206" y="74" width="98" height="16" fill="#1a1228" />
+      <rect x="224" y="62" width="72" height="14" fill="#1a1228" />
+      <rect x="88" y="96" width="62" height="12" fill="#1a1228" />
+    </g>
 
-  <DragonSvg />
+    <DragonSvg />
 
-  <CastleSvg />
+    <CastleSvg />
 
-  <rect id="ground" x="0" y="362" width="320" height="206" fill="#0d1a0d" />
-  <rect x="0" y="358" width="320" height="6" fill="#16291a" opacity="0.8" />
+    <KnightSvg />
 
-  <KnightSvg />
-
-  <RainSvg />
+    <RainSvg />
+  </svg>
 </svg>
 
 <style>
