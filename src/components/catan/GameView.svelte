@@ -33,6 +33,10 @@
   let showPlayerTrade = $state(false);
   let isHost = $derived(store.isHostPlayer);
   let isGameOver = $derived(gameState.phase === "GAME_OVER");
+  let winnerName = $derived.by(() => {
+    if (!gameState.winner) return null;
+    return gameState.players.find((p) => p.id === gameState.winner)?.name ?? gameState.winner;
+  });
   let now = $state(Date.now());
 
   function adminInstruction(pa: PendingAdminAction | null) {
@@ -166,6 +170,12 @@
     <button onclick={() => store.sendAction({ type: "PROGRESS_SKIP_FREE_PROMOTIONS", pid: localPid })}>Skip</button>
   </div>
 {/if}
+{#if gameState.pendingTreason?.pid === localPid}
+  <div class="pending-overlay">
+    <span>Treason: click a valid spot to place your knight (≤ strength {gameState.pendingTreason.maxStrength}), or</span>
+    <button onclick={() => store.sendAction({ type: "PROGRESS_SKIP_TREASON", pid: localPid })}>Skip</button>
+  </div>
+{/if}
 {#if store.pendingAdminAction}
   <div class="pending-overlay">
     <span>{adminInstruction(store.pendingAdminAction)}</span>
@@ -197,6 +207,17 @@
       ></span>
     {/each}
     <div class="victory-crown">👑</div>
+  </div>
+  <div class="victory-banner" role="dialog" aria-label="Game over">
+    <div class="victory-crown-static">👑</div>
+    {#if winnerName}
+      <div class="victory-title">{winnerName} wins!</div>
+    {:else}
+      <div class="victory-title">Game Over</div>
+    {/if}
+    <button class="return-lobby-btn" onclick={() => store.returnToLobby()}>
+      Return to Lobby
+    </button>
   </div>
 {/if}
 
@@ -408,5 +429,51 @@
   @media (prefers-reduced-motion: reduce) {
     .confetti-piece { animation: none; display: none; }
     .victory-crown { animation: none; }
+  }
+
+  .victory-banner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 500;
+    background: rgba(20, 40, 20, 0.96);
+    border: 2px solid #f5c842;
+    border-radius: 16px;
+    padding: 2rem 2.5rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 8px 48px rgba(0, 0, 0, 0.7);
+  }
+
+  .victory-crown-static {
+    font-size: 3rem;
+  }
+
+  .victory-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #f5c842;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  }
+
+  .return-lobby-btn {
+    margin-top: 0.5rem;
+    background: #f5c842;
+    color: #1a2e0a;
+    border: none;
+    border-radius: 8px;
+    padding: 0.6rem 1.4rem;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .return-lobby-btn:hover {
+    background: #ffe066;
   }
 </style>

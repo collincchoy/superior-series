@@ -167,6 +167,24 @@ class CatanStore {
     this.masterControlOpen = open;
   }
 
+  returnToLobby() {
+    this.net?.destroy?.();
+    this.net = null;
+    this.screen = "lobby";
+    this.gameState = null;
+    this.localPid = null;
+    this.pendingAction = null;
+    this.pendingAdminAction = null;
+    this.roomCode = null;
+    this.pendingHumans = [];
+    this.connectionStatus = "idle";
+    this.connectionStatusDetail = "";
+    this.lastStateUpdateAt = null;
+    this.lastStateVersion = null;
+    this.playerConnectionStatus = {};
+    this.lobbyStatus = "";
+  }
+
   applyStateUpdate(state: GameState) {
     const previous = this.gameState;
 
