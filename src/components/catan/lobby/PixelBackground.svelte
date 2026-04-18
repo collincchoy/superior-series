@@ -22,8 +22,8 @@
 
   <!-- Sky and ground stretch to fill full container -->
   <rect id="sky" x="0" y="0" width="100%" height="100%" fill="url(#skyGradient)" />
-  <rect id="ground" x="0" y="63.73%" width="100%" height="36.27%" fill="#0d1a0d" />
-  <rect x="0" y="63.03%" width="100%" height="1.06%" fill="#16291a" opacity="0.8" />
+  <rect id="ground" x="0" y="68.13%" width="100%" height="31.87%" fill="#0d1a0d" />
+  <rect x="0" y="67.43%" width="100%" height="1.06%" fill="#16291a" opacity="0.8" />
 
   <!-- Scene content maintains aspect ratio, anchored to bottom -->
   <svg viewBox="0 0 320 568" preserveAspectRatio="xMidYMax meet" width="100%" height="100%">
