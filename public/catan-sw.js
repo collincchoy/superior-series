@@ -10,6 +10,8 @@ const CACHE_NAME = "catan-v1";
 const PRECACHE_URLS = [
   "/superior-series/catan/",
   "/superior-series/catan-manifest.json",
+  "/superior-series/catan-icons/icon-192.png",
+  "/superior-series/catan-icons/icon-512.png",
   "/superior-series/catan-icons/icon-192.svg",
   "/superior-series/catan-icons/icon-512.svg",
 ];
