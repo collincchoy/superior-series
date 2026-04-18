@@ -4,6 +4,8 @@
     PendingAction,
     PendingAdminAction,
   } from "../../lib/catan/validTargets.js";
+  import { computeValidTargets } from "../../lib/catan/validTargets.js";
+  import { bestKnightUpTo } from "../../lib/catan/rules.js";
   import { isPlayerActing } from "../../lib/catan/turnActors.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import BoardCanvas from "./BoardCanvas.svelte";
@@ -38,6 +40,24 @@
     return gameState.players.find((p) => p.id === gameState.winner)?.name ?? gameState.winner;
   });
   let now = $state(Date.now());
+
+  let treasonPlacementMsg = $derived.by(() => {
+    const pt = gameState.pendingTreason;
+    if (!pt || pt.pid !== localPid) return "";
+    const best = bestKnightUpTo(gameState.players[localPid]!, pt.maxStrength);
+    if (!best) return "Treason: no knights available to place.";
+    const label = best < pt.maxStrength
+      ? `strength ${best} (highest you have ≤ ${pt.maxStrength})`
+      : `strength ${best}`;
+    return `Treason: click a valid spot to place a ${label} knight, or`;
+  });
+
+  $effect(() => {
+    if (gameState.pendingTreason?.pid !== localPid) return;
+    if (computeValidTargets(gameState, localPid, null).validVertices.size === 0) {
+      store.sendAction({ type: "PROGRESS_SKIP_TREASON", pid: localPid });
+    }
+  });
 
   function adminInstruction(pa: PendingAdminAction | null) {
     if (!pa) return null;
@@ -172,7 +192,7 @@
 {/if}
 {#if gameState.pendingTreason?.pid === localPid}
   <div class="pending-overlay">
-    <span>Treason: click a valid spot to place your knight (≤ strength {gameState.pendingTreason.maxStrength}), or</span>
+    <span>{treasonPlacementMsg}</span>
     <button onclick={() => store.sendAction({ type: "PROGRESS_SKIP_TREASON", pid: localPid })}>Skip</button>
   </div>
 {/if}

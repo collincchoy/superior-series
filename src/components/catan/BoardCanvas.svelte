@@ -16,6 +16,7 @@
     computeValidTargets,
     computeAdminTargets,
   } from "../../lib/catan/validTargets.js";
+  import { bestKnightUpTo } from "../../lib/catan/rules.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import { isPlayerActing } from "../../lib/catan/turnActors.js";
   import {
@@ -167,6 +168,10 @@
       s({ type: "ACTIVATE_KNIGHT", pid, vid });
     } else if (gameState.pendingKnightPromotions?.pid === pid) {
       s({ type: "PROGRESS_PROMOTE_FREE_KNIGHT", pid, vid });
+    } else if (gameState.pendingTreason?.pid === pid) {
+      const strength = bestKnightUpTo(gameState.players[pid]!, gameState.pendingTreason.maxStrength);
+      if (strength)
+        s({ type: "PROGRESS_PLACE_TREASON_KNIGHT", pid, vid, strength });
     } else if (pendingAction?.type === "progress_select_vertex") {
       s({ type: "PLAY_PROGRESS", pid, card: pendingAction.card, params: { vid } });
     } else if (pendingAction?.type === "progress_select_knight") {

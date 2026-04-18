@@ -29,6 +29,7 @@ import {
   canChaseRobber,
   isOnPlayerNetwork,
   isOpenRoad,
+  hasKnightUpTo,
 } from "./rules.js";
 import { buildGraph } from "./board.js";
 import { isPlayerActing } from "./turnActors.js";
@@ -395,6 +396,21 @@ export function computeValidTargets(
       )
         validVertices.add(vid as VertexId);
     });
+  }
+
+  // Treason placement step
+  if (state.pendingTreason?.pid === localPid) {
+    if (hasKnightUpTo(me, state.pendingTreason.maxStrength)) {
+      Object.keys(graph.vertices).forEach((vid) => {
+        if (
+          !board.vertices[vid as VertexId] &&
+          !board.knights[vid as VertexId] &&
+          isOnPlayerNetwork(board, graph, pid, vid as VertexId)
+        ) {
+          validVertices.add(vid as VertexId);
+        }
+      });
+    }
   }
 
   return { validVertices, validEdges, validHexes };

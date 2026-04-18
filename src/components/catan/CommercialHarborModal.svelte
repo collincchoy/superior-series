@@ -13,6 +13,7 @@
   let me = $derived(gameState.players[localPid]!);
 
   const COMMODITIES: CommodityType[] = ["cloth", "coin", "paper"];
+  let hasCommodity = $derived(COMMODITIES.some((c) => (me.resources[c] ?? 0) >= 1));
 
   function respond(commodity?: CommodityType) {
     store.sendAction({
@@ -27,7 +28,11 @@
   <Modal {open} title="Commercial Harbor" closeable={false} closeOnBackdrop={false}>
     <p class="msg">
       {CARD_EMOJI[offeredResource] ?? ""} <strong>{initiatorName}</strong> offers you 1 <strong>{offeredResource}</strong>.
-      Give 1 commodity in return, or decline.
+      {#if hasCommodity}
+        You must give 1 commodity in return.
+      {:else}
+        You have no commodities — the offer is declined.
+      {/if}
     </p>
     <div class="buttons">
       {#each COMMODITIES as c}
@@ -37,7 +42,9 @@
           </button>
         {/if}
       {/each}
-      <button class="decline-btn" onclick={() => respond(undefined)}>Decline</button>
+      {#if !hasCommodity}
+        <button class="decline-btn" onclick={() => respond(undefined)}>OK (no commodities)</button>
+      {/if}
     </div>
   </Modal>
 {/if}

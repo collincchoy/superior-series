@@ -579,3 +579,17 @@ export function isOnPlayerNetwork(
 ): boolean {
   return isConnectedToNetwork(board, graph, playerId, vid);
 }
+
+// ─── Knight Supply Helpers ─────────────────────────────────────────────────────
+
+export function bestKnightUpTo(player: Player, max: KnightStrength): KnightStrength | undefined {
+  return ([3, 2, 1] as const).find(
+    (str) => str <= max && (player.supply.knights[str] ?? 0) > 0,
+  );
+}
+
+export function hasKnightUpTo(player: Player, max: KnightStrength): boolean {
+  return ([1, 2, 3] as const).some(
+    (str) => str <= max && (player.supply.knights[str] ?? 0) > 0,
+  );
+}

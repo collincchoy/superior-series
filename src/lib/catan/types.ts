@@ -272,6 +272,15 @@ export interface PendingKnightPromotions {
   remaining: 1 | 2;
 }
 
+export interface PendingTreason {
+  /** Player who played Treason and must now optionally place their own knight */
+  pid: PlayerId;
+  /** The removed knight's strength — limits the strength the placer can use */
+  maxStrength: KnightStrength;
+  /** The removed knight's active status — the placed knight inherits this */
+  active: boolean;
+}
+
 export interface PendingCommercialHarbor {
   initiatorPid: PlayerId;
   offeredResource: ResourceType;
@@ -301,6 +310,7 @@ export type PendingStateField =
   | "pendingFreeRoads"
   | "pendingKnightPromotions"
   | "pendingCommercialHarbor"
+  | "pendingTreason"
   | "pendingScienceBonus"
   | "pendingTradeOffer";
 
@@ -342,6 +352,7 @@ export interface GameState {
   pendingFreeRoads: PendingFreeRoads | null;
   pendingKnightPromotions: PendingKnightPromotions | null;
   pendingCommercialHarbor: PendingCommercialHarbor | null;
+  pendingTreason: PendingTreason | null;
   /** Science level 3: active player must choose a free resource (non-7 zero-production roll) */
   pendingScienceBonus: PendingScienceBonus | null;
   /** Active player-to-player trade offer waiting for the target to accept or reject */
@@ -417,6 +428,8 @@ export type GameAction =
   | { type: "PROGRESS_SKIP_FREE_ROADS"; pid: PlayerId }
   | { type: "PROGRESS_PROMOTE_FREE_KNIGHT"; pid: PlayerId; vid: VertexId }
   | { type: "PROGRESS_SKIP_FREE_PROMOTIONS"; pid: PlayerId }
+  | { type: "PROGRESS_PLACE_TREASON_KNIGHT"; pid: PlayerId; vid: VertexId; strength: KnightStrength }
+  | { type: "PROGRESS_SKIP_TREASON"; pid: PlayerId }
   | {
       type: "PROGRESS_RESPOND_COMMERCIAL_HARBOR";
       pid: PlayerId;

@@ -26,6 +26,8 @@ import {
   canRelocateDisplacedKnight,
   canImproveCity,
   hasResources,
+  isOnPlayerNetwork,
+  bestKnightUpTo,
 } from "./rules.js";
 import { BUILD_COSTS } from "./constants.js";
 import { computeVP } from "./game.js";
@@ -64,6 +66,10 @@ export function chooseBotAction(state: GameState, pid: PlayerId): GameAction {
     case "ACTION":
       if (state.pendingTradeOffer?.targetPids.includes(pid))
         return chooseBotTradeResponse(state, pid);
+      if (state.pendingCommercialHarbor?.remainingPids.includes(pid))
+        return chooseBotCommercialHarborResponse(state, pid);
+      if (state.pendingTreason?.pid === pid)
+        return chooseBotTreasonPlacement(state, pid, graph);
       return chooseAction(state, pid, graph);
 
     case "KNIGHT_DISPLACE_RESPONSE":
@@ -398,6 +404,43 @@ function chooseBotTradeResponse(
   return receive >= give * 0.75
     ? { type: "TRADE_ACCEPT", from: pending.initiatorPid, to: pid }
     : { type: "TRADE_REJECT", from: pending.initiatorPid, to: pid };
+}
+
+function chooseBotCommercialHarborResponse(
+  state: GameState,
+  pid: PlayerId,
+): GameAction {
+  const bot = state.players[pid]!;
+  const commodities = (["cloth", "coin", "paper"] as const).filter(
+    (c) => (bot.resources[c] ?? 0) >= 1,
+  );
+  // Must give if we have one — give the one we have most of
+  if (commodities.length > 0) {
+    const best = commodities.reduce((a, b) =>
+      (bot.resources[a] ?? 0) >= (bot.resources[b] ?? 0) ? a : b,
+    );
+    return { type: "PROGRESS_RESPOND_COMMERCIAL_HARBOR", pid, commodity: best };
+  }
+  return { type: "PROGRESS_RESPOND_COMMERCIAL_HARBOR", pid, commodity: undefined };
+}
+
+function chooseBotTreasonPlacement(
+  state: GameState,
+  pid: PlayerId,
+  graph: ReturnType<typeof buildGraph>,
+): GameAction {
+  const pending = state.pendingTreason!;
+  const me = state.players[pid]!;
+  const strength = bestKnightUpTo(me, pending.maxStrength);
+  if (!strength) return { type: "PROGRESS_SKIP_TREASON", pid };
+  const vid = Object.keys(graph.vertices).find(
+    (v) =>
+      !state.board.vertices[v as VertexId] &&
+      !state.board.knights[v as VertexId] &&
+      isOnPlayerNetwork(state.board, graph, pid, v as VertexId),
+  ) as VertexId | undefined;
+  if (!vid) return { type: "PROGRESS_SKIP_TREASON", pid };
+  return { type: "PROGRESS_PLACE_TREASON_KNIGHT", pid, vid, strength };
 }
 
 // ─── Action Phase ─────────────────────────────────────────────────────────────

@@ -47,6 +47,8 @@ import {
   isOnPlayerNetwork,
   canDrawProgress,
   canTradeBank,
+  bestKnightUpTo,
+  hasKnightUpTo,
 } from "./rules.js";
 import {
   logCardToken,
@@ -337,6 +339,7 @@ export function createInitialState(
     pendingFreeRoads: null,
     pendingKnightPromotions: null,
     pendingCommercialHarbor: null,
+    pendingTreason: null,
     pendingScienceBonus: null,
     pendingTradeOffer: null,
     knightsActivatedThisTurn: [],
@@ -1235,14 +1238,65 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return { ...s, pendingKnightPromotions: null };
     }
 
+    case "PROGRESS_PLACE_TREASON_KNIGHT": {
+      const { pid, vid, strength } = action;
+      const pending = s.pendingTreason;
+      if (!pending || pending.pid !== pid) return s;
+      if (strength > pending.maxStrength) return s;
+      const me = s.players[pid]!;
+      if ((me.supply.knights[strength] ?? 0) <= 0) return s;
+      if (
+        s.board.vertices[vid] ||
+        s.board.knights[vid] ||
+        !isOnPlayerNetwork(s.board, graph, pid, vid)
+      )
+        return s;
+      return {
+        ...s,
+        pendingTreason: null,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...me,
+            supply: {
+              ...me.supply,
+              knights: {
+                ...me.supply.knights,
+                [strength]: me.supply.knights[strength] - 1,
+              },
+            },
+          },
+        },
+        board: {
+          ...s.board,
+          knights: {
+            ...s.board.knights,
+            [vid]: { playerId: pid, strength, active: pending.active },
+          },
+        },
+      };
+    }
+
+    case "PROGRESS_SKIP_TREASON": {
+      const { pid } = action;
+      if (s.pendingTreason?.pid !== pid) return s;
+      return { ...s, pendingTreason: null };
+    }
+
+
     case "PROGRESS_RESPOND_COMMERCIAL_HARBOR": {
       const { pid, commodity } = action;
       const pending = s.pendingCommercialHarbor;
       if (!pending || !pending.remainingPids.includes(pid)) return s;
       const initiatorPid = pending.initiatorPid;
       const resource = pending.offeredResource;
+      const responder = s.players[pid]!;
+      const hasCommodity = (["cloth", "coin", "paper"] as const).some(
+        (c) => (responder.resources[c] ?? 0) >= 1,
+      );
+      // Players must give a commodity if they have one — decline only allowed when empty-handed
+      if (!commodity && hasCommodity) return s;
       if (commodity) {
-        const responder = s.players[pid]!;
         const initiator = s.players[initiatorPid]!;
         if ((responder.resources[commodity] ?? 0) < 1) return s;
         const responderRemove: Partial<
@@ -2734,15 +2788,13 @@ function applyProgressCard(
     }
     case "Treason": {
       const trsVid = getParam<VertexId>("vid");
-      const trsPlaceVid = getParam<VertexId>("placeVid");
-      const trsPlaceStrength = getParam<KnightStrength>("placeStrength");
-      if (!trsVid) {
-        return s;
-      }
+      if (!trsVid) return s;
       const trsKnight = s.board.knights[trsVid];
       if (!trsKnight || trsKnight.playerId === pid) break;
       const trsPid = trsKnight.playerId;
       const trsTarget = s.players[trsPid]!;
+      const trsMaxStr = trsKnight.strength;
+      const trsHasKnight = hasKnightUpTo(s.players[pid]!, trsMaxStr);
       s = {
         ...s,
         players: {
@@ -2760,50 +2812,8 @@ function applyProgressCard(
           },
         },
         board: { ...s.board, knights: { ...s.board.knights, [trsVid]: null } },
+        pendingTreason: trsHasKnight ? { pid, maxStrength: trsMaxStr, active: trsKnight.active } : null,
       };
-      if (trsPlaceVid && trsPlaceStrength) {
-        const myPlayer = s.players[pid]!;
-        const strength = Math.min(
-          trsPlaceStrength,
-          trsKnight.strength,
-        ) as KnightStrength;
-        if (myPlayer.supply.knights[strength] > 0) {
-          const trsGraph = buildGraph();
-          if (
-            !s.board.vertices[trsPlaceVid] &&
-            !s.board.knights[trsPlaceVid] &&
-            isOnPlayerNetwork(s.board, trsGraph, pid, trsPlaceVid)
-          ) {
-            s = {
-              ...s,
-              players: {
-                ...s.players,
-                [pid]: {
-                  ...myPlayer,
-                  supply: {
-                    ...myPlayer.supply,
-                    knights: {
-                      ...myPlayer.supply.knights,
-                      [strength]: myPlayer.supply.knights[strength] - 1,
-                    },
-                  },
-                },
-              },
-              board: {
-                ...s.board,
-                knights: {
-                  ...s.board.knights,
-                  [trsPlaceVid]: {
-                    playerId: pid,
-                    strength,
-                    active: trsKnight.active,
-                  },
-                },
-              },
-            };
-          }
-        }
-      }
       break;
     }
     case "CommercialHarbor": {
