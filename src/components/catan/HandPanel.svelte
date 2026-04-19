@@ -5,10 +5,8 @@
     ProgressCardName,
     TurnPhase,
   } from "../../lib/catan/types.js";
+  import { TRACK_BADGE_COLOR, PROGRESS_CARD_INFO } from "../../lib/catan/constants.js";
   import { store } from "../../lib/catan/store.svelte.js";
-  import {
-    PROGRESS_CARD_INFO,
-  } from "../../lib/catan/constants.js";
   import { RESOURCE_KEYS } from "./cardEmoji.js";
   import ResourcePill from "./ResourcePill.svelte";
 
@@ -22,15 +20,7 @@
     phase: TurnPhase;
   } = $props();
 
-  const TRACK_COLORS: Record<ImprovementTrack, string> = {
-    science: "#2e9e4f",
-    trade: "#f1c232",
-    politics: "#2f6fe4",
-  };
-
-  function progressCardColor(track: ImprovementTrack): string {
-    return TRACK_COLORS[track];
-  }
+  let nonVpCards = $derived(me.progressCards.filter(c => !c.isVP));
 
   function canPlayNow(cardName: ProgressCardName, isVP: boolean): boolean {
     if (isVP || !canPlayProgress) return false;
@@ -80,13 +70,13 @@
       {/if}
     {/each}
   </div>
-  {#if me.progressCards.length}
+  {#if nonVpCards.length > 0}
     <div class="progress-cards">
-      {#each me.progressCards as c}
+      {#each nonVpCards as c}
         <button
-          class="prog-card{c.isVP ? ' vp-card' : ''}"
+          class="prog-card"
           class:clickable={canPlayNow(c.name, c.isVP)}
-          style={!c.isVP ? `background:${progressCardColor(c.track)}` : undefined}
+          style="background:{TRACK_BADGE_COLOR[c.track as ImprovementTrack]}"
           onclick={() => onCardTap(c.name, c.isVP, c.track)}
           title={PROGRESS_CARD_INFO[c.name].short}
         >{c.name}</button
