@@ -105,11 +105,6 @@
     >
       <span class="name">
         {p.name}{p.isBot ? " 🤖" : ""}
-        {#if gameState.board.merchantOwner === pid}
-          <span class="merchant-badge" title={merchantLabel} aria-label={merchantLabel}>
-            🏪
-          </span>
-        {/if}
         {#if !p.isBot && pid !== localPid && playerConnectionStatus[pid]}
           <span
             class="conn-dot {playerConnectionStatus[pid] === 'connected' ? 'is-connected' : 'is-disconnected'}"
@@ -124,6 +119,9 @@
       </span>
       <span class="vp">
         <span>{vp} VP</span>
+        {#if gameState.board.merchantOwner === pid}
+          <span class="vp-indicator" title={merchantLabel}>🏪</span>
+        {/if}
         {#if defenderVp > 0}
           <span class="vp-indicator">{defenderVp} 🛡️</span>
         {/if}
@@ -263,12 +261,6 @@
 
   .conn-dot.is-disconnected {
     background: #e07b7b;
-  }
-
-  .merchant-badge {
-    font-size: 0.75rem;
-    line-height: 1;
-    flex: 0 0 auto;
   }
 
   .vp {
