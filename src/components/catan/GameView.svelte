@@ -19,6 +19,7 @@
   import CommercialHarborModal from "./CommercialHarborModal.svelte";
   import VpCardModal from "./VpCardModal.svelte";
   import MasterControlModal from "./MasterControlModal.svelte";
+  import BarbarianAttackOverlay from "./BarbarianAttackOverlay.svelte";
 
   let {
     gameState,
@@ -220,6 +221,10 @@
     {localPid}
     bind:open={store.masterControlOpen}
   />
+{/if}
+
+{#if gameState.phase === "RESOLVE_BARBARIANS" && gameState.pendingBarbarian}
+  <BarbarianAttackOverlay {gameState} />
 {/if}
 
 {#if isGameOver}

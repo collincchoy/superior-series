@@ -15,6 +15,7 @@ import type {
   HexId,
   TerrainType,
   ImprovementTrack,
+  TurnPhase,
 } from "./types.js";
 import { createInitialState } from "./game.js";
 import type { BoardPreset } from "./game.js";
@@ -104,6 +105,9 @@ class CatanStore {
   masterControlOpen = $state(false);
   cardDeltaToasts = $state<PlayerCardDeltaToast[]>([]);
   hexGlowEvents = $state<HexGlowEvent[]>([]);
+  /** Phase from the PREVIOUS state update — used by the barbarian cinematic
+   *  to detect late-joiners who missed the ROLL_DICE→RESOLVE_BARBARIANS edge. */
+  prevPhase = $state<TurnPhase | null>(null);
 
   // ── Non-reactive (must not be proxied) ────────────────────────────────────
   net: CatanNetwork | null = null;
@@ -190,6 +194,7 @@ class CatanStore {
   applyStateUpdate(state: GameState) {
     const previous = this.gameState;
 
+    this.prevPhase = previous?.phase ?? null;
     this.gameState = state;
     this.lastStateUpdateAt = Date.now();
     this.lastStateVersion = state.version;

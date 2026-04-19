@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { createInitialState, applyAction } from "../../lib/catan/game.js";
-import { buildGraph, CATAN_HEX_COORDS, hexId } from "../../lib/catan/board.js";
-import type { GameState, PlayerId, VertexId } from "../../lib/catan/types.js";
+import { buildGraph } from "../../lib/catan/board.js";
+import { PROGRESS_CARD_BY_NAME } from "../../lib/catan/constants.js";
+import type {
+  GameState,
+  PlayerId,
+  ProgressCard,
+  VertexId,
+} from "../../lib/catan/types.js";
 
 const graph = buildGraph();
 
@@ -20,7 +26,6 @@ function stateWithBarbarian(
   robberActive = false,
 ): GameState {
   const base = createInitialState(makePlayers(3));
-  // Skip setup by force-setting phase to ACTION
   return {
     ...base,
     phase: "ACTION" as const,
@@ -36,7 +41,6 @@ function stateWithCities(cityMap: Record<PlayerId, number>): GameState {
 
   for (const [pid, count] of Object.entries(cityMap)) {
     for (let i = 0; i < count; i++) {
-      // Find a free vertex
       let vid: VertexId | null = null;
       for (let j = vIdx; j < allVertices.length; j++) {
         const v = allVertices[j]!;
@@ -104,21 +108,35 @@ function addActiveKnights(
   return state;
 }
 
+/**
+ * Helper: roll the ship face that lands the barbarians, then immediately
+ * commit the attack via EXECUTE_BARBARIAN_ATTACK. Mirrors the real flow
+ * where the cinematic plays, then the host dispatches the commit.
+ */
+function rollShipAndCommit(state: GameState): GameState {
+  const afterRoll = applyAction(state, {
+    type: "ROLL_DICE",
+    pid: state.currentPlayerId,
+    result: [2, 3, "ship"],
+  });
+  // If the ship didn't land, no commit needed
+  if (afterRoll.phase !== "RESOLVE_BARBARIANS") return afterRoll;
+  return applyAction(afterRoll, {
+    type: "EXECUTE_BARBARIAN_ATTACK",
+    pid: afterRoll.currentPlayerId,
+  });
+}
+
 // ─── Barbarian Track ──────────────────────────────────────────────────────────
 
 describe("barbarian track", () => {
   it("advances on event die ship face", () => {
-    const state = stateWithBarbarian(2);
-    state.phase = "ROLL_DICE" as any;
-    const rolled = applyAction(
-      { ...state, phase: "ROLL_DICE" },
-      {
-        type: "ROLL_DICE",
-        pid: "p1",
-        result: [2, 3, "ship"],
-      },
-    );
-    // Ship should advance: position goes from 2 to 3
+    const state = { ...stateWithBarbarian(2), phase: "ROLL_DICE" as const };
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid: "p1",
+      result: [2, 3, "ship"],
+    });
     expect(rolled.barbarian.position).toBe(3);
   });
 
@@ -132,15 +150,10 @@ describe("barbarian track", () => {
     expect(rolled.barbarian.position).toBe(2);
   });
 
-  it("triggers attack at position 7", () => {
+  it("triggers attack at position 7 (after commit, resets to 0)", () => {
     const state = { ...stateWithBarbarian(6), phase: "ROLL_DICE" as const };
-    const rolled = applyAction(state, {
-      type: "ROLL_DICE",
-      pid: "p1",
-      result: [2, 3, "ship"],
-    });
-    // After attack, barbarian should reset to 0
-    expect(rolled.barbarian.position).toBe(0);
+    const committed = rollShipAndCommit(state);
+    expect(committed.barbarian.position).toBe(0);
   });
 
   it("does NOT trigger attack at position 6", () => {
@@ -151,16 +164,16 @@ describe("barbarian track", () => {
       result: [2, 3, "ship"],
     });
     expect(rolled.barbarian.position).toBe(6);
+    expect(rolled.phase).not.toBe("RESOLVE_BARBARIANS");
   });
 });
 
-// ─── Barbarian Attack: Defenders Win ──────────────────────────────────────────
+// ─── Deferred Attack Flow (new) ───────────────────────────────────────────────
 
-describe("barbarian attack - defenders win", () => {
-  it("defenders win: active knight strength >= city count", () => {
-    // 2 cities, 3 active knight strength → defenders win
+describe("barbarian attack - deferred resolution flow", () => {
+  it("ROLL_DICE landing the ship transitions to RESOLVE_BARBARIANS and populates pendingBarbarian", () => {
     let state = stateWithCities({ p1: 2 });
-    state = addActiveKnights(state, "p1", 2, 2); // strength sum = 4
+    state = addActiveKnights(state, "p1", 3, 1); // strength 3
     state = {
       ...state,
       phase: "ROLL_DICE" as const,
@@ -172,62 +185,52 @@ describe("barbarian attack - defenders win", () => {
       pid: "p1",
       result: [2, 3, "ship"],
     });
-    // Cities should NOT be pillaged
+
+    expect(rolled.phase).toBe("RESOLVE_BARBARIANS");
+    expect(rolled.pendingBarbarian).not.toBeNull();
+    expect(rolled.pendingBarbarian!.barbarianStrength).toBe(2);
+    expect(rolled.pendingBarbarian!.totalDefense).toBe(3);
+    expect(rolled.pendingBarbarian!.outcome).toBe("defenders_win");
+    expect(rolled.pendingBarbarian!.vpWinners).toEqual(["p1"]);
+    expect(rolled.pendingBarbarian!.tiedDefenders).toEqual([]);
+    expect(rolled.pendingBarbarian!.citiesPillaged).toEqual([]);
+  });
+
+  it("ROLL_DICE landing with NO state mutation yet: cities/knights/VP unchanged", () => {
+    let state = stateWithCities({ p1: 2 });
+    state = addActiveKnights(state, "p1", 3, 1);
+    state = {
+      ...state,
+      phase: "ROLL_DICE" as const,
+      barbarian: { position: 6, robberActive: false },
+    };
+
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid: "p1",
+      result: [2, 3, "ship"],
+    });
+
+    // No VP granted yet (deferred to EXECUTE_BARBARIAN_ATTACK)
+    expect(rolled.players["p1"]!.vpTokens).toBe(0);
+    // Knights still active
+    const anyActive = Object.values(rolled.board.knights).some(
+      (k) => k && k.active,
+    );
+    expect(anyActive).toBe(true);
+    // Cities unchanged (still 2 cities)
     const cityCount = Object.values(rolled.board.vertices).filter(
       (b) => b?.type === "city",
     ).length;
     expect(cityCount).toBe(2);
+    // Ship parked at 7, not yet reset
+    expect(rolled.barbarian.position).toBe(7);
   });
 
-  it("single defender winner gets 1 VP token", () => {
-    // p1 has 3 active knight strength, p2 has 0 → p1 wins alone
+  it("pendingBarbarian classifies tie_draw when multiple defenders tie for top", () => {
     let state = stateWithCities({ p1: 1 });
-    state = addActiveKnights(state, "p1", 3, 1); // strength = 3
-    state = {
-      ...state,
-      phase: "ROLL_DICE" as const,
-      barbarian: { position: 6, robberActive: false },
-    };
-
-    const before = state.players["p1"]!.vpTokens;
-    const rolled = applyAction(state, {
-      type: "ROLL_DICE",
-      pid: "p1",
-      result: [2, 3, "ship"],
-    });
-    expect(rolled.players["p1"]!.vpTokens).toBe(before + 1);
-  });
-
-  it("tied defenders each draw one progress card", () => {
-    // p1 and p2 each have equal knight strength
-    let state = stateWithCities({ p1: 1 });
-    state = addActiveKnights(state, "p1", 2, 1); // p1: strength 2
-    state = addActiveKnights(state, "p2", 2, 1); // p2: strength 2
-    state = {
-      ...state,
-      phase: "ROLL_DICE" as const,
-      barbarian: { position: 6, robberActive: false },
-    };
-
-    const p1Before = state.players["p1"]!.progressCards.length;
-    const p2Before = state.players["p2"]!.progressCards.length;
-
-    const rolled = applyAction(state, {
-      type: "ROLL_DICE",
-      pid: "p1",
-      result: [2, 3, "ship"],
-    });
-
-    // Neither gets VP token; both should draw one progress card
-    expect(rolled.players["p1"]!.vpTokens).toBe(0);
-    expect(rolled.players["p2"]!.vpTokens).toBe(0);
-    expect(rolled.players["p1"]!.progressCards.length).toBe(p1Before + 1);
-    expect(rolled.players["p2"]!.progressCards.length).toBe(p2Before + 1);
-  });
-
-  it("all active knights become inactive after attack", () => {
-    let state = stateWithCities({ p1: 1 });
-    state = addActiveKnights(state, "p1", 2, 2);
+    state = addActiveKnights(state, "p1", 2, 1); // p1: 2
+    state = addActiveKnights(state, "p2", 2, 1); // p2: 2
     state = {
       ...state,
       phase: "ROLL_DICE" as const,
@@ -239,12 +242,41 @@ describe("barbarian attack - defenders win", () => {
       pid: "p1",
       result: [2, 3, "ship"],
     });
-    for (const knight of Object.values(rolled.board.knights)) {
-      if (knight) expect(knight.active).toBe(false);
+
+    expect(rolled.pendingBarbarian!.outcome).toBe("tie_draw");
+    expect(rolled.pendingBarbarian!.tiedDefenders.sort()).toEqual([
+      "p1",
+      "p2",
+    ]);
+    expect(rolled.pendingBarbarian!.vpWinners).toEqual([]);
+  });
+
+  it("pendingBarbarian classifies barbarians_win and lists cities to be pillaged", () => {
+    // p1 has 2 cities, no knights → barbarians win, p1's city(s) at risk
+    let state = stateWithCities({ p1: 2 });
+    state = {
+      ...state,
+      phase: "ROLL_DICE" as const,
+      barbarian: { position: 6, robberActive: false },
+    };
+
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid: "p1",
+      result: [2, 3, "ship"],
+    });
+
+    expect(rolled.pendingBarbarian!.outcome).toBe("barbarians_win");
+    expect(rolled.pendingBarbarian!.citiesPillaged.length).toBeGreaterThan(0);
+    // The pillage targets must reference actual city vertices owned by a lowest-tier player
+    for (const vid of rolled.pendingBarbarian!.citiesPillaged) {
+      const v = rolled.board.vertices[vid];
+      expect(v?.type).toBe("city");
+      expect(v?.type === "city" && v.metropolis).toBeNull();
     }
   });
 
-  it("barbarian track resets to 0 after attack", () => {
+  it("EXECUTE_BARBARIAN_ATTACK commits the defenders_win outcome (VP + knights inactive + track reset)", () => {
     let state = stateWithCities({ p1: 1 });
     state = addActiveKnights(state, "p1", 3, 1);
     state = {
@@ -258,7 +290,205 @@ describe("barbarian attack - defenders win", () => {
       pid: "p1",
       result: [2, 3, "ship"],
     });
-    expect(rolled.barbarian.position).toBe(0);
+    const committed = applyAction(rolled, {
+      type: "EXECUTE_BARBARIAN_ATTACK",
+      pid: "p1",
+    });
+
+    expect(committed.phase).not.toBe("RESOLVE_BARBARIANS");
+    expect(committed.pendingBarbarian).toBeNull();
+    expect(committed.players["p1"]!.vpTokens).toBe(1);
+    expect(committed.barbarian.position).toBe(0);
+    expect(committed.barbarian.robberActive).toBe(true);
+    for (const knight of Object.values(committed.board.knights)) {
+      if (knight) expect(knight.active).toBe(false);
+    }
+  });
+
+  it("EXECUTE_BARBARIAN_ATTACK commits the barbarians_win outcome (cities pillaged)", () => {
+    let state = stateWithCities({ p1: 1 });
+    state = {
+      ...state,
+      phase: "ROLL_DICE" as const,
+      barbarian: { position: 6, robberActive: false },
+    };
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid: "p1",
+      result: [2, 3, "ship"],
+    });
+    const pillageTargets = [...rolled.pendingBarbarian!.citiesPillaged];
+    expect(pillageTargets.length).toBeGreaterThan(0);
+
+    const committed = applyAction(rolled, {
+      type: "EXECUTE_BARBARIAN_ATTACK",
+      pid: "p1",
+    });
+
+    for (const vid of pillageTargets) {
+      expect(committed.board.vertices[vid]?.type).toBe("settlement");
+    }
+  });
+
+  it("EXECUTE_BARBARIAN_ATTACK resumes production via pendingRollResume", () => {
+    // No cities, no knights — attack resolves with 0 vs 0 (defenders_win, no VP).
+    // The roll (5) must still produce resources afterward.
+    let state = stateWithBarbarian(6);
+    state = {
+      ...state,
+      phase: "ROLL_DICE" as const,
+    };
+
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid: "p1",
+      result: [2, 3, "ship"],
+    });
+    expect(rolled.phase).toBe("RESOLVE_BARBARIANS");
+    // pendingRollResume must be stashed so we can resume after commit
+    expect(rolled.pendingRollResume).not.toBeNull();
+    expect(rolled.pendingRollResume!.production).toBe(5);
+
+    const committed = applyAction(rolled, {
+      type: "EXECUTE_BARBARIAN_ATTACK",
+      pid: "p1",
+    });
+
+    // After commit, rollResume is consumed and we're back on the normal path
+    expect(committed.pendingRollResume).toBeNull();
+    expect(committed.phase).not.toBe("RESOLVE_BARBARIANS");
+  });
+
+  it("EXECUTE_BARBARIAN_ATTACK enters DISCARD_PROGRESS when tie_draw draws past 4-card limit", () => {
+    let state = stateWithCities({ p1: 1 });
+    state = addActiveKnights(state, "p1", 2, 1);
+    state = addActiveKnights(state, "p2", 2, 1);
+    const fourHand: ProgressCard[] = [
+      PROGRESS_CARD_BY_NAME.Alchemy,
+      PROGRESS_CARD_BY_NAME.Crane,
+      PROGRESS_CARD_BY_NAME.Engineering,
+      PROGRESS_CARD_BY_NAME.Invention,
+    ];
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        p1: { ...state.players["p1"]!, progressCards: fourHand },
+      },
+      phase: "ROLL_DICE" as const,
+      barbarian: { position: 6, robberActive: false },
+    };
+
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid: "p1",
+      result: [2, 3, "ship"],
+    });
+    expect(rolled.pendingBarbarian!.outcome).toBe("tie_draw");
+
+    const committed = applyAction(rolled, {
+      type: "EXECUTE_BARBARIAN_ATTACK",
+      pid: "p1",
+    });
+    expect(committed.phase).toBe("DISCARD_PROGRESS");
+    expect(committed.pendingRollResume).not.toBeNull();
+    expect(committed.pendingRollResume!.production).toBe(5);
+    expect(committed.pendingProgressDiscard?.remaining["p1"]).toBeGreaterThan(0);
+  });
+
+  it("EXECUTE_BARBARIAN_ATTACK is a no-op if pendingBarbarian is null", () => {
+    const state = stateWithBarbarian(0);
+    const after = applyAction(state, {
+      type: "EXECUTE_BARBARIAN_ATTACK",
+      pid: "p1",
+    });
+    expect(after.phase).toBe(state.phase);
+    expect(after.pendingBarbarian).toBeNull();
+    expect(after.board).toBe(state.board);
+    expect(after.players).toBe(state.players);
+  });
+});
+
+// ─── Barbarian Attack: Defenders Win (end-to-end, through commit) ─────────────
+
+describe("barbarian attack - defenders win", () => {
+  it("defenders win: active knight strength >= city count (no cities pillaged)", () => {
+    let state = stateWithCities({ p1: 2 });
+    state = addActiveKnights(state, "p1", 2, 2);
+    state = {
+      ...state,
+      phase: "ROLL_DICE" as const,
+      barbarian: { position: 6, robberActive: false },
+    };
+
+    const committed = rollShipAndCommit(state);
+    const cityCount = Object.values(committed.board.vertices).filter(
+      (b) => b?.type === "city",
+    ).length;
+    expect(cityCount).toBe(2);
+  });
+
+  it("single defender winner gets 1 VP token", () => {
+    let state = stateWithCities({ p1: 1 });
+    state = addActiveKnights(state, "p1", 3, 1);
+    state = {
+      ...state,
+      phase: "ROLL_DICE" as const,
+      barbarian: { position: 6, robberActive: false },
+    };
+
+    const before = state.players["p1"]!.vpTokens;
+    const committed = rollShipAndCommit(state);
+    expect(committed.players["p1"]!.vpTokens).toBe(before + 1);
+  });
+
+  it("tied defenders each draw one progress card", () => {
+    let state = stateWithCities({ p1: 1 });
+    state = addActiveKnights(state, "p1", 2, 1);
+    state = addActiveKnights(state, "p2", 2, 1);
+    state = {
+      ...state,
+      phase: "ROLL_DICE" as const,
+      barbarian: { position: 6, robberActive: false },
+    };
+
+    const p1Before = state.players["p1"]!.progressCards.length;
+    const p2Before = state.players["p2"]!.progressCards.length;
+
+    const committed = rollShipAndCommit(state);
+
+    expect(committed.players["p1"]!.vpTokens).toBe(0);
+    expect(committed.players["p2"]!.vpTokens).toBe(0);
+    expect(committed.players["p1"]!.progressCards.length).toBe(p1Before + 1);
+    expect(committed.players["p2"]!.progressCards.length).toBe(p2Before + 1);
+  });
+
+  it("all active knights become inactive after attack", () => {
+    let state = stateWithCities({ p1: 1 });
+    state = addActiveKnights(state, "p1", 2, 2);
+    state = {
+      ...state,
+      phase: "ROLL_DICE" as const,
+      barbarian: { position: 6, robberActive: false },
+    };
+
+    const committed = rollShipAndCommit(state);
+    for (const knight of Object.values(committed.board.knights)) {
+      if (knight) expect(knight.active).toBe(false);
+    }
+  });
+
+  it("barbarian track resets to 0 after attack", () => {
+    let state = stateWithCities({ p1: 1 });
+    state = addActiveKnights(state, "p1", 3, 1);
+    state = {
+      ...state,
+      phase: "ROLL_DICE" as const,
+      barbarian: { position: 6, robberActive: false },
+    };
+
+    const committed = rollShipAndCommit(state);
+    expect(committed.barbarian.position).toBe(0);
   });
 });
 
@@ -266,7 +496,6 @@ describe("barbarian attack - defenders win", () => {
 
 describe("barbarian attack - barbarians win", () => {
   it("player with 0 knights loses a city", () => {
-    // 2 cities for p1, no active knights
     let state = stateWithCities({ p1: 2 });
     state = {
       ...state,
@@ -277,12 +506,8 @@ describe("barbarian attack - barbarians win", () => {
     const before = Object.values(state.board.vertices).filter(
       (b) => b?.type === "city",
     ).length;
-    const rolled = applyAction(state, {
-      type: "ROLL_DICE",
-      pid: "p1",
-      result: [2, 3, "ship"],
-    });
-    const after = Object.values(rolled.board.vertices).filter(
+    const committed = rollShipAndCommit(state);
+    const after = Object.values(committed.board.vertices).filter(
       (b) => b?.type === "city",
     ).length;
     expect(after).toBeLessThan(before);
@@ -301,18 +526,12 @@ describe("barbarian attack - barbarians win", () => {
     )?.[0] as VertexId | undefined;
     if (!cityVertex) return;
 
-    const rolled = applyAction(state, {
-      type: "ROLL_DICE",
-      pid: "p1",
-      result: [2, 3, "ship"],
-    });
-    // The city should now be a settlement
-    expect(rolled.board.vertices[cityVertex]?.type).toBe("settlement");
+    const committed = rollShipAndCommit(state);
+    expect(committed.board.vertices[cityVertex]?.type).toBe("settlement");
   });
 
   it("metropolis city is NOT pillaged", () => {
     let state = stateWithCities({ p1: 1 });
-    // Make the city a metropolis
     const cityVertex = Object.entries(state.board.vertices).find(
       ([, b]) => b?.type === "city",
     )?.[0] as VertexId | undefined;
@@ -336,17 +555,11 @@ describe("barbarian attack - barbarians win", () => {
       barbarian: { position: 6, robberActive: false },
     };
 
-    const rolled = applyAction(state, {
-      type: "ROLL_DICE",
-      pid: "p1",
-      result: [2, 3, "ship"],
-    });
-    // Metropolis city stays a city
-    expect(rolled.board.vertices[cityVertex]?.type).toBe("city");
+    const committed = rollShipAndCommit(state);
+    expect(committed.board.vertices[cityVertex]?.type).toBe("city");
   });
 
   it("city wall is removed when city is pillaged", () => {
-    // Place a city with a wall
     let state = stateWithBarbarian(0);
     const allVertices = Object.keys(graph.vertices) as VertexId[];
     const vid = allVertices[0]! as VertexId;
@@ -368,13 +581,8 @@ describe("barbarian attack - barbarians win", () => {
       barbarian: { position: 6, robberActive: false },
     };
 
-    const rolled = applyAction(state, {
-      type: "ROLL_DICE",
-      pid: "p1",
-      result: [2, 3, "ship"],
-    });
-    // City becomes settlement (which never has walls)
-    expect(rolled.board.vertices[vid]?.type).toBe("settlement");
+    const committed = rollShipAndCommit(state);
+    expect(committed.board.vertices[vid]?.type).toBe("settlement");
   });
 
   it("first barbarian attack activates the robber on the desert", () => {
@@ -385,14 +593,9 @@ describe("barbarian attack - barbarians win", () => {
       barbarian: { position: 6, robberActive: false },
     };
 
-    const rolled = applyAction(state, {
-      type: "ROLL_DICE",
-      pid: "p1",
-      result: [2, 3, "ship"],
-    });
-    expect(rolled.barbarian.robberActive).toBe(true);
-    // Robber should be placed on desert hex
-    const desertHex = Object.values(rolled.board.hexes).find(
+    const committed = rollShipAndCommit(state);
+    expect(committed.barbarian.robberActive).toBe(true);
+    const desertHex = Object.values(committed.board.hexes).find(
       (h) => h.terrain === "desert",
     );
     if (desertHex) {

@@ -344,7 +344,10 @@ export class CatanNetwork {
         this.state.phase === "RESOLVE_PROGRESS_DRAW" ||
         this.state.phase === "DISCARD" ||
         this.state.phase === "DISCARD_PROGRESS" ||
-        this.state.phase === "KNIGHT_DISPLACE_RESPONSE"
+        this.state.phase === "KNIGHT_DISPLACE_RESPONSE" ||
+        // Cinematic is playing on all clients; host dispatches EXECUTE_BARBARIAN_ATTACK
+        // from the overlay when done. Stop the bot loop until then.
+        this.state.phase === "RESOLVE_BARBARIANS"
       ) {
         break;
       }
