@@ -2605,3 +2605,71 @@ describe("player trading", () => {
     expect(after.log.at(-1)).toContain("cancelled");
   });
 });
+
+describe("VP progress card announcement", () => {
+  function stateWithVpCardInDeck(track: "science" | "politics"): GameState {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const vpCard = track === "science"
+      ? { name: "Printing" as const, track: "science" as const, isVP: true }
+      : { name: "Constitution" as const, track: "politics" as const, isVP: true };
+    return {
+      ...state,
+      decks: { ...state.decks, [track]: [vpCard, ...state.decks[track]] },
+      players: {
+        ...state.players,
+        [pid]: { ...state.players[pid]!, progressCards: [] },
+      },
+    };
+  }
+
+  it("drawing a VP card sets pendingVpCardAnnouncement", () => {
+    const state = stateWithVpCardInDeck("science");
+    const pid = state.currentPlayerId;
+    const result = applyAction(state, { type: "DRAW_PROGRESS", pid, track: "science" });
+    expect(result.pendingVpCardAnnouncement).not.toBeNull();
+    expect(result.pendingVpCardAnnouncement?.pid).toBe(pid);
+    expect(result.pendingVpCardAnnouncement?.card.name).toBe("Printing");
+  });
+
+  it("drawing a non-VP card does NOT set pendingVpCardAnnouncement", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const nonVpCard = { name: "Crane" as const, track: "science" as const, isVP: false };
+    const stateWithCard = {
+      ...state,
+      decks: { ...state.decks, science: [nonVpCard, ...state.decks.science] },
+      players: { ...state.players, [pid]: { ...state.players[pid]!, progressCards: [] } },
+    };
+    const result = applyAction(stateWithCard, { type: "DRAW_PROGRESS", pid, track: "science" });
+    expect(result.pendingVpCardAnnouncement).toBeNull();
+  });
+
+  it("ACKNOWLEDGE_VP_CARD clears pendingVpCardAnnouncement", () => {
+    const state = stateWithVpCardInDeck("politics");
+    const pid = state.currentPlayerId;
+    const drawn = applyAction(state, { type: "DRAW_PROGRESS", pid, track: "politics" });
+    expect(drawn.pendingVpCardAnnouncement).not.toBeNull();
+    const acked = applyAction(drawn, { type: "ACKNOWLEDGE_VP_CARD", pid });
+    expect(acked.pendingVpCardAnnouncement).toBeNull();
+  });
+
+  it("ACKNOWLEDGE_VP_CARD from wrong player is ignored", () => {
+    const state = stateWithVpCardInDeck("science");
+    const pid = state.currentPlayerId;
+    const drawn = applyAction(state, { type: "DRAW_PROGRESS", pid, track: "science" });
+    const otherPid = state.playerOrder.find(p => p !== pid)!;
+    const result = applyAction(drawn, { type: "ACKNOWLEDGE_VP_CARD", pid: otherPid });
+    expect(result.pendingVpCardAnnouncement).not.toBeNull();
+  });
+
+  it("VP card remains in progressCards after acknowledgment (counted toward VP)", () => {
+    const state = stateWithVpCardInDeck("science");
+    const pid = state.currentPlayerId;
+    const drawn = applyAction(state, { type: "DRAW_PROGRESS", pid, track: "science" });
+    const acked = applyAction(drawn, { type: "ACKNOWLEDGE_VP_CARD", pid });
+    const vpCards = acked.players[pid]!.progressCards.filter(c => c.isVP);
+    expect(vpCards).toHaveLength(1);
+    expect(vpCards[0]!.name).toBe("Printing");
+  });
+});

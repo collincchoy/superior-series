@@ -288,6 +288,11 @@ export interface PendingCommercialHarbor {
   remainingPids: PlayerId[];
 }
 
+export interface PendingVpCardAnnouncement {
+  pid: PlayerId;
+  card: ProgressCard;
+}
+
 export interface PendingScienceBonus {
   /** The player who must select their free resource */
   pid: PlayerId;
@@ -311,6 +316,7 @@ export type PendingStateField =
   | "pendingKnightPromotions"
   | "pendingCommercialHarbor"
   | "pendingTreason"
+  | "pendingVpCardAnnouncement"
   | "pendingScienceBonus"
   | "pendingTradeOffer";
 
@@ -353,6 +359,7 @@ export interface GameState {
   pendingKnightPromotions: PendingKnightPromotions | null;
   pendingCommercialHarbor: PendingCommercialHarbor | null;
   pendingTreason: PendingTreason | null;
+  pendingVpCardAnnouncement: PendingVpCardAnnouncement | null;
   /** Science level 3: active player must choose a free resource (non-7 zero-production roll) */
   pendingScienceBonus: PendingScienceBonus | null;
   /** Active player-to-player trade offer waiting for the target to accept or reject */
@@ -430,6 +437,7 @@ export type GameAction =
   | { type: "PROGRESS_SKIP_FREE_PROMOTIONS"; pid: PlayerId }
   | { type: "PROGRESS_PLACE_TREASON_KNIGHT"; pid: PlayerId; vid: VertexId; strength: KnightStrength }
   | { type: "PROGRESS_SKIP_TREASON"; pid: PlayerId }
+  | { type: "ACKNOWLEDGE_VP_CARD"; pid: PlayerId }
   | {
       type: "PROGRESS_RESPOND_COMMERCIAL_HARBOR";
       pid: PlayerId;

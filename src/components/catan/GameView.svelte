@@ -16,6 +16,7 @@
   import PlayerTradeModal from "./PlayerTradeModal.svelte";
   import InfoModal from "./InfoModal.svelte";
   import CommercialHarborModal from "./CommercialHarborModal.svelte";
+  import VpCardModal from "./VpCardModal.svelte";
   import MasterControlModal from "./MasterControlModal.svelte";
 
   let {
@@ -178,6 +179,7 @@
 {/if}
 <PlayerTradeModal {gameState} {localPid} bind:openInitiate={showPlayerTrade} />
 <CommercialHarborModal {gameState} {localPid} />
+<VpCardModal {gameState} {localPid} />
 {#if gameState.pendingFreeRoads?.pid === localPid}
   <div class="pending-overlay">
     <span>Road Building: click a valid road edge to place it, or</span>

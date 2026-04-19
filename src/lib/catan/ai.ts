@@ -41,6 +41,10 @@ import { computeVP } from "./game.js";
 export function chooseBotAction(state: GameState, pid: PlayerId): GameAction {
   const graph = buildGraph();
 
+  if (state.pendingVpCardAnnouncement?.pid === pid) {
+    return { type: "ACKNOWLEDGE_VP_CARD", pid };
+  }
+
   switch (state.phase) {
     case "SETUP_R1_SETTLEMENT":
       return chooseSetupSettlement(state, pid, graph);

@@ -340,6 +340,7 @@ export function createInitialState(
     pendingKnightPromotions: null,
     pendingCommercialHarbor: null,
     pendingTreason: null,
+    pendingVpCardAnnouncement: null,
     pendingScienceBonus: null,
     pendingTradeOffer: null,
     knightsActivatedThisTurn: [],
@@ -1114,7 +1115,6 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       const card = deck.shift()!;
       const player = s.players[pid]!;
 
-      // VP cards go face-up immediately
       s = {
         ...s,
         decks: { ...s.decks, [track]: deck },
@@ -1122,6 +1122,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           ...s.players,
           [pid]: { ...player, progressCards: [...player.progressCards, card] },
         },
+        ...(card.isVP ? { pendingVpCardAnnouncement: { pid, card } } : {}),
       };
       s = log(s, `${s.players[pid]?.name} drew a ${track} progress card.`);
 
@@ -1281,6 +1282,12 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       const { pid } = action;
       if (s.pendingTreason?.pid !== pid) return s;
       return { ...s, pendingTreason: null };
+    }
+
+    case "ACKNOWLEDGE_VP_CARD": {
+      const { pid } = action;
+      if (s.pendingVpCardAnnouncement?.pid !== pid) return s;
+      return { ...s, pendingVpCardAnnouncement: null };
     }
 
 
