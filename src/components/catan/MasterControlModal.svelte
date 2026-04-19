@@ -277,6 +277,10 @@
           <span>pendingCommercialHarbor</span>
           <code>{formatPending(gameState.pendingCommercialHarbor)}</code>
           <button class="btn small" onclick={() => clearPendingField("pendingCommercialHarbor")}>Clear</button>
+
+          <span>pendingBarbarian</span>
+          <code>{formatPending(gameState.pendingBarbarian)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingBarbarian")}>Clear</button>
         </div>
       </div>
 

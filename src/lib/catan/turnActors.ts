@@ -21,6 +21,11 @@ export function getActingPlayerIds(state: GameState): PlayerId[] {
     case "SCIENCE_SELECT_RESOURCE":
       return state.pendingScienceBonus ? [state.pendingScienceBonus.pid] : [];
 
+    case "RESOLVE_BARBARIANS":
+      // Host-driven: the cinematic plays on every client, then the host alone
+      // dispatches EXECUTE_BARBARIAN_ATTACK. No player "acts" in the meantime.
+      return [];
+
     default:
       if (state.pendingTradeOffer) {
         return state.pendingTradeOffer.targetPids;

@@ -320,6 +320,29 @@ export interface PendingTradeOffer {
   want: Partial<Resources>;
 }
 
+/**
+ * Deterministic snapshot of a barbarian attack outcome.
+ * Populated when the ship reaches the island; drives the client-side cinematic.
+ * The actual state mutation (VP, pillage, knight deactivation, robber) is deferred
+ * to EXECUTE_BARBARIAN_ATTACK so the UI can animate the reveal.
+ */
+export interface PendingBarbarian {
+  /** Total barbarian strength = # cities on the board (including metropolises) */
+  barbarianStrength: number;
+  /** Sum of all active knight strengths */
+  totalDefense: number;
+  /** Contribution per player (active knight strength total) */
+  defensePerPlayer: Record<PlayerId, number>;
+  /** Outcome: defenders win outright, tied top defenders draw cards, or barbarians pillage */
+  outcome: "defenders_win" | "tie_draw" | "barbarians_win";
+  /** Single hero who earns a VP token (defenders_win with one top defender), else [] */
+  vpWinners: PlayerId[];
+  /** Tied top defenders who each draw a progress card (tie_draw), else [] */
+  tiedDefenders: PlayerId[];
+  /** Cities that will be pillaged (barbarians_win), in reveal order */
+  citiesPillaged: VertexId[];
+}
+
 export type PendingStateField =
   | "pendingDisplace"
   | "pendingProgressDraw"
@@ -332,7 +355,8 @@ export type PendingStateField =
   | "pendingTreason"
   | "pendingVpCardAnnouncement"
   | "pendingScienceBonus"
-  | "pendingTradeOffer";
+  | "pendingTradeOffer"
+  | "pendingBarbarian";
 
 export interface ProgressEffects {
   craneDiscountPlayerId: PlayerId | null;
@@ -377,6 +401,8 @@ export interface GameState {
   pendingCommercialHarbor: PendingCommercialHarbor | null;
   pendingTreason: PendingTreason | null;
   pendingVpCardAnnouncement: PendingVpCardAnnouncement | null;
+  /** Populated while phase === "RESOLVE_BARBARIANS"; drives the attack cinematic */
+  pendingBarbarian: PendingBarbarian | null;
   /** Science level 3: active player must choose a free resource (non-7 zero-production roll) */
   pendingScienceBonus: PendingScienceBonus | null;
   /** Active player-to-player trade offer waiting for the target to accept or reject */
@@ -486,6 +512,8 @@ export type GameAction =
   | { type: "TRADE_CANCEL"; from: PlayerId; to: PlayerId }
   // Turn
   | { type: "END_TURN"; pid: PlayerId }
+  // Barbarian attack commit (host-driven after cinematic plays out)
+  | { type: "EXECUTE_BARBARIAN_ATTACK"; pid: PlayerId }
   // Host-only master controls
   | {
       type: "ADMIN_MOVE_ROAD";

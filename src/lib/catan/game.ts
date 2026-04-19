@@ -16,6 +16,7 @@ import type {
   KnightStrength,
   EventDieFace,
   ProgressCardName,
+  PendingBarbarian,
 } from "./types.js";
 import { emptyResources } from "./types.js";
 import {
@@ -445,6 +446,7 @@ export function createInitialState(
     pendingVpCardAnnouncement: null,
     pendingScienceBonus: null,
     pendingTradeOffer: null,
+    pendingBarbarian: null,
     knightsActivatedThisTurn: [],
     progressEffects: {
       craneDiscountPlayerId: null,
@@ -625,11 +627,22 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       if (event === "ship") {
         const newPos = s.barbarian.position + 1;
         if (newPos >= 7) {
-          // Barbarian attack
-          s = resolveBarbarianAttack({
+          // Barbarians land: park state in RESOLVE_BARBARIANS with a pre-computed
+          // outcome so the client-side cinematic can reveal it. The actual state
+          // mutation (VP, pillage, knights, robber) waits for EXECUTE_BARBARIAN_ATTACK.
+          s = { ...s, barbarian: { ...s.barbarian, position: 7 } };
+          const pendingBarbarian = computeBarbarianAttack(s);
+          s = log(
+            s,
+            `Barbarians approach the island! Strength ${pendingBarbarian.barbarianStrength} vs Defense ${pendingBarbarian.totalDefense}`,
+          );
+          return {
             ...s,
-            barbarian: { ...s.barbarian, position: 7 },
-          });
+            phase: "RESOLVE_BARBARIANS",
+            pendingBarbarian,
+            // Stash the roll so production/progress-draw can resume after the commit.
+            pendingRollResume: { rollerPid: pid, production },
+          };
         } else {
           s = { ...s, barbarian: { ...s.barbarian, position: newPos } };
         }
@@ -659,6 +672,27 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       }
 
       s = applyProductionAfterRoll(s, graph, pid, production);
+      return checkWin(s);
+    }
+
+    // ── Commit Barbarian Attack ────────────────────────────────────────────────
+    case "EXECUTE_BARBARIAN_ATTACK": {
+      if (s.phase !== "RESOLVE_BARBARIANS" || !s.pendingBarbarian) return s;
+      s = commitBarbarianAttack(s, s.pendingBarbarian);
+      s = { ...s, pendingBarbarian: null };
+
+      // Game could have ended during commit (VP token could land someone at 13)
+      if (s.phase === "GAME_OVER") return s;
+
+      // Resume the interrupted roll — reuse the exact same path the progress-discard
+      // resume takes after DISCARD_PROGRESS finishes.
+      const resume = s.pendingRollResume;
+      if (!resume) {
+        // No roll to resume (e.g. admin-triggered attack); land back in ACTION.
+        return { ...s, phase: "ACTION" };
+      }
+      s = { ...s, pendingRollResume: null };
+      s = applyProductionAfterRoll(s, graph, resume.rollerPid, resume.production);
       return checkWin(s);
     }
 
@@ -2027,26 +2061,105 @@ function cityTerrainProduction(terrain: string): {
 
 // ─── Barbarian Attack ─────────────────────────────────────────────────────────
 
-function resolveBarbarianAttack(state: GameState): GameState {
-  let s = state;
-
-  // Count cities on board (each city = 1 barbarian strength)
-  const allCities = Object.entries(s.board.vertices).filter(
-    ([, b]) => b?.type === "city",
-  );
-  const barbarianStrength = allCities.length;
+/**
+ * Compute what will happen when the barbarians attack, without mutating the state.
+ * Returns a deterministic snapshot suitable for driving a client-side cinematic.
+ */
+export function computeBarbarianAttack(state: GameState): PendingBarbarian {
+  // Each city contributes 1 barbarian strength (metropolises included)
+  const barbarianStrength = Object.values(state.board.vertices).filter(
+    (b) => b?.type === "city",
+  ).length;
 
   // Sum active knight strengths per player
-  const knightContrib: Record<PlayerId, number> = {};
+  const defensePerPlayer: Record<PlayerId, number> = {};
   let totalDefense = 0;
-  for (const [vid, knight] of Object.entries(s.board.knights)) {
+  for (const knight of Object.values(state.board.knights)) {
     if (!knight || !knight.active) continue;
-    knightContrib[knight.playerId] =
-      (knightContrib[knight.playerId] ?? 0) + knight.strength;
+    defensePerPlayer[knight.playerId] =
+      (defensePerPlayer[knight.playerId] ?? 0) + knight.strength;
     totalDefense += knight.strength;
   }
 
-  // After attack: all active knights become inactive and track resets
+  let outcome: PendingBarbarian["outcome"];
+  let vpWinners: PlayerId[] = [];
+  let tiedDefenders: PlayerId[] = [];
+  let citiesPillaged: VertexId[] = [];
+
+  if (totalDefense >= barbarianStrength) {
+    // Defenders win — sole hero gets VP, tied top defenders each draw a card
+    const entries = Object.entries(defensePerPlayer).filter(
+      ([, v]) => v > 0,
+    ) as Array<[PlayerId, number]>;
+    if (entries.length === 0) {
+      outcome = "defenders_win";
+    } else {
+      const maxContrib = Math.max(...entries.map(([, v]) => v));
+      const winners = entries
+        .filter(([, v]) => v === maxContrib)
+        .map(([pid]) => pid);
+      if (winners.length === 1) {
+        outcome = "defenders_win";
+        vpWinners = winners;
+      } else {
+        outcome = "tie_draw";
+        tiedDefenders = winners;
+      }
+    }
+  } else {
+    // Barbarians win — pillage lowest-contribution players' non-metropolis cities
+    outcome = "barbarians_win";
+    const contributions = state.playerOrder.map((pid) => ({
+      pid,
+      contrib: defensePerPlayer[pid] ?? 0,
+    }));
+    contributions.sort((a, b) => a.contrib - b.contrib);
+    const minContrib = contributions[0]?.contrib ?? 0;
+    const lowestTier = contributions
+      .filter((c) => c.contrib === minContrib)
+      .map((c) => c.pid);
+
+    // Cap pillage count at (barbarianStrength - totalDefense) to preserve
+    // existing behavior (one city per lowest-tier player, up to the deficit).
+    let pillageBudget = barbarianStrength - totalDefense;
+    for (const pid of lowestTier) {
+      if (pillageBudget <= 0) break;
+      const target = Object.entries(state.board.vertices).find(
+        ([vid, b]) =>
+          b?.type === "city" &&
+          b.playerId === pid &&
+          b.metropolis === null &&
+          !citiesPillaged.includes(vid as VertexId),
+      );
+      if (!target) continue;
+      citiesPillaged.push(target[0] as VertexId);
+      pillageBudget--;
+    }
+  }
+
+  return {
+    barbarianStrength,
+    totalDefense,
+    defensePerPlayer,
+    outcome,
+    vpWinners,
+    tiedDefenders,
+    citiesPillaged,
+  };
+}
+
+/**
+ * Apply a pre-computed barbarian attack outcome to the game state:
+ * deactivate all knights, reset the barbarian track, activate the robber on
+ * first attack, grant VP tokens / tie-draw progress cards, and pillage cities.
+ */
+export function commitBarbarianAttack(
+  state: GameState,
+  pending: PendingBarbarian,
+): GameState {
+  let s = state;
+
+  // Deactivate all knights; reset track to 0
   const newKnights = Object.fromEntries(
     Object.entries(s.board.knights).map(([k, v]) =>
       v ? [k, { ...v, active: false }] : [k, null],
@@ -2058,7 +2171,7 @@ function resolveBarbarianAttack(state: GameState): GameState {
     barbarian: { ...s.barbarian, position: 0 },
   };
 
-  // First attack: activate robber, place on desert
+  // First attack: activate the robber and place it on the desert
   if (!s.barbarian.robberActive) {
     s = { ...s, barbarian: { ...s.barbarian, robberActive: true } };
     const desertHex = Object.values(s.board.hexes).find(
@@ -2078,18 +2191,12 @@ function resolveBarbarianAttack(state: GameState): GameState {
 
   s = log(
     s,
-    `Barbarians attack! Strength: ${barbarianStrength}, Defense: ${totalDefense}`,
+    `Barbarians attack! Strength: ${pending.barbarianStrength}, Defense: ${pending.totalDefense}`,
   );
 
-  if (totalDefense >= barbarianStrength) {
-    // Defenders win
-    const maxContrib = Math.max(0, ...Object.values(knightContrib));
-    const winners = Object.entries(knightContrib)
-      .filter(([, v]) => v === maxContrib && v > 0)
-      .map(([pid]) => pid);
-
-    if (winners.length === 1) {
-      const winnerId = winners[0]!;
+  if (pending.outcome === "defenders_win") {
+    if (pending.vpWinners.length === 1) {
+      const winnerId = pending.vpWinners[0]!;
       s = {
         ...s,
         players: {
@@ -2104,53 +2211,24 @@ function resolveBarbarianAttack(state: GameState): GameState {
         s,
         `${s.players[winnerId]?.name} got 1 VP token for defending Catan!`,
       );
-    } else if (winners.length > 1) {
-      s = log(s, "Tied defenders each drew a progress card!");
-      for (const winnerId of winners) {
-        const before = s.players[winnerId]!.progressCards.length;
-        s = drawRandomProgressCard(s, winnerId);
-        if (s.players[winnerId]!.progressCards.length > before) {
-          s = log(s, `${s.players[winnerId]?.name} drew a progress card.`);
-        }
+    }
+    s = checkWin(s);
+  } else if (pending.outcome === "tie_draw") {
+    s = log(s, "Tied defenders each drew a progress card!");
+    for (const winnerId of pending.tiedDefenders) {
+      const before = s.players[winnerId]!.progressCards.length;
+      s = drawRandomProgressCard(s, winnerId);
+      if (s.players[winnerId]!.progressCards.length > before) {
+        s = log(s, `${s.players[winnerId]?.name} drew a progress card.`);
       }
     }
     s = checkWin(s);
   } else {
-    // Barbarians win: pillage
-    // Find player(s) with lowest knight contribution
-    const allPlayerIds = s.playerOrder;
-    const contributions = allPlayerIds.map((pid) => ({
-      pid,
-      contrib: knightContrib[pid] ?? 0,
-    }));
-    contributions.sort((a, b) => a.contrib - b.contrib);
-
-    let pillageNeeded = barbarianStrength - totalDefense;
-    let tierIdx = 0;
-    const minContrib = contributions[0]?.contrib ?? 0;
-    const lowestTier = contributions
-      .filter((c) => c.contrib === minContrib)
-      .map((c) => c.pid);
-
-    for (const pid of lowestTier) {
-      if (pillageNeeded <= 0) break;
-      // Find a non-metropolis city for this player
-      const cityEntry = Object.entries(s.board.vertices).find(
-        ([, b]) =>
-          b?.type === "city" && b.playerId === pid && b.metropolis === null,
-      );
-      if (!cityEntry) continue;
-      const [cityVid, cityBuilding] = cityEntry as [
-        VertexId,
-        {
-          type: "city";
-          playerId: PlayerId;
-          hasWall: boolean;
-          metropolis: ImprovementTrack | null;
-        },
-      ];
-
-      // Pillage: city → settlement, wall removed
+    // barbarians_win: pillage each city in the pre-computed list
+    for (const cityVid of pending.citiesPillaged) {
+      const cityBuilding = s.board.vertices[cityVid];
+      if (cityBuilding?.type !== "city") continue; // defensive: city may have changed state
+      const pid = cityBuilding.playerId;
       s = {
         ...s,
         board: {
@@ -2175,7 +2253,6 @@ function resolveBarbarianAttack(state: GameState): GameState {
           },
         },
       };
-      pillageNeeded--;
       s = log(s, `${s.players[pid]?.name}'s city was pillaged!`);
     }
   }
