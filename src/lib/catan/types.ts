@@ -238,6 +238,7 @@ export type TurnPhase =
   | "RESOLVE_PROGRESS_DRAW" // players draw from progress decks
   | "PRODUCTION" // collect resources / handle 7-roll discards
   | "DISCARD" // sub-phase: specific players must discard
+  | "DISCARD_PROGRESS" // sub-phase: discard down to 4 non-VP progress cards
   | "ROBBER_MOVE" // current player places robber
   | "ACTION" // trade / build / knight actions
   | "KNIGHT_DISPLACE_RESPONSE" // displaced player must move their knight
@@ -260,6 +261,17 @@ export interface PendingProgressDraw {
 export interface PendingDiscard {
   /** Players still needing to discard, keyed by playerId, value = amount to discard */
   remaining: Record<PlayerId, number>;
+}
+
+/** After drawing progress cards, players with more than 4 non-VP cards must discard down */
+export interface PendingProgressDiscard {
+  remaining: Record<PlayerId, number>;
+}
+
+/** Production from the current roll is applied after progress discards finish (e.g. barbarian tie draws) */
+export interface PendingRollResume {
+  rollerPid: PlayerId;
+  production: number;
 }
 
 export interface PendingFreeRoads {
@@ -312,6 +324,8 @@ export type PendingStateField =
   | "pendingDisplace"
   | "pendingProgressDraw"
   | "pendingDiscard"
+  | "pendingProgressDiscard"
+  | "pendingRollResume"
   | "pendingFreeRoads"
   | "pendingKnightPromotions"
   | "pendingCommercialHarbor"
@@ -355,6 +369,9 @@ export interface GameState {
   pendingDisplace: PendingDisplace | null;
   pendingProgressDraw: PendingProgressDraw | null;
   pendingDiscard: PendingDiscard | null;
+  pendingProgressDiscard: PendingProgressDiscard | null;
+  /** When set, `production` from this roller’s dice has not yet been resolved */
+  pendingRollResume: PendingRollResume | null;
   pendingFreeRoads: PendingFreeRoads | null;
   pendingKnightPromotions: PendingKnightPromotions | null;
   pendingCommercialHarbor: PendingCommercialHarbor | null;
@@ -391,6 +408,7 @@ export type GameAction =
     }
   // Production / 7 handling
   | { type: "DISCARD"; pid: PlayerId; cards: Partial<Resources> }
+  | { type: "DISCARD_PROGRESS"; pid: PlayerId; cards: ProgressCard[] }
   | {
       type: "MOVE_ROBBER";
       pid: PlayerId;

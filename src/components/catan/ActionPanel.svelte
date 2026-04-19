@@ -322,6 +322,10 @@
     <p class="action-instruction">
       👆 Click a yellow line on the board to place your road
     </p>
+  {:else if gameState.phase === "DISCARD_PROGRESS" && (gameState.pendingProgressDiscard?.remaining[pid] ?? 0) > 0}
+    <p class="action-instruction">
+      Preview a card, discard it, then repeat if you still owe discards.
+    </p>
   {:else if gameState.phase === "RESOLVE_PROGRESS_DRAW" && (gameState.pendingProgressDraw?.remaining ?? []).includes(pid)}
     <button
       class="action-btn"

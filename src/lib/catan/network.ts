@@ -343,6 +343,7 @@ export class CatanNetwork {
       if (
         this.state.phase === "RESOLVE_PROGRESS_DRAW" ||
         this.state.phase === "DISCARD" ||
+        this.state.phase === "DISCARD_PROGRESS" ||
         this.state.phase === "KNIGHT_DISPLACE_RESPONSE"
       ) {
         break;

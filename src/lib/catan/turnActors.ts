@@ -5,6 +5,11 @@ export function getActingPlayerIds(state: GameState): PlayerId[] {
     case "DISCARD":
       return Object.keys(state.pendingDiscard?.remaining ?? {}) as PlayerId[];
 
+    case "DISCARD_PROGRESS":
+      return Object.keys(
+        state.pendingProgressDiscard?.remaining ?? {},
+      ) as PlayerId[];
+
     case "RESOLVE_PROGRESS_DRAW":
       return [...(state.pendingProgressDraw?.remaining ?? [])];
 

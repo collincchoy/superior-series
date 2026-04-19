@@ -1176,11 +1176,18 @@ describe("action logging", () => {
       `${discarded.players[pid]!.name} discarded 3 resource cards. [{delta}|kind=grain&amount=-2] [{delta}|kind=wool&amount=-1]`,
     );
 
-    const drew = applyAction(discarded, {
-      type: "DRAW_PROGRESS",
-      pid,
-      track: "science",
-    });
+    const drew = applyAction(
+      {
+        ...discarded,
+        phase: "RESOLVE_PROGRESS_DRAW",
+        pendingProgressDraw: { remaining: [pid], track: "science" },
+      },
+      {
+        type: "DRAW_PROGRESS",
+        pid,
+        track: "science",
+      },
+    );
     expect(
       drew.log.some((line) => line.includes("drew a science progress card.")),
     ).toBe(true);
@@ -2043,11 +2050,22 @@ describe("progress card hand limit (4 non-VP)", () => {
     isVP: true,
   };
 
-  it("DRAW_PROGRESS is ignored when the player already holds 4 non-VP cards", () => {
+  it("DRAW_PROGRESS succeeds at 4 non-VP cards and enters DISCARD_PROGRESS", () => {
     const base = buildActionState();
     const pid = base.currentPlayerId;
+    const craneTop = {
+      name: "Crane" as const,
+      track: "science" as const,
+      isVP: false,
+    };
     const state: GameState = {
       ...base,
+      phase: "RESOLVE_PROGRESS_DRAW",
+      pendingProgressDraw: { remaining: [pid], track: "science" },
+      decks: {
+        ...base.decks,
+        science: [craneTop, ...base.decks.science],
+      },
       players: {
         ...base.players,
         [pid]: {
@@ -2061,7 +2079,36 @@ describe("progress card hand limit (4 non-VP)", () => {
       pid,
       track: "science",
     });
-    expect(after.players[pid]!.progressCards).toHaveLength(4);
+    expect(after.players[pid]!.progressCards.filter((c) => !c.isVP)).toHaveLength(5);
+    expect(after.phase).toBe("DISCARD_PROGRESS");
+    expect(after.pendingProgressDiscard?.remaining[pid]).toBe(1);
+    expect(after.pendingProgressDraw).toBeNull();
+  });
+
+  it("DISCARD_PROGRESS removes cards and returns to ACTION when complete", () => {
+    const base = buildActionState();
+    const pid = base.currentPlayerId;
+    const toDiscard = nonVpCard;
+    const state: GameState = {
+      ...base,
+      phase: "DISCARD_PROGRESS",
+      pendingProgressDiscard: { remaining: { [pid]: 1 } },
+      players: {
+        ...base.players,
+        [pid]: {
+          ...base.players[pid]!,
+          progressCards: [nonVpCard, nonVpCard, nonVpCard, nonVpCard, toDiscard],
+        },
+      },
+    };
+    const after = applyAction(state, {
+      type: "DISCARD_PROGRESS",
+      pid,
+      cards: [toDiscard],
+    });
+    expect(after.players[pid]!.progressCards.filter((c) => !c.isVP)).toHaveLength(4);
+    expect(after.phase).toBe("ACTION");
+    expect(after.pendingProgressDiscard).toBeNull();
   });
 
   it("DRAW_PROGRESS succeeds when the 4 held cards are all VP cards", () => {
@@ -2069,6 +2116,8 @@ describe("progress card hand limit (4 non-VP)", () => {
     const pid = base.currentPlayerId;
     const state: GameState = {
       ...base,
+      phase: "RESOLVE_PROGRESS_DRAW",
+      pendingProgressDraw: { remaining: [pid], track: "science" },
       players: {
         ...base.players,
         [pid]: {
@@ -2084,6 +2133,7 @@ describe("progress card hand limit (4 non-VP)", () => {
     });
     // VP cards don't count toward the 4-card limit
     expect(after.players[pid]!.progressCards).toHaveLength(5);
+    expect(after.phase).toBe("ACTION");
   });
 });
 
@@ -2615,6 +2665,8 @@ describe("VP progress card announcement", () => {
       : { name: "Constitution" as const, track: "politics" as const, isVP: true };
     return {
       ...state,
+      phase: "RESOLVE_PROGRESS_DRAW",
+      pendingProgressDraw: { remaining: [pid], track },
       decks: { ...state.decks, [track]: [vpCard, ...state.decks[track]] },
       players: {
         ...state.players,
@@ -2638,6 +2690,8 @@ describe("VP progress card announcement", () => {
     const nonVpCard = { name: "Crane" as const, track: "science" as const, isVP: false };
     const stateWithCard = {
       ...state,
+      phase: "RESOLVE_PROGRESS_DRAW" as const,
+      pendingProgressDraw: { remaining: [pid], track: "science" as const },
       decks: { ...state.decks, science: [nonVpCard, ...state.decks.science] },
       players: { ...state.players, [pid]: { ...state.players[pid]!, progressCards: [] } },
     };

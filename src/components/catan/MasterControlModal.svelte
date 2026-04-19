@@ -254,6 +254,14 @@
           <code>{formatPending(gameState.pendingDiscard)}</code>
           <button class="btn small" onclick={() => clearPendingField("pendingDiscard")}>Clear</button>
 
+          <span>pendingProgressDiscard</span>
+          <code>{formatPending(gameState.pendingProgressDiscard)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingProgressDiscard")}>Clear</button>
+
+          <span>pendingRollResume</span>
+          <code>{formatPending(gameState.pendingRollResume)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingRollResume")}>Clear</button>
+
           <span>pendingDisplace</span>
           <code>{formatPending(gameState.pendingDisplace)}</code>
           <button class="btn small" onclick={() => clearPendingField("pendingDisplace")}>Clear</button>

@@ -376,9 +376,10 @@ export function canImproveCity(
  * Standard: if hand > 7 (or modified by city walls), discard half rounded down.
  * City walls each increase limit by 2.
  */
-/** Returns true if the player can draw another progress card (hand < 4 non-VP cards). */
-export function canDrawProgress(player: Player): boolean {
-  return player.progressCards.filter((c) => !c.isVP).length < 4;
+/** How many non-VP progress cards the player must discard to be at most 4. */
+export function progressDiscardCount(player: Player): number {
+  const nonVp = player.progressCards.filter((c) => !c.isVP).length;
+  return Math.max(0, nonVp - 4);
 }
 
 export function discardCount(player: Player, board: BoardState): number {

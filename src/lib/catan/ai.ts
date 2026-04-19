@@ -64,6 +64,9 @@ export function chooseBotAction(state: GameState, pid: PlayerId): GameAction {
     case "DISCARD":
       return chooseDiscard(state, pid);
 
+    case "DISCARD_PROGRESS":
+      return chooseProgressDiscard(state, pid);
+
     case "ROBBER_MOVE":
       return chooseRobberMove(state, pid, graph);
 
@@ -695,6 +698,15 @@ function choosProgressDraw(state: GameState, pid: PlayerId): GameAction {
     return { type: "END_TURN", pid };
   }
   return { type: "DRAW_PROGRESS", pid, track: pending.track };
+}
+
+function chooseProgressDiscard(state: GameState, pid: PlayerId): GameAction {
+  const nonVP = state.players[pid]!.progressCards.filter((c) => !c.isVP);
+  const first = nonVP[0];
+  if (!first) {
+    return { type: "END_TURN", pid };
+  }
+  return { type: "DISCARD_PROGRESS", pid, cards: [first] };
 }
 
 // ─── Utility: find lead player ────────────────────────────────────────────────

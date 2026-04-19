@@ -45,7 +45,7 @@ import {
   discardCount,
   isOpenRoad,
   isOnPlayerNetwork,
-  canDrawProgress,
+  progressDiscardCount,
   canTradeBank,
   bestKnightUpTo,
   hasKnightUpTo,
@@ -143,7 +143,6 @@ function randomizeHarborSetups(): HarborSetup[] {
 }
 
 function drawRandomProgressCard(state: GameState, pid: PlayerId): GameState {
-  if (!canDrawProgress(state.players[pid]!)) return state;
   const tracks: ImprovementTrack[] = ["science", "trade", "politics"];
   const availableTracks = tracks.filter(
     (track) => state.decks[track].length > 0,
@@ -167,6 +166,107 @@ function drawRandomProgressCard(state: GameState, pid: PlayerId): GameState {
       },
     },
   };
+}
+
+function tryRemoveProgressCardsFromHand(
+  hand: ProgressCard[],
+  discard: ProgressCard[],
+): ProgressCard[] | null {
+  const h = [...hand];
+  for (const d of discard) {
+    const ix = h.findIndex(
+      (c) => c.name === d.name && c.track === d.track && c.isVP === d.isVP,
+    );
+    if (ix === -1) return null;
+    h.splice(ix, 1);
+  }
+  return h;
+}
+
+/** Players who must discard non-VP progress cards to reach the 4-card limit */
+function pendingProgressDiscardNeeds(s: GameState): Record<PlayerId, number> {
+  const out: Record<PlayerId, number> = {};
+  for (const id of s.playerOrder) {
+    const p = s.players[id];
+    if (!p) continue;
+    const n = progressDiscardCount(p);
+    if (n > 0) out[id] = n;
+  }
+  return out;
+}
+
+function advanceProgressDrawAfterDraw(
+  s: GameState,
+  drewPid: PlayerId,
+): GameState {
+  const ppd = s.pendingProgressDraw;
+  if (!ppd) return s;
+  const remaining = ppd.remaining.filter((p) => p !== drewPid);
+  if (remaining.length > 0) {
+    return { ...s, pendingProgressDraw: { ...ppd, remaining } };
+  }
+  const needDiscard = pendingProgressDiscardNeeds(s);
+  if (Object.keys(needDiscard).length > 0) {
+    return {
+      ...s,
+      pendingProgressDraw: null,
+      phase: "DISCARD_PROGRESS",
+      pendingProgressDiscard: { remaining: needDiscard },
+    };
+  }
+  return { ...s, pendingProgressDraw: null, phase: "ACTION" };
+}
+
+function applyProductionAfterRoll(
+  s: GameState,
+  graph: ReturnType<typeof buildGraph>,
+  rollerPid: PlayerId,
+  production: number,
+): GameState {
+  if (production === 7) {
+    const needDiscard: Record<PlayerId, number> = {};
+    for (const [ppid, player] of Object.entries(s.players)) {
+      const amount = discardCount(player, s.board);
+      if (amount > 0) needDiscard[ppid] = amount;
+    }
+    if (Object.keys(needDiscard).length > 0) {
+      return {
+        ...s,
+        phase: "DISCARD",
+        pendingDiscard: { remaining: needDiscard },
+      };
+    }
+    if (s.barbarian.robberActive) {
+      return { ...s, phase: "ROBBER_MOVE" };
+    }
+    return { ...s, phase: "ACTION" };
+  }
+
+  const beforeTotal = Object.values(s.players[rollerPid]!.resources).reduce(
+    (a, b) => a + b,
+    0,
+  );
+  let next = distributeResources(s, production, graph);
+  const afterTotal = Object.values(next.players[rollerPid]!.resources).reduce(
+    (a, b) => a + b,
+    0,
+  );
+  const playerGained = afterTotal > beforeTotal;
+
+  if (!playerGained && next.players[rollerPid]!.improvements.science >= 3) {
+    return {
+      ...next,
+      phase: "SCIENCE_SELECT_RESOURCE",
+      pendingScienceBonus: { pid: rollerPid },
+    };
+  }
+  if (
+    next.pendingProgressDraw &&
+    next.pendingProgressDraw.remaining.length > 0
+  ) {
+    return { ...next, phase: "RESOLVE_PROGRESS_DRAW" };
+  }
+  return { ...next, phase: "ACTION" };
 }
 
 function addResources(r: Resources, delta: Partial<Resources>): Resources {
@@ -336,6 +436,8 @@ export function createInitialState(
     pendingDisplace: null,
     pendingProgressDraw: null,
     pendingDiscard: null,
+    pendingProgressDiscard: null,
+    pendingRollResume: null,
     pendingFreeRoads: null,
     pendingKnightPromotions: null,
     pendingCommercialHarbor: null,
@@ -545,55 +647,19 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       }
 
       // 2. Handle production
-      if (production === 7) {
-        // Check for discards
-        const needDiscard: Record<PlayerId, number> = {};
-        for (const [ppid, player] of Object.entries(s.players)) {
-          const amount = discardCount(player, s.board);
-          if (amount > 0) needDiscard[ppid] = amount;
-        }
-        if (Object.keys(needDiscard).length > 0) {
-          s = {
-            ...s,
-            phase: "DISCARD",
-            pendingDiscard: { remaining: needDiscard },
-          };
-        } else if (s.barbarian.robberActive) {
-          s = { ...s, phase: "ROBBER_MOVE" };
-        } else {
-          s = { ...s, phase: "ACTION" };
-        }
-      } else {
-        // Distribute resources; track whether current player gained anything
-        const beforeTotal = Object.values(s.players[pid]!.resources).reduce(
-          (a, b) => a + b,
-          0,
-        );
-        s = distributeResources(s, production, graph);
-        const afterTotal = Object.values(s.players[pid]!.resources).reduce(
-          (a, b) => a + b,
-          0,
-        );
-        const playerGained = afterTotal > beforeTotal;
-
-        // Science level 3: if player got zero production, they choose 1 free resource
-        if (!playerGained && s.players[pid]!.improvements.science >= 3) {
-          s = {
-            ...s,
-            phase: "SCIENCE_SELECT_RESOURCE",
-            pendingScienceBonus: { pid },
-          };
-        } else if (
-          s.pendingProgressDraw &&
-          s.pendingProgressDraw.remaining.length > 0
-        ) {
-          s = { ...s, phase: "RESOLVE_PROGRESS_DRAW" };
-        } else {
-          s = { ...s, phase: "ACTION" };
-        }
+      const needProgDiscard = pendingProgressDiscardNeeds(s);
+      if (Object.keys(needProgDiscard).length > 0) {
+        s = {
+          ...s,
+          phase: "DISCARD_PROGRESS",
+          pendingProgressDiscard: { remaining: needProgDiscard },
+          pendingRollResume: { rollerPid: pid, production },
+        };
+        return checkWin(s);
       }
 
-      return s;
+      s = applyProductionAfterRoll(s, graph, pid, production);
+      return checkWin(s);
     }
 
     // ── Discard ────────────────────────────────────────────────────────────────
@@ -1109,7 +1175,9 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     // ── Progress Cards ─────────────────────────────────────────────────────────
     case "DRAW_PROGRESS": {
       const { pid, track } = action;
-      if (!canDrawProgress(s.players[pid]!)) return s;
+      if (s.phase !== "RESOLVE_PROGRESS_DRAW") return s;
+      const ppd = s.pendingProgressDraw;
+      if (!ppd || !ppd.remaining.includes(pid) || ppd.track !== track) return s;
       const deck = [...s.decks[track]];
       if (deck.length === 0) return s;
       const card = deck.shift()!;
@@ -1126,20 +1194,52 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       };
       s = log(s, `${s.players[pid]?.name} drew a ${track} progress card.`);
 
-      // Remove from pending
-      if (s.pendingProgressDraw) {
-        const remaining = s.pendingProgressDraw.remaining.filter(
-          (p) => p !== pid,
-        );
-        if (remaining.length === 0) {
-          s = { ...s, pendingProgressDraw: null, phase: "ACTION" };
-        } else {
-          s = {
-            ...s,
-            pendingProgressDraw: { ...s.pendingProgressDraw, remaining },
-          };
-        }
+      s = advanceProgressDrawAfterDraw(s, pid);
+      return checkWin(s);
+    }
+
+    case "DISCARD_PROGRESS": {
+      const { pid, cards } = action;
+      if (s.phase !== "DISCARD_PROGRESS" || !s.pendingProgressDiscard) return s;
+      const owedBefore = s.pendingProgressDiscard.remaining[pid];
+      if (owedBefore === undefined) return s;
+      if (cards.length < 1 || cards.length > owedBefore) return s;
+      if (cards.some((c) => c.isVP)) return s;
+      const player = s.players[pid]!;
+      const newHand = tryRemoveProgressCardsFromHand(player.progressCards, cards);
+      if (!newHand) return s;
+      const updated: Player = { ...player, progressCards: newHand };
+      const stillOver = progressDiscardCount(updated);
+
+      s = {
+        ...s,
+        players: { ...s.players, [pid]: updated },
+      };
+      s = log(
+        s,
+        `${s.players[pid]?.name} discarded ${cards.length} progress card${cards.length === 1 ? "" : "s"}.`,
+      );
+
+      const rem = { ...s.pendingProgressDiscard.remaining };
+      if (stillOver > 0) {
+        rem[pid] = stillOver;
+      } else {
+        delete rem[pid];
       }
+      if (Object.keys(rem).length > 0) {
+        s = { ...s, pendingProgressDiscard: { remaining: rem } };
+        return checkWin(s);
+      }
+
+      s = { ...s, pendingProgressDiscard: null };
+      const resume = s.pendingRollResume;
+      if (resume) {
+        s = { ...s, pendingRollResume: null };
+        s = applyProductionAfterRoll(s, graph, resume.rollerPid, resume.production);
+        return checkWin(s);
+      }
+
+      s = { ...s, phase: "ACTION" };
       return checkWin(s);
     }
 

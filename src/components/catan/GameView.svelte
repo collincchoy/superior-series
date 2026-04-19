@@ -12,6 +12,7 @@
   import SidePanel from "./SidePanel.svelte";
   import PlayersPanel from "./PlayersPanel.svelte";
   import DiscardModal from "./DiscardModal.svelte";
+  import DiscardProgressModal from "./DiscardProgressModal.svelte";
   import TradeBankModal from "./TradeBankModal.svelte";
   import PlayerTradeModal from "./PlayerTradeModal.svelte";
   import InfoModal from "./InfoModal.svelte";
@@ -174,6 +175,7 @@
 </div>
 
 <DiscardModal {gameState} {localPid} />
+<DiscardProgressModal {gameState} {localPid} />
 {#if showTrade}
   <TradeBankModal {gameState} {localPid} bind:open={showTrade} />
 {/if}
