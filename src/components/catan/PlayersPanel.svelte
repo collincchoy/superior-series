@@ -3,11 +3,13 @@
     GameState,
     ImprovementTrack,
     PlayerId,
+    ProgressCard,
   } from "../../lib/catan/types.js";
   import type { PlayerCardDeltaToast } from "../../lib/catan/store.svelte.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import { computeVP } from "../../lib/catan/game.js";
   import DeltaChip from "./DeltaChip.svelte";
+  import Modal from "./Modal.svelte";
   import { totalCards } from "./cardEmoji.js";
 
   let {
@@ -77,16 +79,37 @@
     return store.cardDeltaToasts.filter((toast) => toast.pid === pid);
   }
 
-  function merchantBadgeLabel(gameState: GameState): string {
-    const merchantHex = gameState.board.merchantHex;
-    if (!merchantHex) return "Controls merchant";
-
-    const terrain = gameState.board.hexes[merchantHex]?.terrain;
-    const resource = terrain ? TERRAIN_TO_RESOURCE_LABEL[terrain] : null;
-    if (!resource) return "Controls merchant";
-
-    return `Controls merchant (${resource} trades at 2:1)`;
+  function merchantResourceLabel(gameState: GameState): string | null {
+    const terrain = gameState.board.hexes[gameState.board.merchantHex ?? ""]?.terrain;
+    return terrain ? TERRAIN_TO_RESOURCE_LABEL[terrain] ?? null : null;
   }
+
+  function vpBreakdownForPlayer(state: GameState, pid: PlayerId) {
+    const player = state.players[pid];
+    if (!player) return null;
+    let settlements = 0, cities = 0, metropolisCount = 0;
+    for (const v of Object.values(state.board.vertices)) {
+      if (!v || v.playerId !== pid) continue;
+      if (v.type === "settlement") settlements++;
+      else if (v.type === "city") {
+        if (v.metropolis) metropolisCount++;
+        else cities++;
+      }
+    }
+    return {
+      settlements,
+      cities,
+      metropolisCount,
+      longestRoad: state.longestRoadOwner === pid,
+      defenderTokens: player.vpTokens,
+      merchant: state.board.merchantOwner === pid,
+      vpCards: player.progressCards.filter((c): c is ProgressCard => c.isVP),
+      total: computeVP(state, pid),
+    };
+  }
+
+  let vpModalPid: PlayerId | null = $state(null);
+  let vpModalOpen = $state(false);
 </script>
 
 <div class="players-bar">
@@ -98,7 +121,6 @@
     {@const vpCards = p.progressCards.filter(c => c.isVP)}
     {@const defenderVp = p.vpTokens}
     {@const metropolisTracks = metropolisTracksByPlayer(gameState, pid)}
-    {@const merchantLabel = merchantBadgeLabel(gameState)}
     <div
       class="player-card{pid === gameState.currentPlayerId ? ' active' : ''}"
       style="border-top: 3px solid {p.color};{pid === gameState.currentPlayerId ? `--glow-color: ${p.color}` : ''}"
@@ -117,19 +139,19 @@
           ></span>
         {/if}
       </span>
-      <span class="vp">
+      <button class="vp" onclick={() => { vpModalPid = pid; vpModalOpen = true; }} aria-label="View {p.name}'s VP breakdown">
         <span>{vp} VP</span>
         {#if gameState.board.merchantOwner === pid}
-          <span class="vp-indicator" title={merchantLabel}>🏪</span>
+          <span class="vp-indicator">🏪</span>
         {/if}
         {#if defenderVp > 0}
           <span class="vp-indicator">{defenderVp} 🛡️</span>
         {/if}
         {#if gameState.longestRoadOwner === pid}
-          <span class="vp-indicator road-badge" title="Longest Road (+2 VP)">🛣️</span>
+          <span class="vp-indicator road-badge">🛣️</span>
         {/if}
         {#if vpCards.length > 0}
-          <span class="vp-indicator gold-glow" title="{vpCards.map(c => c.name).join(', ')} (+{vpCards.length} VP)">📜{vpCards.length > 1 ? ` ×${vpCards.length}` : ""}</span>
+          <span class="vp-indicator gold-glow">📜{vpCards.length > 1 ? ` ×${vpCards.length}` : ""}</span>
         {/if}
         {#if metropolisTracks.length > 0}
           <span class="vp-metropolises" aria-label="Metropolis victory points">
@@ -137,13 +159,12 @@
               <span
                 class="progress-dot metropolis-dot"
                 style={`background:${TRACK_COLORS[track]}`}
-                title={`${track} metropolis`}
                 aria-hidden="true"
               ></span>
             {/each}
           </span>
         {/if}
-      </span>
+      </button>
       <div class="improvements-row">
         {#each (["science", "trade", "politics"] as ImprovementTrack[]) as track}
           {@const level = p.improvements[track]}
@@ -199,6 +220,64 @@
     </div>
   {/each}
 </div>
+
+{#if vpModalOpen && vpModalPid !== null}
+  {@const modalPlayer = gameState.players[vpModalPid]}
+  {@const bd = vpBreakdownForPlayer(gameState, vpModalPid)}
+  {#if modalPlayer && bd}
+    <Modal bind:open={vpModalOpen} title="{modalPlayer.name}'s VP">
+      <div class="bd-list">
+        {#if bd.settlements > 0}
+          <div class="bd-row">
+            <span class="bd-label">🏘️ Settlements{bd.settlements > 1 ? ` ×${bd.settlements}` : ""}</span>
+            <span class="bd-vp">{bd.settlements} VP</span>
+          </div>
+        {/if}
+        {#if bd.cities > 0}
+          <div class="bd-row">
+            <span class="bd-label">🏙️ Cities{bd.cities > 1 ? ` ×${bd.cities}` : ""}</span>
+            <span class="bd-vp">{bd.cities * 2} VP</span>
+          </div>
+        {/if}
+        {#if bd.metropolisCount > 0}
+          <div class="bd-row">
+            <span class="bd-label">🏰 Metropolis City{bd.metropolisCount > 1 ? ` ×${bd.metropolisCount}` : ""}</span>
+            <span class="bd-vp">{bd.metropolisCount * 4} VP</span>
+          </div>
+        {/if}
+        {#if bd.longestRoad}
+          <div class="bd-row">
+            <span class="bd-label">🛣️ Longest Road</span>
+            <span class="bd-vp">2 VP</span>
+          </div>
+        {/if}
+        {#if bd.defenderTokens > 0}
+          <div class="bd-row">
+            <span class="bd-label">🛡️ Defender of Catan{bd.defenderTokens > 1 ? ` ×${bd.defenderTokens}` : ""}</span>
+            <span class="bd-vp">{bd.defenderTokens} VP</span>
+          </div>
+        {/if}
+        {#if bd.merchant}
+          {@const res = merchantResourceLabel(gameState)}
+          <div class="bd-row">
+            <span class="bd-label">🏪 Merchant{res ? ` (${res} 2:1)` : ""}</span>
+            <span class="bd-vp">1 VP</span>
+          </div>
+        {/if}
+        {#if bd.vpCards.length > 0}
+          <div class="bd-row">
+            <span class="bd-label">📜 {bd.vpCards.map(c => c.name).join(", ")}</span>
+            <span class="bd-vp">{bd.vpCards.length} VP</span>
+          </div>
+        {/if}
+        <div class="bd-row bd-total">
+          <span class="bd-label">Total</span>
+          <span class="bd-vp">{bd.total} VP</span>
+        </div>
+      </div>
+    </Modal>
+  {/if}
+{/if}
 
 <style>
   .players-bar {
@@ -272,6 +351,19 @@
     font-size: 1rem;
     font-weight: 700;
     color: #f5c842;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .vp:hover {
+    filter: brightness(1.15);
+  }
+
+  .vp:active {
+    filter: brightness(0.85);
   }
 
   .vp-indicator {
@@ -407,6 +499,42 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  .bd-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-width: 200px;
+  }
+
+  .bd-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.22rem 0;
+    font-size: 0.85rem;
+    color: #d6d8cd;
+  }
+
+  .bd-vp {
+    font-weight: 700;
+    color: #f5c842;
+    white-space: nowrap;
+  }
+
+  .bd-total {
+    border-top: 1px solid #2c5f2e;
+    margin-top: 0.3rem;
+    padding-top: 0.5rem;
+    font-weight: 700;
+    color: #f5c842;
+    font-size: 0.9rem;
+  }
+
+  .bd-total .bd-vp {
+    font-size: 1rem;
   }
 
   @media (prefers-reduced-motion: reduce) {
