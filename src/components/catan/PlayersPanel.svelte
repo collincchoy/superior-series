@@ -95,6 +95,7 @@
     {@const vp = computeVP(gameState, pid)}
     {@const cards = totalCards(p.resources)}
     {@const progressCounts = progressCountsByTrack(p.progressCards)}
+    {@const vpCards = p.progressCards.filter(c => c.isVP)}
     {@const defenderVp = p.vpTokens}
     {@const metropolisTracks = metropolisTracksByPlayer(gameState, pid)}
     {@const merchantLabel = merchantBadgeLabel(gameState)}
@@ -126,6 +127,12 @@
         {#if defenderVp > 0}
           <span class="vp-indicator">{defenderVp} 🛡️</span>
         {/if}
+        {#if gameState.longestRoadOwner === pid}
+          <span class="vp-indicator road-badge" title="Longest Road (+2 VP)">🛣️</span>
+        {/if}
+        {#if vpCards.length > 0}
+          <span class="vp-indicator gold-glow" title="{vpCards.map(c => c.name).join(', ')} (+{vpCards.length} VP)">📜{vpCards.length > 1 ? ` ×${vpCards.length}` : ""}</span>
+        {/if}
         {#if metropolisTracks.length > 0}
           <span class="vp-metropolises" aria-label="Metropolis victory points">
             {#each metropolisTracks as track}
@@ -145,7 +152,7 @@
           {@const isL3 = level >= 3}
           {#if isL3}
             <button
-              class="improve-badge level3"
+              class="improve-badge level3 gold-glow"
               style="color:{TRACK_COLORS[track]}"
               title="{track} level {level} — click to view level 3 ability"
               onclick={() => openAbilityInfo(track)}
@@ -282,6 +289,16 @@
     line-height: 1;
   }
 
+  .road-badge {
+    animation: road-badge-in 350ms cubic-bezier(0.34, 1.5, 0.64, 1);
+  }
+
+  @keyframes road-badge-in {
+    from { opacity: 0; transform: scale(0.4); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+
   .vp-metropolises {
     display: inline-flex;
     align-items: center;
@@ -330,10 +347,15 @@
     padding: 0 2px;
   }
 
-  .improve-badge.level3 {
+  .gold-glow {
     text-shadow: 0 0 5px gold, 0 0 2px gold;
     outline: 1px solid rgba(255, 215, 0, 0.45);
     outline-offset: 1px;
+    border-radius: 2px;
+  }
+
+  .improve-badge.level3 {
+    border-radius: 3px;
   }
 
   .zero {
@@ -398,5 +420,6 @@
   @media (prefers-reduced-motion: reduce) {
     .player-card.active { animation: none; }
     .delta-toast { animation: none; }
+    .road-badge { animation: none; }
   }
 </style>
