@@ -684,6 +684,17 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       // Game could have ended during commit (VP token could land someone at 13)
       if (s.phase === "GAME_OVER") return s;
 
+      // Tie-draw can add progress cards before production; enforce the 4-card limit
+      // (same ordering as ROLL_DICE before applyProductionAfterRoll).
+      const needProgDiscardAfterCommit = pendingProgressDiscardNeeds(s);
+      if (Object.keys(needProgDiscardAfterCommit).length > 0) {
+        return checkWin({
+          ...s,
+          phase: "DISCARD_PROGRESS",
+          pendingProgressDiscard: { remaining: needProgDiscardAfterCommit },
+        });
+      }
+
       // Resume the interrupted roll — reuse the exact same path the progress-discard
       // resume takes after DISCARD_PROGRESS finishes.
       const resume = s.pendingRollResume;

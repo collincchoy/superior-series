@@ -6,7 +6,7 @@
   } from "../../lib/catan/types.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import { getVertexPixel } from "../../lib/catan/svgHelpers.js";
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
 
   let {
     gameState,
@@ -119,6 +119,8 @@
 
   // Late-joiner flag set on mount
   let startedMidflight = $state(false);
+
+  let dialogEl = $state<HTMLDivElement | null>(null);
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
   function schedule(ms: number, fn: () => void) {
@@ -264,7 +266,7 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === "Enter" || e.key === " ") {
+    if (e.key === "Enter" || e.key === " " || e.key === "Escape") {
       e.preventDefault();
       skip();
     }
@@ -279,7 +281,6 @@
     resolveAnchors();
     const onResize = () => resolveAnchors();
     window.addEventListener("resize", onResize);
-    window.addEventListener("keydown", onKey);
 
     // Late-joiner / welcome snapshot: skip intro when (a) we stayed in this
     // phase across two ticks, or (b) first store apply ever is already this
@@ -307,10 +308,11 @@
       });
     }
 
+    void tick().then(() => dialogEl?.focus());
+
     return () => {
       cancelTimers();
       window.removeEventListener("resize", onResize);
-      window.removeEventListener("keydown", onKey);
     };
   });
 
@@ -376,14 +378,18 @@
 </script>
 
 {#if pending}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
+    bind:this={dialogEl}
     class="barb-overlay"
     class:reduced={reducedMotion}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="barb-attack-dialog-title"
+    tabindex="-1"
     onclick={skip}
-    role="presentation"
+    onkeydown={onKey}
   >
+    <h2 id="barb-attack-dialog-title" class="sr-only">Barbarian attack</h2>
     <!-- 1. Night dim layer -->
     <div class="night" class:active={step !== "done"}></div>
 
@@ -526,20 +532,41 @@
       </div>
     {/if}
 
-    <!-- Skip hint -->
     {#if step !== "done" && step !== "outcome"}
-      <div class="skip-hint" aria-hidden="true">Click to skip</div>
+      <button
+        type="button"
+        class="skip-hint"
+        onclick={(e) => {
+          e.stopPropagation();
+          skip();
+        }}
+      >
+        Skip animation
+      </button>
     {/if}
   </div>
 {/if}
 
 <style>
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   .barb-overlay {
     position: fixed;
     inset: 0;
     z-index: 450;
     pointer-events: auto;
     cursor: pointer;
+    outline: none;
   }
 
   /* 1. Night */
@@ -938,7 +965,11 @@
     text-transform: uppercase;
     z-index: 480;
     text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
-    pointer-events: none;
+    pointer-events: auto;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font: inherit;
   }
 
   /* Reduced motion fast path */

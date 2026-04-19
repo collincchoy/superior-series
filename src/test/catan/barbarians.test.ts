@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { createInitialState, applyAction } from "../../lib/catan/game.js";
 import { buildGraph } from "../../lib/catan/board.js";
-import type { GameState, PlayerId, VertexId } from "../../lib/catan/types.js";
+import { PROGRESS_CARD_BY_NAME } from "../../lib/catan/constants.js";
+import type {
+  GameState,
+  PlayerId,
+  ProgressCard,
+  VertexId,
+} from "../../lib/catan/types.js";
 
 const graph = buildGraph();
 
@@ -351,6 +357,43 @@ describe("barbarian attack - deferred resolution flow", () => {
     // After commit, rollResume is consumed and we're back on the normal path
     expect(committed.pendingRollResume).toBeNull();
     expect(committed.phase).not.toBe("RESOLVE_BARBARIANS");
+  });
+
+  it("EXECUTE_BARBARIAN_ATTACK enters DISCARD_PROGRESS when tie_draw draws past 4-card limit", () => {
+    let state = stateWithCities({ p1: 1 });
+    state = addActiveKnights(state, "p1", 2, 1);
+    state = addActiveKnights(state, "p2", 2, 1);
+    const fourHand: ProgressCard[] = [
+      PROGRESS_CARD_BY_NAME.Alchemy,
+      PROGRESS_CARD_BY_NAME.Crane,
+      PROGRESS_CARD_BY_NAME.Engineering,
+      PROGRESS_CARD_BY_NAME.Invention,
+    ];
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        p1: { ...state.players["p1"]!, progressCards: fourHand },
+      },
+      phase: "ROLL_DICE" as const,
+      barbarian: { position: 6, robberActive: false },
+    };
+
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid: "p1",
+      result: [2, 3, "ship"],
+    });
+    expect(rolled.pendingBarbarian!.outcome).toBe("tie_draw");
+
+    const committed = applyAction(rolled, {
+      type: "EXECUTE_BARBARIAN_ATTACK",
+      pid: "p1",
+    });
+    expect(committed.phase).toBe("DISCARD_PROGRESS");
+    expect(committed.pendingRollResume).not.toBeNull();
+    expect(committed.pendingRollResume!.production).toBe(5);
+    expect(committed.pendingProgressDiscard?.remaining["p1"]).toBeGreaterThan(0);
   });
 
   it("EXECUTE_BARBARIAN_ATTACK is a no-op if pendingBarbarian is null", () => {
