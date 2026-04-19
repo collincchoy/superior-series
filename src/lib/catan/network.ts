@@ -36,9 +36,16 @@ interface PeerConstructor {
   new (): PeerInstance;
 }
 
+export type LobbyData = {
+  hostName: string;
+  pendingNames: string[];
+  bots: Array<{ name: string }>;
+};
+
 export type NetMessage =
   | { type: "join"; name: string; pid?: PlayerId } // pid present on reconnect
   | { type: "welcome"; pid: PlayerId; state: GameState }
+  | { type: "lobby"; hostName: string; pendingNames: string[]; bots: Array<{ name: string }> }
   | { type: "action"; action: GameAction }
   | { type: "state"; state: GameState }
   | { type: "error"; msg: string };
@@ -48,6 +55,7 @@ export type NetMessage =
 export interface NetworkCallbacks {
   onStateUpdate(state: GameState): void;
   onError(msg: string): void;
+  onLobbyUpdate?(data: LobbyData): void;
   onPlayerJoined?(name: string, pid: PlayerId): void;
   onPendingJoin?(name: string): void;
   onConnectionStatusChange?(
@@ -77,6 +85,8 @@ export class CatanNetwork {
   private state: GameState | null = null;
   private callbacks: NetworkCallbacks;
   private pendingJoins: Array<{ conn: DataConnection; name: string }> = [];
+  private preGameConns: DataConnection[] = [];
+  private currentLobbyState: LobbyData | null = null;
   private lastAdminSnapshot: GameState | null = null;
   private connToPid: WeakMap<DataConnection, PlayerId> = new WeakMap();
 
@@ -149,9 +159,19 @@ export class CatanNetwork {
       );
     }
     this.pendingJoins = [];
+    this.preGameConns = [];
+    this.currentLobbyState = null;
     if (this.connections.size > 0) this.broadcastState();
     this.callbacks.onReady?.();
     this.runBotTurns();
+  }
+
+  broadcastLobbyState(data: LobbyData) {
+    this.currentLobbyState = data;
+    const msg: NetMessage = { type: "lobby", ...data };
+    for (const conn of this.preGameConns) {
+      try { conn.send(msg); } catch { /* ignore */ }
+    }
   }
 
   updateCallbacks(callbacks: Partial<NetworkCallbacks>) {
@@ -163,6 +183,16 @@ export class CatanNetwork {
       if (!this.state) {
         // Game not started yet — queue until initHostState is called
         this.pendingJoins.push({ conn, name: msg.name });
+        this.preGameConns.push(conn);
+        conn.on("close", () => {
+          const idx = this.preGameConns.indexOf(conn);
+          if (idx !== -1) this.preGameConns.splice(idx, 1);
+        });
+        if (this.currentLobbyState) {
+          try {
+            conn.send({ type: "lobby", ...this.currentLobbyState } satisfies NetMessage);
+          } catch { /* ignore */ }
+        }
         this.callbacks.onPendingJoin?.(msg.name);
         return;
       }
@@ -412,6 +442,14 @@ export class CatanNetwork {
               this.localPid = msg.pid;
               this.state = msg.state;
               this.callbacks.onStateUpdate(msg.state);
+              this.callbacks.onConnectionStatusChange?.(
+                "connected",
+                "Connected to host",
+              );
+              safeResolve();
+            } else if (msg.type === "lobby") {
+              const { hostName, pendingNames, bots } = msg;
+              this.callbacks.onLobbyUpdate?.({ hostName, pendingNames, bots });
               this.callbacks.onConnectionStatusChange?.(
                 "connected",
                 "Connected to host",

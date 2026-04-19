@@ -41,7 +41,7 @@ export interface HexGlowEvent {
   expiresAt: number;
 }
 
-export type Screen = "lobby" | "waiting" | "game";
+export type Screen = "start" | "lobby" | "game";
 export type ConnectionStatus =
   | "idle"
   | "connecting"
@@ -73,7 +73,8 @@ export type InfoModalState =
 
 class CatanStore {
   // ── Screens & game ────────────────────────────────────────────────────────
-  screen = $state<Screen>("lobby");
+  screen = $state<Screen>("start");
+  joiningName = $state("");
   gameState = $state<GameState | null>(null);
   localPid = $state<PlayerId | null>(null);
   pendingAction = $state<PendingAction | null>(null);
@@ -170,12 +171,13 @@ class CatanStore {
   returnToLobby() {
     this.net?.destroy?.();
     this.net = null;
-    this.screen = "lobby";
+    this.screen = "start";
     this.gameState = null;
     this.localPid = null;
     this.pendingAction = null;
     this.pendingAdminAction = null;
     this.roomCode = null;
+    this.joiningName = "";
     this.pendingHumans = [];
     this.connectionStatus = "idle";
     this.connectionStatusDetail = "";
@@ -317,14 +319,24 @@ class CatanStore {
     this.pendingAdminAction = pa;
   }
 
+  broadcastCurrentLobby() {
+    this.net?.broadcastLobbyState({
+      hostName: this.hostName,
+      pendingNames: [...this.pendingHumans],
+      bots: [...this.bots],
+    });
+  }
+
   addBot() {
     const total = 1 + this.pendingHumans.length + this.bots.length;
     if (total >= 4) return;
     this.bots.push({ name: `Bot ${total + 1}` });
+    this.broadcastCurrentLobby();
   }
 
   removeBot(idx: number) {
     this.bots.splice(idx, 1);
+    this.broadcastCurrentLobby();
   }
 
   async hostGame(name: string) {
@@ -359,14 +371,17 @@ class CatanStore {
       onPendingJoin: (pname) => {
         this.pendingHumans.push(pname);
         this.showToast(`${pname} is waiting to join`, "info");
+        this.broadcastCurrentLobby();
       },
       onPlayerJoined: (pname) => this.showToast(`${pname} joined`, "info"),
     });
 
     try {
       this.roomCode = await this.net.hostGame("player1");
+      debugger;
       this.setConnectionStatus("connected", "Room created");
-      this.screen = "waiting";
+      this.screen = "lobby";
+      this.broadcastCurrentLobby();
     } catch (e: unknown) {
       this.net = null;
       this.setConnectionStatus(
@@ -425,6 +440,7 @@ class CatanStore {
     const sessionKey = `catan-pid-${code}`;
     const savedPid = sessionStorage.getItem(sessionKey) as PlayerId | null;
 
+    this.joiningName = name;
     this.setLobbyStatus("Connecting…");
     this.setConnectionStatus("connecting", "Connecting to host…");
     this.lastStateUpdateAt = null;
@@ -437,6 +453,14 @@ class CatanStore {
           if (this.localPid) sessionStorage.setItem(sessionKey, this.localPid);
         }
         this.applyStateUpdate(state);
+      },
+      onLobbyUpdate: (data) => {
+        this.hostName = data.hostName;
+        this.pendingHumans = [...data.pendingNames];
+        this.bots = [...data.bots];
+        this.roomCode = code;
+        this.screen = "lobby";
+        this.setLobbyStatus("");
       },
       onError: (msg) => this.showToast(msg, "error"),
       onConnectionStatusChange: (status, detail) => {
