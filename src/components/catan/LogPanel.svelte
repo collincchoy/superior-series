@@ -219,35 +219,6 @@
     max-height: 7rem;
     overflow-y: auto;
     flex: 1;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(171, 193, 168, 0.45) rgba(255, 255, 255, 0.05);
-  }
-
-  .log-content::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .log-content::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 999px;
-  }
-
-  .log-content::-webkit-scrollbar-thumb {
-    background: linear-gradient(
-      180deg,
-      rgba(195, 212, 188, 0.7),
-      rgba(146, 166, 142, 0.72)
-    );
-    border-radius: 999px;
-    border: 1px solid rgba(14, 20, 14, 0.45);
-  }
-
-  .log-content::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(
-      180deg,
-      rgba(212, 226, 205, 0.85),
-      rgba(162, 182, 156, 0.84)
-    );
   }
 
   .log-line {
