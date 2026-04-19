@@ -173,6 +173,105 @@
         />
       </div>
 
+
+      <div class="section">
+        <h4>Treasury</h4>
+        <div class="treasury-wrapper">
+          <div class="treasury-row">
+            <span class="treasury-label">Player</span>
+            <select bind:value={grantPid}>
+              {#each players as { pid, player }}
+                <option value={pid}>{player.name}</option>
+              {/each}
+            </select>
+          </div>
+
+          <div class="treasury-subsection">
+            <p class="subsection-title">Grant Progress Cards</p>
+            <div class="grant-progress-section">
+              <select bind:value={grantTrack}>
+                <option value="science">Science</option>
+                <option value="trade">Trade</option>
+                <option value="politics">Politics</option>
+              </select>
+              <select bind:value={grantCardName}>
+                <option value="">Top of deck</option>
+                {#each availableCardNames as name}
+                  <option value={name}>{name}</option>
+                {/each}
+              </select>
+              <button class="btn grant-btn" onclick={grantProgress}>Grant Progress</button>
+            </div>
+          </div>
+
+          <div class="treasury-subsection">
+            <p class="subsection-title">Grant Resources / Commodities</p>
+            <div class="grant-resources-section">
+              <select bind:value={grantCardType}>
+                <option value="brick">Brick</option>
+                <option value="lumber">Lumber</option>
+                <option value="ore">Ore</option>
+                <option value="grain">Grain</option>
+                <option value="wool">Wool</option>
+                <option value="cloth">Cloth</option>
+                <option value="coin">Coin</option>
+                <option value="paper">Paper</option>
+              </select>
+              <input
+                class="text amount-input"
+                type="number"
+                min="1"
+                step="1"
+                bind:value={grantCardAmount}
+              />
+              <button class="btn grant-btn" onclick={grantCards}>Grant Cards</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="section">
+        <h4>Game State</h4>
+        <div class="row barbarian-controls">
+          <span class="barbarian-label">Barbarian track</span>
+          <input
+            class="text amount-input"
+            type="number"
+            min="0"
+            max="7"
+            step="1"
+            bind:value={barbarianProgress}
+          />
+          <button class="btn" onclick={setBarbarianProgress}>Set Track</button>
+        </div>
+        <div class="pending-grid">
+          <span>pendingProgressDraw</span>
+          <code>{formatPending(gameState.pendingProgressDraw)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingProgressDraw")}>Clear</button>
+
+          <span>pendingDiscard</span>
+          <code>{formatPending(gameState.pendingDiscard)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingDiscard")}>Clear</button>
+
+          <span>pendingDisplace</span>
+          <code>{formatPending(gameState.pendingDisplace)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingDisplace")}>Clear</button>
+
+          <span>pendingFreeRoads</span>
+          <code>{formatPending(gameState.pendingFreeRoads)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingFreeRoads")}>Clear</button>
+
+          <span>pendingKnightPromotions</span>
+          <code>{formatPending(gameState.pendingKnightPromotions)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingKnightPromotions")}>Clear</button>
+
+          <span>pendingCommercialHarbor</span>
+          <code>{formatPending(gameState.pendingCommercialHarbor)}</code>
+          <button class="btn small" onclick={() => clearPendingField("pendingCommercialHarbor")}>Clear</button>
+        </div>
+      </div>
+
       <div class="section">
         <h4>Board Surgery</h4>
         <label class="switch-row">
@@ -237,103 +336,6 @@
           >
             Swap Hexes (select on board)
           </button>
-        </div>
-      </div>
-
-      <div class="section">
-        <h4>Game State</h4>
-        <div class="row barbarian-controls">
-          <span class="barbarian-label">Barbarian track</span>
-          <input
-            class="text amount-input"
-            type="number"
-            min="0"
-            max="7"
-            step="1"
-            bind:value={barbarianProgress}
-          />
-          <button class="btn" onclick={setBarbarianProgress}>Set Track</button>
-        </div>
-        <div class="pending-grid">
-          <span>pendingProgressDraw</span>
-          <code>{formatPending(gameState.pendingProgressDraw)}</code>
-          <button class="btn small" onclick={() => clearPendingField("pendingProgressDraw")}>Clear</button>
-
-          <span>pendingDiscard</span>
-          <code>{formatPending(gameState.pendingDiscard)}</code>
-          <button class="btn small" onclick={() => clearPendingField("pendingDiscard")}>Clear</button>
-
-          <span>pendingDisplace</span>
-          <code>{formatPending(gameState.pendingDisplace)}</code>
-          <button class="btn small" onclick={() => clearPendingField("pendingDisplace")}>Clear</button>
-
-          <span>pendingFreeRoads</span>
-          <code>{formatPending(gameState.pendingFreeRoads)}</code>
-          <button class="btn small" onclick={() => clearPendingField("pendingFreeRoads")}>Clear</button>
-
-          <span>pendingKnightPromotions</span>
-          <code>{formatPending(gameState.pendingKnightPromotions)}</code>
-          <button class="btn small" onclick={() => clearPendingField("pendingKnightPromotions")}>Clear</button>
-
-          <span>pendingCommercialHarbor</span>
-          <code>{formatPending(gameState.pendingCommercialHarbor)}</code>
-          <button class="btn small" onclick={() => clearPendingField("pendingCommercialHarbor")}>Clear</button>
-        </div>
-      </div>
-
-      <div class="section">
-        <h4>Treasury</h4>
-        <div class="treasury-wrapper">
-          <div class="treasury-row">
-            <span class="treasury-label">Player</span>
-            <select bind:value={grantPid}>
-              {#each players as { pid, player }}
-                <option value={pid}>{player.name}</option>
-              {/each}
-            </select>
-          </div>
-
-          <div class="treasury-subsection">
-            <p class="subsection-title">Grant Progress Cards</p>
-            <div class="grant-progress-section">
-              <select bind:value={grantTrack}>
-                <option value="science">Science</option>
-                <option value="trade">Trade</option>
-                <option value="politics">Politics</option>
-              </select>
-              <select bind:value={grantCardName}>
-                <option value="">Top of deck</option>
-                {#each availableCardNames as name}
-                  <option value={name}>{name}</option>
-                {/each}
-              </select>
-              <button class="btn grant-btn" onclick={grantProgress}>Grant Progress</button>
-            </div>
-          </div>
-
-          <div class="treasury-subsection">
-            <p class="subsection-title">Grant Resources / Commodities</p>
-            <div class="grant-resources-section">
-              <select bind:value={grantCardType}>
-                <option value="brick">Brick</option>
-                <option value="lumber">Lumber</option>
-                <option value="ore">Ore</option>
-                <option value="grain">Grain</option>
-                <option value="wool">Wool</option>
-                <option value="cloth">Cloth</option>
-                <option value="coin">Coin</option>
-                <option value="paper">Paper</option>
-              </select>
-              <input
-                class="text amount-input"
-                type="number"
-                min="1"
-                step="1"
-                bind:value={grantCardAmount}
-              />
-              <button class="btn grant-btn" onclick={grantCards}>Grant Cards</button>
-            </div>
-          </div>
         </div>
       </div>
 
