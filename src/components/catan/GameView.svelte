@@ -38,7 +38,7 @@
   let isGameOver = $derived(gameState.phase === "GAME_OVER");
   let winnerName = $derived.by(() => {
     if (!gameState.winner) return null;
-    return gameState.players.find((p) => p.id === gameState.winner)?.name ?? gameState.winner;
+    return gameState.players[gameState.winner]?.name ?? gameState.winner;
   });
   let now = $state(Date.now());
 
