@@ -259,7 +259,6 @@ let _graph: CatanGraph | null = null;
 export function buildGraph(): CatanGraph {
   if (_graph) return _graph;
 
-  const islandIds = new Set(CATAN_HEX_COORDS.map(hexId));
   const vertices: Record<VertexId, true> = {};
   const edges: Record<EdgeId, true> = {};
   const adjacentVerticesMap: Record<VertexId, Set<VertexId>> = {};
@@ -371,7 +370,6 @@ export function computeLongestRoad(
 
   function dfs(currentVertex: VertexId, visitedEdges: Set<EdgeId>): void {
     const edges = graph.edgesOfVertex[currentVertex] ?? [];
-    let extended = false;
     for (const eid of edges) {
       if (!playerEdges.has(eid)) continue;
       if (visitedEdges.has(eid)) continue;
@@ -383,7 +381,6 @@ export function computeLongestRoad(
       // Can't traverse through opponent's piece
       if (isBreakVertex(nextVertex)) continue;
 
-      extended = true;
       visitedEdges.add(eid);
       if (visitedEdges.size > best) best = visitedEdges.size;
       dfs(nextVertex, visitedEdges);

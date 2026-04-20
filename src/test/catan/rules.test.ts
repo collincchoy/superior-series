@@ -1,17 +1,15 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { buildGraph, CATAN_HEX_COORDS, hexId } from "../../lib/catan/board.js";
 import type {
   BoardState,
   HexId,
   VertexId,
   EdgeId,
-  GameState,
   Player,
 } from "../../lib/catan/types.js";
 import { emptyResources } from "../../lib/catan/types.js";
 import {
   canPlaceSettlement,
-  canPlaceCity,
   canPlaceRoad,
   canBuildRoad,
   canBuildSettlement,
@@ -19,8 +17,6 @@ import {
   canBuildCityWall,
   canRecruitKnight,
   canPromoteKnight,
-  canActivateKnight,
-  canMoveKnight,
   canDisplaceKnight,
   canChaseRobber,
   canImproveCity,
@@ -87,17 +83,6 @@ function makePlayer(id: string, overrides: Partial<Player> = {}): Player {
 
 function getFirstVertex(): VertexId {
   return Object.keys(graph.vertices)[0] as VertexId;
-}
-
-function getConnectedVertexAndEdge(startVertex: VertexId): {
-  vertex: VertexId;
-  edge: EdgeId;
-} {
-  const edges = graph.edgesOfVertex[startVertex] ?? [];
-  const edge = edges[0]!;
-  const [vA, vB] = graph.verticesOfEdge[edge]!;
-  const vertex = vA === startVertex ? vB! : vA!;
-  return { vertex, edge };
 }
 
 // ─── canPlaceSettlement ───────────────────────────────────────────────────────

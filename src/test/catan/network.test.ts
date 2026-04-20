@@ -56,7 +56,7 @@ function makeStateWithPendingBotDisplacedMove(): GameState {
     { id: "p2", name: "Bot 2", color: "#3498db", isBot: true },
   ]);
   const edgeId = Object.keys(graph.edges)[0]!;
-  const [from, to] = graph.verticesOfEdge[edgeId]!;
+  const [from] = graph.verticesOfEdge[edgeId]!;
 
   return {
     ...state,

@@ -12,7 +12,6 @@ import type {
   VertexId,
   EdgeId,
 } from "../../lib/catan/types.js";
-import { emptyResources } from "../../lib/catan/types.js";
 
 describe("CATAN_HEX_COORDS", () => {
   it("has exactly 19 hexes", () => {
@@ -236,7 +235,7 @@ function growChain(
 ): EdgeId[] {
   if (chain.length === target) return chain;
   const lastEdge = chain[chain.length - 1]!;
-  const [v1, v2] = graph.verticesOfEdge[lastEdge]!;
+  const [, v2] = graph.verticesOfEdge[lastEdge]!;
   // try extending from v2 (the "forward" end)
   for (const nextEdge of graph.edgesOfVertex[v2!] ?? []) {
     if (!chain.includes(nextEdge)) {

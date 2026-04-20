@@ -11,7 +11,6 @@ import type {
   Player,
   ProgressCard,
   ProgressCardName,
-  KnightStrength,
   CommodityType,
   ResourceType,
 } from "./types.js";
@@ -22,7 +21,6 @@ import {
   canPlaceRoad,
   canBuildRoad,
   canBuildSettlement,
-  canBuildCity,
   canBuildCityWall,
   canRecruitKnight,
   canPromoteKnight,

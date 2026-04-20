@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { computeValidTargets } from "../../lib/catan/validTargets.js";
 import { createInitialState, applyAction } from "../../lib/catan/game.js";
-import { buildGraph, CATAN_HEX_COORDS, hexId } from "../../lib/catan/board.js";
-import { isOnPlayerNetwork } from "../../lib/catan/rules.js";
+import { buildGraph } from "../../lib/catan/board.js";
 import type {
   GameState,
   PlayerId,
@@ -19,34 +18,6 @@ function makePlayers(count = 2) {
     color: ["#e74c3c", "#3498db", "#f39c12", "#2ecc71"][i]!,
     isBot: false,
   }));
-}
-
-function anyVertex(state: GameState): VertexId {
-  return Object.keys(graph.vertices)[0] as VertexId;
-}
-
-function placeFirstSettlement(
-  state: GameState,
-  pid: PlayerId,
-): { state: GameState; vid: VertexId } {
-  const vid = Object.keys(graph.vertices)[0] as VertexId;
-  const s = applyAction(state, {
-    type: "PLACE_BUILDING",
-    pid,
-    vid,
-    building: "settlement",
-  });
-  return { state: s, vid };
-}
-
-function placeRoadAdjacentTo(
-  state: GameState,
-  pid: PlayerId,
-  vid: VertexId,
-): GameState {
-  const eid = (graph.edgesOfVertex[vid] ?? [])[0];
-  if (!eid) throw new Error("no edge found");
-  return applyAction(state, { type: "PLACE_ROAD", pid: pid, eid });
 }
 
 describe("computeValidTargets", () => {
@@ -1157,9 +1128,11 @@ describe("computeValidTargets", () => {
     });
 
     it("progress_select_hex_pair for Invention excludes already picked hexes", () => {
-      const hid1 = Object.values(actionState.board.hexes).find(
+      const hex = Object.values(actionState.board.hexes).find(
         (h) => h.number !== null && ![2, 6, 8, 12].includes(h.number),
-      )?.id!;
+      );
+      if (!hex) throw new Error("expected hex");
+      const hid1 = hex.id;
 
       const targets = computeValidTargets(actionState, "p1", {
         type: "progress_select_hex_pair",

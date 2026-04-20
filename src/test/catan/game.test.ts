@@ -308,7 +308,7 @@ describe("resource production", () => {
     const state = buildActionState();
     const pid = state.currentPlayerId;
     // Find a hex number and player settlement
-    const { hexNum, vid } = findSettlementAndHex(state, pid);
+    const { hexNum } = findSettlementAndHex(state, pid);
     if (hexNum === 0) return;
 
     const before = { ...state.players[pid]!.resources };
@@ -334,7 +334,7 @@ describe("resource production", () => {
     const state = buildActionStateWithCity();
     if (!state) return;
     const pid = state.currentPlayerId;
-    const { hexNum, vid } = findCityAndHex(state, pid);
+    const { hexNum } = findCityAndHex(state, pid);
     if (hexNum === 0) return;
 
     const before = { ...state.players[pid]!.resources };
@@ -1124,9 +1124,11 @@ describe("action logging", () => {
       `${builtCity.players[pid]!.name} built a city. [{delta}|kind=ore&amount=-3] [{delta}|kind=grain&amount=-2]`,
     );
 
-    const roadEdge = Object.entries(builtCity.board.edges).find(
+    const roadEntry = Object.entries(builtCity.board.edges).find(
       ([, road]) => road === null,
-    )?.[0]!;
+    );
+    if (!roadEntry) throw new Error("expected empty edge");
+    const roadEdge = roadEntry[0];
     const builtRoad = applyAction(builtCity, {
       type: "BUILD_ROAD",
       pid,
@@ -2159,9 +2161,9 @@ describe("unimplemented trade actions return state unchanged", () => {
     const after = applyAction(state, {
       type: "TRADE_OFFER",
       from: p1!,
-      to: p2!,
+      to: [p2!],
       offer: { brick: 1 },
-      request: { ore: 1 },
+      want: { ore: 1 },
     });
     expect(after.version).toBe(state.version + 1);
     expect(after.players).toEqual(state.players);

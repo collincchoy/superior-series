@@ -2,7 +2,6 @@ import type {
   HexCoord,
   TerrainType,
   HarborType,
-  VertexId,
   ProgressCard,
   ProgressCardName,
   ImprovementTrack,
@@ -135,7 +134,7 @@ export const POLITICS_DECK: ProgressCard[] = [
 
 /** Cost in commodities to advance track from currentLevel to currentLevel+1 */
 export function improvementCost(
-  track: ImprovementTrack,
+  _track: ImprovementTrack,
   currentLevel: number,
 ): number {
   return currentLevel + 1; // level 0→1 costs 1, 1→2 costs 2, ... 4→5 costs 5

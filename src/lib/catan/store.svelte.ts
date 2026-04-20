@@ -389,12 +389,13 @@ class CatanStore {
       this.broadcastCurrentLobby();
     } catch (e: unknown) {
       this.net = null;
+      const msg = e instanceof Error ? e.message : String(e);
       this.setConnectionStatus(
         "disconnected",
-        (e instanceof Error ? e.message : String(e)) ?? "Failed to host",
+        msg || "Failed to host",
         true,
       );
-      this.setLobbyStatus(`Failed: ${e?.message ?? "unknown error"}`, "error");
+      this.setLobbyStatus(`Failed: ${msg || "unknown error"}`, "error");
     }
   }
 
@@ -478,16 +479,14 @@ class CatanStore {
       this.setConnectionStatus("connected", "Connected to host");
     } catch (e: unknown) {
       this.net = null;
+      const msg = e instanceof Error ? e.message : String(e);
       this.setConnectionStatus(
         "disconnected",
-        (e instanceof Error ? e.message : String(e)) ?? "Failed to join",
+        msg || "Failed to join",
         true,
       );
-      this.setLobbyStatus(
-        `Failed: ${e?.message ?? "connection error"}`,
-        "error",
-      );
-      this.showToast(`Failed to join: ${e?.message}`, "error");
+      this.setLobbyStatus(`Failed: ${msg || "connection error"}`, "error");
+      this.showToast(`Failed to join: ${msg}`, "error");
     }
   }
 }

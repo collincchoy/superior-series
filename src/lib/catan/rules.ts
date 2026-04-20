@@ -4,7 +4,6 @@ import type {
   PlayerId,
   VertexId,
   EdgeId,
-  HexId,
   ImprovementTrack,
   Resources,
   KnightStrength,
@@ -136,7 +135,7 @@ export function canPlaceSettlement(
 export function canPlaceCity(
   board: BoardState,
   graph: CatanGraph,
-  playerId: PlayerId,
+  _playerId: PlayerId,
   vid: VertexId,
 ): boolean {
   // Same as setup settlement placement: empty + distance rule
@@ -154,7 +153,7 @@ export function canPlaceCity(
 export function canPlaceRoad(
   board: BoardState,
   graph: CatanGraph,
-  playerId: PlayerId,
+  _playerId: PlayerId,
   eid: EdgeId,
   adjacentVertex: VertexId,
 ): boolean {

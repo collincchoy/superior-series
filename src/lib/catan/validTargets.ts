@@ -10,7 +10,6 @@ import type {
   VertexId,
   EdgeId,
   HexId,
-  ProgressCardName,
 } from "./types.js";
 import {
   canBuildRoad,
@@ -485,7 +484,7 @@ export function computeAdminTargets(
 
 function computeSetupRoadEdges(
   state: GameState,
-  pid: PlayerId,
+  _pid: PlayerId,
   validEdges: Set<EdgeId>,
 ) {
   const { board, setupLastPlacedVertex } = state;

@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  createInitialState,
-  applyAction,
-  computeVP,
-} from "../../lib/catan/game.js";
+import { createInitialState, applyAction } from "../../lib/catan/game.js";
 import { chooseBotAction } from "../../lib/catan/ai.js";
 import { getActingPlayerIds } from "../../lib/catan/turnActors.js";
 import { buildGraph } from "../../lib/catan/board.js";
@@ -756,7 +752,6 @@ describe("chooseBotAction - setup harbor bonus", () => {
         hexes: newHexes,
         harbors: [
           {
-            edgeId: harborEdge,
             vertices: [vA!, vB!],
             type: "wool",
           },
@@ -996,7 +991,15 @@ describe("chooseBotAction - trade response", () => {
   } = {}) {
     const base = buildActionState();
     const [initiatorPid, botPid] = base.playerOrder as [string, string];
-    const botResources = { ...emptyResources(), ore: 3, grain: 3, wool: 3, brick: 3, lumber: 3, ...(opts.botResources ?? {}) };
+    const botResources = {
+      ...emptyResources(),
+      ore: 3,
+      grain: 3,
+      wool: 3,
+      brick: 3,
+      lumber: 3,
+      ...opts.botResources,
+    };
     return {
       state: {
         ...base,

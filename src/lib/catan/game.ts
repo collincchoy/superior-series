@@ -7,14 +7,12 @@ import type {
   VertexId,
   EdgeId,
   HexId,
-  TurnPhase,
   ImprovementTrack,
   Resources,
   ResourceType,
   CommodityType,
   ProgressCard,
   KnightStrength,
-  EventDieFace,
   ProgressCardName,
   PendingBarbarian,
 } from "./types.js";
@@ -37,7 +35,6 @@ import {
   PLAYER_COLORS,
   TRACK_COMMODITY,
   DRAW_MAX,
-  EVENT_DIE_FACES,
   rollEventDie,
   rollProductionDie,
   BUILD_COSTS,
@@ -48,7 +45,6 @@ import {
   isOnPlayerNetwork,
   progressDiscardCount,
   canTradeBank,
-  bestKnightUpTo,
   hasKnightUpTo,
 } from "./rules.js";
 import {
@@ -1095,7 +1091,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     }
 
     case "MOVE_KNIGHT": {
-      const { pid, from, to } = action;
+      const { from, to } = action;
       if (s.knightsActivatedThisTurn.includes(from)) return s;
       const knight = s.board.knights[from]!;
       s = {
@@ -1143,7 +1139,6 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     case "DISPLACED_MOVE": {
       const { pid, to } = action;
       const pending = s.pendingDisplace!;
-      const from = pending.displacedKnightVertex;
 
       if (to === null) {
         // Can't move — knight returned to supply
@@ -1245,8 +1240,9 @@ export function applyAction(state: GameState, action: GameAction): GameState {
 
     case "DISCARD_PROGRESS": {
       const { pid, cards } = action;
-      if (s.phase !== "DISCARD_PROGRESS" || !s.pendingProgressDiscard) return s;
-      const owedBefore = s.pendingProgressDiscard.remaining[pid];
+      const ppd = s.pendingProgressDiscard;
+      if (s.phase !== "DISCARD_PROGRESS" || !ppd) return s;
+      const owedBefore = ppd.remaining[pid];
       if (owedBefore === undefined) return s;
       if (cards.length < 1 || cards.length > owedBefore) return s;
       if (cards.some((c) => c.isVP)) return s;
@@ -1265,7 +1261,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         `${s.players[pid]?.name} discarded ${cards.length} progress card${cards.length === 1 ? "" : "s"}.`,
       );
 
-      const rem = { ...s.pendingProgressDiscard.remaining };
+      const rem = { ...ppd.remaining };
       if (stillOver > 0) {
         rem[pid] = stillOver;
       } else {

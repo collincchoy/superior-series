@@ -25,9 +25,7 @@ interface DataConnection {
 
 interface PeerInstance {
   id: string;
-  on(event: "open", callback: (id: string) => void): void;
-  on(event: "error", callback: (err: Error) => void): void;
-  on(event: "connection", callback: (conn: DataConnection) => void): void;
+  on(event: string, callback: (...args: unknown[]) => void): void;
   connect(peerId: string): DataConnection;
   destroy(): void;
 }
@@ -112,22 +110,25 @@ export class CatanNetwork {
     return new Promise((resolve, reject) => {
       this.peer = new Peer();
 
-      this.peer.on("open", (id: string) => {
+      this.peer.on("open", (id) => {
         this.callbacks.onConnectionStatusChange?.("connected", "Hosting room");
-        resolve(id);
+        resolve(id as string);
       });
-      this.peer.on("error", (err: Error) => reject(err));
+      this.peer.on("error", (err) => {
+        reject(err instanceof Error ? err : new Error(String(err)));
+      });
 
-      this.peer.on("connection", (conn: DataConnection) => {
+      this.peer.on("connection", (...args) => {
+        const conn = args[0] as DataConnection;
         conn.on("open", () => {
-          conn.on("data", (msg: NetMessage) =>
-            this.handleHostMessage(conn, msg),
+          conn.on("data", (msg) =>
+            this.handleHostMessage(conn, msg as NetMessage),
           );
         });
         conn.on("close", () => {
           this.handleHostConnectionClosed(conn, "Connection closed");
         });
-        conn.on("error", (e: Error) => {
+        conn.on("error", (e) => {
           console.warn("[host] conn error", e);
           this.handleHostConnectionClosed(conn, "Connection error");
         });
@@ -270,7 +271,7 @@ export class CatanNetwork {
     }
   }
 
-  private findPendingSlot(name: string): PlayerId | null {
+  private findPendingSlot(_name: string): PlayerId | null {
     if (!this.state) return null;
     // Find a non-bot, non-host, non-connected player
     for (const pid of this.state.playerOrder) {
@@ -411,12 +412,13 @@ export class CatanNetwork {
       };
 
       this.peer = new Peer();
-      this.peer.on("error", (err: Error) => {
+      this.peer.on("error", (err) => {
+        const e = err instanceof Error ? err : new Error(String(err));
         this.callbacks.onConnectionStatusChange?.(
           "disconnected",
-          err?.message ?? "Peer error",
+          e.message || "Peer error",
         );
-        if (!settled) safeReject(err);
+        if (!settled) safeReject(e);
       });
       this.peer.on("disconnected", () => {
         this.callbacks.onConnectionStatusChange?.(
@@ -431,7 +433,12 @@ export class CatanNetwork {
         );
       });
       this.peer.on("open", () => {
-        const conn = this.peer.connect(roomCode);
+        const peer = this.peer;
+        if (!peer) {
+          if (!settled) safeReject(new Error("Peer not ready"));
+          return;
+        }
+        const conn = peer.connect(roomCode);
         conn.on("open", () => {
           this.callbacks.onConnectionStatusChange?.(
             "connecting",
@@ -441,34 +448,35 @@ export class CatanNetwork {
             ? { type: "join", name: playerName, pid: existingPid }
             : { type: "join", name: playerName };
           conn.send(joinMsg);
-          conn.on("data", (msg: NetMessage) => {
-            if (msg.type === "welcome") {
-              this.localPid = msg.pid;
-              this.state = msg.state;
-              this.callbacks.onStateUpdate(msg.state);
+          conn.on("data", (msg) => {
+            const m = msg as NetMessage;
+            if (m.type === "welcome") {
+              this.localPid = m.pid;
+              this.state = m.state;
+              this.callbacks.onStateUpdate(m.state);
               this.callbacks.onConnectionStatusChange?.(
                 "connected",
                 "Connected to host",
               );
               safeResolve();
-            } else if (msg.type === "lobby") {
-              const { hostName, pendingNames, bots } = msg;
+            } else if (m.type === "lobby") {
+              const { hostName, pendingNames, bots } = m;
               this.callbacks.onLobbyUpdate?.({ hostName, pendingNames, bots });
               this.callbacks.onConnectionStatusChange?.(
                 "connected",
                 "Connected to host",
               );
               safeResolve();
-            } else if (msg.type === "state") {
-              this.state = msg.state;
-              this.callbacks.onStateUpdate(msg.state);
-            } else if (msg.type === "error") {
-              this.callbacks.onError(msg.msg);
+            } else if (m.type === "state") {
+              this.state = m.state;
+              this.callbacks.onStateUpdate(m.state);
+            } else if (m.type === "error") {
+              this.callbacks.onError(m.msg);
               this.callbacks.onConnectionStatusChange?.(
                 "disconnected",
-                msg.msg,
+                m.msg,
               );
-              if (!settled) safeReject(new Error(msg.msg));
+              if (!settled) safeReject(new Error(m.msg));
             }
           });
           conn.on("close", () => {
@@ -477,20 +485,22 @@ export class CatanNetwork {
               "Lost connection to host",
             );
           });
-          conn.on("error", (err: Error) => {
+          conn.on("error", (err) => {
+            const e = err instanceof Error ? err : new Error(String(err));
             this.callbacks.onConnectionStatusChange?.(
               "disconnected",
-              err?.message ?? "Host connection error",
+              e.message || "Host connection error",
             );
           });
           this.connections.set("host", conn);
         });
-        conn.on("error", (err: Error) => {
+        conn.on("error", (err) => {
+          const e = err instanceof Error ? err : new Error(String(err));
           this.callbacks.onConnectionStatusChange?.(
             "disconnected",
-            err?.message ?? "Failed to connect to host",
+            e.message || "Failed to connect to host",
           );
-          if (!settled) safeReject(err);
+          if (!settled) safeReject(e);
         });
       });
     });
@@ -554,7 +564,7 @@ async function loadPeer(): Promise<PeerConstructor> {
   if (typeof window !== "undefined") {
     if ((window as any).Peer) {
       PeerClass = (window as any).Peer;
-      return PeerClass;
+      return PeerClass!;
     }
     await new Promise<void>((resolve, reject) => {
       const s = document.createElement("script");
@@ -566,6 +576,9 @@ async function loadPeer(): Promise<PeerConstructor> {
       s.onerror = () => reject(new Error("Failed to load PeerJS"));
       document.head.appendChild(s);
     });
+  }
+  if (!PeerClass) {
+    throw new Error("PeerJS is not available in this environment");
   }
   return PeerClass;
 }
