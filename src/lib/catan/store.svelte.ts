@@ -383,7 +383,7 @@ class CatanStore {
 
     try {
       this.roomCode = await this.net.hostGame("player1");
-      debugger;
+      this.setLobbyStatus("");
       this.setConnectionStatus("connected", "Room created");
       this.screen = "lobby";
       this.broadcastCurrentLobby();
