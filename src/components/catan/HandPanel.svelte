@@ -141,14 +141,6 @@
     box-shadow: none;
   }
 
-  .vp-card {
-    background: #d4af37;
-    border-color: #f5da73;
-    color: #2d2100;
-    opacity: 1;
-    box-shadow: 0 0 6px rgba(212, 175, 55, 0.3);
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .prog-card { transition: none; }
     .prog-card.clickable:hover { transform: none; box-shadow: none; }

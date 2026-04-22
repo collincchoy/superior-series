@@ -10,13 +10,14 @@
   let pixelBgEnabled = $state(true);
   let inviteMode = $state(false);
   let showScanner = $state(false);
-  let joinNameInputEl: HTMLInputElement | undefined;
+  let joinNameInputEl: HTMLInputElement | undefined = $state();
 
   onMount(() => {
     const urlRoom = new URLSearchParams(window.location.search).get("room");
     if (urlRoom) {
       joinCodeInput = urlRoom;
       inviteMode = true;
+      tick().then(() => joinNameInputEl?.focus());
     }
   });
 
@@ -61,7 +62,6 @@
               bind:value={joinNameInput}
               bind:this={joinNameInputEl}
               onkeydown={handleJoinKeydown}
-              autofocus
             />
             <button
               class="btn-primary"
