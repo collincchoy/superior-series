@@ -38,6 +38,15 @@ import CatanApp from "../components/catan/CatanApp.svelte";
         padding: 0;
       }
 
+      button,
+      [role="button"],
+      a,
+      input,
+      select,
+      label {
+        touch-action: manipulation;
+      }
+
       html,
       body {
         height: 100%;
