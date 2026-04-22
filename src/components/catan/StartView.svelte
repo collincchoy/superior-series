@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import PixelBackground from "./splash/PixelBackground.svelte";
   import QRScanner from "./QRScanner.svelte";
   import { store } from "../../lib/catan/store.svelte.js";
@@ -10,7 +10,7 @@
   let pixelBgEnabled = $state(true);
   let inviteMode = $state(false);
   let showScanner = $state(false);
-  let joinNameInputEl = $state<HTMLInputElement | undefined>(undefined);
+  let joinNameInputEl: HTMLInputElement | undefined;
 
   onMount(() => {
     const urlRoom = new URLSearchParams(window.location.search).get("room");
@@ -24,7 +24,7 @@
     if (e.key === "Enter") store.joinGame(joinNameInput || "Guest", joinCodeInput);
   }
 
-  function handleScan(text: string) {
+  async function handleScan(text: string) {
     let roomCode: string | null = null;
     try {
       roomCode = new URL(text).searchParams.get("room");
@@ -38,7 +38,8 @@
     if (joinNameInput.trim()) {
       store.joinGame(joinNameInput || "Guest", roomCode);
     } else {
-      requestAnimationFrame(() => joinNameInputEl?.focus());
+      await tick();
+      joinNameInputEl?.focus();
     }
   }
 </script>

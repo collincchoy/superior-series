@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { onDestroy } from "svelte";
-
   let { onScan }: { onScan: (text: string) => void } = $props();
 
   let videoEl = $state<HTMLVideoElement | undefined>(undefined);
@@ -56,11 +54,6 @@
       stopFn?.();
       stopFn = null;
     };
-  });
-
-  onDestroy(() => {
-    stopFn?.();
-    stopFn = null;
   });
 </script>
 
