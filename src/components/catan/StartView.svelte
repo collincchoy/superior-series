@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import PixelBackground from "./splash/PixelBackground.svelte";
+  import QRScanner from "./QRScanner.svelte";
   import { store } from "../../lib/catan/store.svelte.js";
 
   let hostNameInput = $state("Player 1");
@@ -8,6 +9,8 @@
   let joinCodeInput = $state("");
   let pixelBgEnabled = $state(true);
   let inviteMode = $state(false);
+  let showScanner = $state(false);
+  let joinNameInputEl = $state<HTMLInputElement | undefined>(undefined);
 
   onMount(() => {
     const urlRoom = new URLSearchParams(window.location.search).get("room");
@@ -19,6 +22,24 @@
 
   function handleJoinKeydown(e: KeyboardEvent) {
     if (e.key === "Enter") store.joinGame(joinNameInput || "Guest", joinCodeInput);
+  }
+
+  function handleScan(text: string) {
+    let roomCode: string | null = null;
+    try {
+      roomCode = new URL(text).searchParams.get("room");
+    } catch { /* not a URL — keep scanner open */ }
+    if (!roomCode) return;
+
+    showScanner = false;
+    joinCodeInput = roomCode;
+    inviteMode = true;
+
+    if (joinNameInput.trim()) {
+      store.joinGame(joinNameInput || "Guest", roomCode);
+    } else {
+      requestAnimationFrame(() => joinNameInputEl?.focus());
+    }
   }
 </script>
 
@@ -37,6 +58,7 @@
               placeholder="Your name"
               maxlength="16"
               bind:value={joinNameInput}
+              bind:this={joinNameInputEl}
               onkeydown={handleJoinKeydown}
               autofocus
             />
@@ -83,6 +105,14 @@
               >Join</button
             >
           </div>
+          <button
+            class="btn-scan-qr"
+            onclick={() => (showScanner = !showScanner)}
+            aria-pressed={showScanner}
+          >{showScanner ? "✕ Close Scanner" : "📷 Scan QR Code"}</button>
+          {#if showScanner}
+            <QRScanner onScan={handleScan} />
+          {/if}
         </div>
       {/if}
       {#if store.lobbyStatus}
@@ -278,6 +308,28 @@
 
   .bg-toggle:hover {
     opacity: 1;
+  }
+
+  .btn-scan-qr {
+    margin-top: 0.5rem;
+    background: transparent;
+    color: #c8b47a;
+    border: 1px solid #5a6a2a;
+    border-radius: 0;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-scan-qr:hover {
+    background: rgba(200, 180, 122, 0.12);
+    border-color: #c8b47a;
+  }
+
+  .btn-scan-qr[aria-pressed="true"] {
+    border-color: #f5c842;
+    color: #f5c842;
   }
 
   @media (max-width: 420px) {
