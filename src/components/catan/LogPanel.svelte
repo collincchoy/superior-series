@@ -9,6 +9,7 @@
   } from "../../lib/catan/constants.js";
   import type { EventDieFace, ProgressCardName } from "../../lib/catan/types.js";
   import DeltaChip from "./DeltaChip.svelte";
+  import Die from "./Die.svelte";
   import { parseLogLineSegments } from "../../lib/catan/logParsing.js";
 
   let { log }: { log: string[] } = $props();
@@ -29,44 +30,6 @@
     trade: "Trade",
     politics: "Politics",
   };
-
-  const PIP_POSITIONS: Record<number, Array<{ x: number; y: number }>> = {
-    1: [{ x: 50, y: 50 }],
-    2: [
-      { x: 28, y: 28 },
-      { x: 72, y: 72 },
-    ],
-    3: [
-      { x: 28, y: 28 },
-      { x: 50, y: 50 },
-      { x: 72, y: 72 },
-    ],
-    4: [
-      { x: 28, y: 28 },
-      { x: 72, y: 28 },
-      { x: 28, y: 72 },
-      { x: 72, y: 72 },
-    ],
-    5: [
-      { x: 28, y: 28 },
-      { x: 72, y: 28 },
-      { x: 50, y: 50 },
-      { x: 28, y: 72 },
-      { x: 72, y: 72 },
-    ],
-    6: [
-      { x: 28, y: 24 },
-      { x: 72, y: 24 },
-      { x: 28, y: 50 },
-      { x: 72, y: 50 },
-      { x: 28, y: 76 },
-      { x: 72, y: 76 },
-    ],
-  };
-
-  function pipLayout(value: number): Array<{ x: number; y: number }> {
-    return PIP_POSITIONS[value] ?? [];
-  }
 
   function eventIcon(event: EventDieFace): string {
     return event === "ship" ? "⛵" : "🏰";
@@ -128,14 +91,7 @@
               <DeltaChip kind={segment.kind} amount={segment.amount} compact={true} />
             {:else if segment.type === "die"}
               <span class="dice-pack">
-                <span
-                  class={`die ${segment.color === 'yellow' ? 'die-yellow' : 'die-red'}`}
-                  aria-label={`${segment.color === 'yellow' ? 'Yellow' : 'Red'} die ${segment.value}`}
-                >
-                  {#each pipLayout(segment.value) as pip}
-                    <span class="pip" style={`left:${pip.x}%;top:${pip.y}%`}></span>
-                  {/each}
-                </span>
+                <Die color={segment.color} value={segment.value} size="0.95rem" />
                 <span class="die-value">{segment.value}</span>
               </span>
             {:else}
@@ -238,38 +194,6 @@
     display: inline-flex;
     align-items: center;
     gap: 0.15rem;
-  }
-
-  .die {
-    width: 0.95rem;
-    height: 0.95rem;
-    border-radius: 4px;
-    border: 1px solid rgba(0, 0, 0, 0.5);
-    position: relative;
-    display: inline-block;
-    vertical-align: middle;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  }
-
-  .die-yellow {
-    background: #f6d55c;
-  }
-
-  .die-red {
-    background: #d9534f;
-  }
-
-  .pip {
-    position: absolute;
-    width: 0.17rem;
-    height: 0.17rem;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    background: #111;
-  }
-
-  .die-red .pip {
-    background: #fff;
   }
 
   .die-value,

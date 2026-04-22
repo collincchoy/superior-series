@@ -2,6 +2,7 @@
   import { store } from "../../lib/catan/store.svelte.js";
   import { CARD_EMOJI } from "./cardEmoji.js";
   import { PROGRESS_CARD_INFO } from "../../lib/catan/constants.js";
+  import Die from "./Die.svelte";
   import type {
     CommodityType,
     EdgeId,
@@ -354,23 +355,42 @@
     </select>
   </div>
 {:else if canPlayNow && card.name === "Alchemy"}
-  <div class="picker-grid">
-    <div class="picker-row">
-      <label for="die-one">Die 1</label>
-      <select id="die-one" bind:value={die1}>
-        {#each [1, 2, 3, 4, 5, 6] as value}
-          <option value={value}>{value}</option>
+  <div class="alchemy-picker">
+    <div class="die-row">
+      <span class="die-label yellow-label">Yellow Die</span>
+      <div class="die-options">
+        {#each [1, 2, 3, 4, 5, 6] as v}
+          <button
+            class="die-btn"
+            class:selected={die1 === v}
+            type="button"
+            aria-label={`Yellow die ${v}`}
+            aria-pressed={die1 === v}
+            onclick={() => (die1 = v)}
+          >
+            <Die color="yellow" value={v} size="2.2rem" />
+          </button>
         {/each}
-      </select>
+      </div>
     </div>
-    <div class="picker-row">
-      <label for="die-two">Die 2</label>
-      <select id="die-two" bind:value={die2}>
-        {#each [1, 2, 3, 4, 5, 6] as value}
-          <option value={value}>{value}</option>
+    <div class="die-row">
+      <span class="die-label red-label">Red Die</span>
+      <div class="die-options">
+        {#each [1, 2, 3, 4, 5, 6] as v}
+          <button
+            class="die-btn"
+            class:selected={die2 === v}
+            type="button"
+            aria-label={`Red die ${v}`}
+            aria-pressed={die2 === v}
+            onclick={() => (die2 = v)}
+          >
+            <Die color="red" value={v} size="2.2rem" />
+          </button>
         {/each}
-      </select>
+      </div>
     </div>
+    <div class="alchemy-sum">Total: {die1 + die2}</div>
   </div>
 {:else if canPlayNow && card.name === "MerchantFleet"}
   <div class="picker-row">
@@ -604,6 +624,66 @@
     color: #f0e8d0;
     padding: 0.3rem 0.4rem;
     font-size: 0.82rem;
+  }
+
+  .alchemy-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-top: 0.5rem;
+  }
+
+  .die-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .die-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+  }
+
+  .yellow-label {
+    color: #f6d55c;
+  }
+
+  .red-label {
+    color: #e07070;
+  }
+
+  .die-options {
+    display: flex;
+    gap: 0.3rem;
+  }
+
+  .die-btn {
+    background: transparent;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    padding: 0.2rem;
+    cursor: pointer;
+    line-height: 0;
+    opacity: 0.55;
+    transition: opacity 0.1s, border-color 0.1s, box-shadow 0.1s;
+  }
+
+  .die-btn:hover {
+    opacity: 0.85;
+  }
+
+  .die-btn.selected {
+    opacity: 1;
+    border-color: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0 6px rgba(255, 255, 255, 0.4);
+  }
+
+  .alchemy-sum {
+    font-size: 0.8rem;
+    color: #c8b47a;
+    font-weight: 700;
   }
 
   .confirm {
