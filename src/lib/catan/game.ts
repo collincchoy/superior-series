@@ -1219,7 +1219,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       const ppd = s.pendingProgressDraw;
       if (!ppd || !ppd.remaining.includes(pid) || ppd.track !== track) return s;
       const deck = [...s.decks[track]];
-      if (deck.length === 0) return s;
+      if (deck.length === 0) {
+        s = advanceProgressDrawAfterDraw(s, pid);
+        return checkWin(s);
+      }
       const card = deck.shift()!;
       const player = s.players[pid]!;
 

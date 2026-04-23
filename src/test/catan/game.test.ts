@@ -2728,4 +2728,37 @@ describe("VP progress card announcement", () => {
     expect(vpCards).toHaveLength(1);
     expect(vpCards[0]!.name).toBe("Printing");
   });
+
+  it("DRAW_PROGRESS with empty deck skips the player and advances the queue", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const emptyDeckState: GameState = {
+      ...state,
+      phase: "RESOLVE_PROGRESS_DRAW",
+      pendingProgressDraw: { remaining: [pid], track: "science" },
+      decks: { ...state.decks, science: [] },
+    };
+    const result = applyAction(emptyDeckState, { type: "DRAW_PROGRESS", pid, track: "science" });
+    // Player should be removed from the draw queue
+    expect(result.pendingProgressDraw).toBeNull();
+    // Should advance to ACTION phase since no discard needed
+    expect(result.phase).toBe("ACTION");
+    // Player should not receive any card
+    expect(result.players[pid]!.progressCards).toHaveLength(0);
+  });
+
+  it("DRAW_PROGRESS with empty deck advances to next player in queue when multiple are waiting", () => {
+    const state = buildActionState();
+    const [p1, p2] = state.playerOrder as [PlayerId, PlayerId];
+    const emptyDeckState: GameState = {
+      ...state,
+      phase: "RESOLVE_PROGRESS_DRAW",
+      pendingProgressDraw: { remaining: [p1, p2], track: "trade" },
+      decks: { ...state.decks, trade: [] },
+    };
+    const result = applyAction(emptyDeckState, { type: "DRAW_PROGRESS", pid: p1, track: "trade" });
+    // p1 removed from queue, p2 still waiting
+    expect(result.pendingProgressDraw?.remaining).toEqual([p2]);
+    expect(result.phase).toBe("RESOLVE_PROGRESS_DRAW");
+  });
 });

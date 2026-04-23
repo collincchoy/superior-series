@@ -1578,12 +1578,6 @@ function chooseProgressDraw(state: GameState, pid: PlayerId): GameAction {
   if (!pending || !pending.remaining.includes(pid)) {
     return { type: "END_TURN", pid };
   }
-  // If the deck is exhausted the game engine's DRAW_PROGRESS handler returns
-  // the state unchanged, which would loop forever. Fall through to ending the
-  // turn; the host will advance play.
-  if (state.decks[pending.track].length === 0) {
-    return { type: "END_TURN", pid };
-  }
   return { type: "DRAW_PROGRESS", pid, track: pending.track };
 }
 

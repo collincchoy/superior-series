@@ -9,6 +9,7 @@ import {
   type GameState,
   type GameAction,
   type PlayerId,
+  type TurnPhase,
   isAdminAction,
 } from "./types.js";
 import { applyAction } from "./game.js";
@@ -330,36 +331,58 @@ export class CatanNetwork {
     }
   }
 
+  private readonly BOT_BREAK_PHASES: TurnPhase[] = [
+    "RESOLVE_PROGRESS_DRAW",
+    "DISCARD",
+    "DISCARD_PROGRESS",
+    "KNIGHT_DISPLACE_RESPONSE",
+    // Cinematic is playing on all clients; host dispatches EXECUTE_BARBARIAN_ATTACK
+    // from the overlay when done. Stop the bot loop until then.
+    "RESOLVE_BARBARIANS",
+  ];
+
+  private botTurnPending(): boolean {
+    if (!this.state || this.state.phase === "GAME_OVER") return false;
+    if (this.findQueuedBotPid()) return true;
+    if (this.BOT_BREAK_PHASES.includes(this.state.phase)) return false;
+    return !!this.state.players[this.state.currentPlayerId]?.isBot;
+  }
+
   private runBotTurns() {
     if (!this.state) return;
+    const BATCH_SIZE = 100;
     let guard = 0;
-    while (this.state.phase !== "GAME_OVER" && guard++ < 200) {
+    let prevVersion = -1;
+
+    while (this.state.phase !== "GAME_OVER" && guard++ < BATCH_SIZE) {
       const queuedBotPid = this.findQueuedBotPid();
       if (queuedBotPid) {
+        const before = this.state.version;
         const action = chooseBotAction(this.state, queuedBotPid);
         this.state = applyAction(this.state, action);
+        if (this.state.version === before + 1 && prevVersion === before) break;
+        prevVersion = before;
         continue;
       }
 
-      if (
-        this.state.phase === "RESOLVE_PROGRESS_DRAW" ||
-        this.state.phase === "DISCARD" ||
-        this.state.phase === "DISCARD_PROGRESS" ||
-        this.state.phase === "KNIGHT_DISPLACE_RESPONSE" ||
-        // Cinematic is playing on all clients; host dispatches EXECUTE_BARBARIAN_ATTACK
-        // from the overlay when done. Stop the bot loop until then.
-        this.state.phase === "RESOLVE_BARBARIANS"
-      ) {
-        break;
-      }
+      if (this.BOT_BREAK_PHASES.includes(this.state.phase)) break;
 
       if (!this.state.players[this.state.currentPlayerId]?.isBot) break;
+
+      const before = this.state.version;
       const action = chooseBotAction(this.state, this.state.currentPlayerId);
       this.state = applyAction(this.state, action);
+      if (this.state.version === before + 1 && prevVersion === before) break;
+      prevVersion = before;
     }
+
     if (guard > 0) {
       this.callbacks.onStateUpdate(this.state);
       this.broadcastState();
+    }
+
+    if (this.botTurnPending()) {
+      setTimeout(() => this.runBotTurns(), 0);
     }
   }
 
