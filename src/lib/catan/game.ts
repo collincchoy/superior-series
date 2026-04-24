@@ -487,7 +487,7 @@ export function computeVP(state: GameState, playerId: PlayerId): number {
 
 // ─── applyAction ──────────────────────────────────────────────────────────────
 
-export function applyAction(state: GameState, action: GameAction): GameState {
+function applyActionReducer(state: GameState, action: GameAction): GameState {
   let s = { ...state, version: state.version + 1 };
   const graph = buildGraph();
 
@@ -664,11 +664,11 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           pendingProgressDiscard: { remaining: needProgDiscard },
           pendingRollResume: { rollerPid: pid, production },
         };
-        return checkWin(s);
+        return s;
       }
 
       s = applyProductionAfterRoll(s, graph, pid, production);
-      return checkWin(s);
+      return s;
     }
 
     // ── Commit Barbarian Attack ────────────────────────────────────────────────
@@ -684,11 +684,11 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       // (same ordering as ROLL_DICE before applyProductionAfterRoll).
       const needProgDiscardAfterCommit = pendingProgressDiscardNeeds(s);
       if (Object.keys(needProgDiscardAfterCommit).length > 0) {
-        return checkWin({
+        return {
           ...s,
           phase: "DISCARD_PROGRESS",
           pendingProgressDiscard: { remaining: needProgDiscardAfterCommit },
-        });
+        };
       }
 
       // Resume the interrupted roll — reuse the exact same path the progress-discard
@@ -700,7 +700,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       }
       s = { ...s, pendingRollResume: null };
       s = applyProductionAfterRoll(s, graph, resume.rollerPid, resume.production);
-      return checkWin(s);
+      return s;
     }
 
     // ── Discard ────────────────────────────────────────────────────────────────
@@ -842,7 +842,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           resourceCostTokens(BUILD_COSTS.settlement),
         ),
       );
-      return checkWin(s);
+      return s;
     }
 
     case "BUILD_CITY": {
@@ -882,7 +882,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           resourceCostTokens(BUILD_COSTS.city),
         ),
       );
-      return checkWin(s);
+      return s;
     }
 
     case "BUILD_CITY_WALL": {
@@ -969,7 +969,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           ),
         ),
       );
-      return checkWin(s);
+      return s;
     }
 
     // ── Knights ────────────────────────────────────────────────────────────────
@@ -1221,7 +1221,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       const deck = [...s.decks[track]];
       if (deck.length === 0) {
         s = advanceProgressDrawAfterDraw(s, pid);
-        return checkWin(s);
+        return s;
       }
       const card = deck.shift()!;
       const player = s.players[pid]!;
@@ -1238,7 +1238,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       s = log(s, `${s.players[pid]?.name} drew a ${track} progress card.`);
 
       s = advanceProgressDrawAfterDraw(s, pid);
-      return checkWin(s);
+      return s;
     }
 
     case "DISCARD_PROGRESS": {
@@ -1272,7 +1272,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       }
       if (Object.keys(rem).length > 0) {
         s = { ...s, pendingProgressDiscard: { remaining: rem } };
-        return checkWin(s);
+        return s;
       }
 
       s = { ...s, pendingProgressDiscard: null };
@@ -1280,11 +1280,11 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       if (resume) {
         s = { ...s, pendingRollResume: null };
         s = applyProductionAfterRoll(s, graph, resume.rollerPid, resume.production);
-        return checkWin(s);
+        return s;
       }
 
       s = { ...s, phase: "ACTION" };
-      return checkWin(s);
+      return s;
     }
 
     case "PLAY_PROGRESS": {
@@ -1975,6 +1975,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
   }
 }
 
+export function applyAction(state: GameState, action: GameAction): GameState {
+  return checkWin(applyActionReducer(state, action));
+}
+
 // ─── Resource Distribution ────────────────────────────────────────────────────
 
 function distributeResources(
@@ -2222,7 +2226,6 @@ export function commitBarbarianAttack(
         `${s.players[winnerId]?.name} got 1 VP token for defending Catan!`,
       );
     }
-    s = checkWin(s);
   } else if (pending.outcome === "tie_draw") {
     s = log(s, "Tied defenders each drew a progress card!");
     for (const winnerId of pending.tiedDefenders) {
@@ -2232,7 +2235,6 @@ export function commitBarbarianAttack(
         s = log(s, `${s.players[winnerId]?.name} drew a progress card.`);
       }
     }
-    s = checkWin(s);
   } else {
     // barbarians_win: pillage each city in the pre-computed list
     for (const cityVid of pending.citiesPillaged) {
@@ -2444,9 +2446,15 @@ function stealRandomCard(
 
 function checkWin(state: GameState): GameState {
   if (state.phase === "GAME_OVER") return state;
-  const vp = computeVP(state, state.currentPlayerId);
-  if (vp >= 13) {
-    return { ...state, phase: "GAME_OVER", winner: state.currentPlayerId };
+  const cur = state.currentPlayerId;
+  if (computeVP(state, cur) >= 13) {
+    return { ...state, phase: "GAME_OVER", winner: cur };
+  }
+  for (const pid of state.playerOrder) {
+    if (pid === cur) continue;
+    if (computeVP(state, pid) >= 13) {
+      return { ...state, phase: "GAME_OVER", winner: pid };
+    }
   }
   return state;
 }
@@ -3100,7 +3108,7 @@ function applyProgressCard(
       break;
   }
 
-  return checkWin(s);
+  return s;
 }
 
 function autoDiscard(resources: Resources, amount: number): Resources {

@@ -2036,6 +2036,99 @@ describe("updateLongestRoad tie-break", () => {
     expect(after.longestRoadOwner).toBe("p1");
     expect(after.longestRoadLength).toBe(6);
   });
+
+  it("BUILD_ROAD ends the game when claiming Longest Road reaches 13 VP", () => {
+    const base = buildActionState();
+    const pid = base.currentPlayerId;
+    const usedEdges = new Set<string>();
+    const chain5 = buildChainFromAnyVertex(5, usedEdges);
+    expect(chain5).toHaveLength(5);
+    const chain4 = chain5.slice(0, 4);
+    const fifthEdge = chain5[4]!;
+
+    const clearedVertices = Object.fromEntries(
+      Object.keys(graph.vertices).map((v) => [v, null]),
+    );
+    const clearedEdges = Object.fromEntries(
+      Object.keys(graph.edges).map((e) => [e, null]),
+    );
+    const state: GameState = {
+      ...base,
+      players: {
+        ...base.players,
+        [pid]: {
+          ...base.players[pid]!,
+          vpTokens: 11,
+        },
+      },
+      board: {
+        ...base.board,
+        vertices: clearedVertices as any,
+        edges: {
+          ...clearedEdges,
+          ...Object.fromEntries(
+            chain4.map((e) => [e, { playerId: pid }]),
+          ),
+        } as any,
+      },
+      longestRoadOwner: null,
+      longestRoadLength: 0,
+    };
+
+    expect(computeVP(state, pid)).toBe(11);
+
+    const after = applyAction(state, {
+      type: "BUILD_ROAD",
+      pid,
+      eid: fifthEdge,
+    });
+
+    expect(after.phase).toBe("GAME_OVER");
+    expect(after.winner).toBe(pid);
+    expect(computeVP(after, pid)).toBeGreaterThanOrEqual(13);
+  });
+});
+
+describe("checkWin tie-break (current player)", () => {
+  it("prefers currentPlayerId when multiple players are at 13 VP", () => {
+    const base = buildActionState();
+    const clearedVertices = Object.fromEntries(
+      Object.keys(graph.vertices).map((v) => [v, null]),
+    );
+    const clearedEdges = Object.fromEntries(
+      Object.keys(graph.edges).map((e) => [e, null]),
+    );
+    const state: GameState = {
+      ...base,
+      phase: "ACTION",
+      currentPlayerId: "p1",
+      playerOrder: ["p3", "p1", "p2"],
+      pendingTradeOffer: null,
+      board: {
+        ...base.board,
+        vertices: clearedVertices as any,
+        edges: clearedEdges as any,
+      },
+      players: {
+        ...base.players,
+        p1: { ...base.players.p1!, vpTokens: 13 },
+        p2: { ...base.players.p2!, vpTokens: 0 },
+        p3: { ...base.players.p3!, vpTokens: 13 },
+      },
+    };
+
+    expect(computeVP(state, "p1")).toBe(13);
+    expect(computeVP(state, "p3")).toBe(13);
+
+    const after = applyAction(state, {
+      type: "TRADE_CANCEL",
+      from: "p1",
+      to: "p2",
+    });
+
+    expect(after.phase).toBe("GAME_OVER");
+    expect(after.winner).toBe("p1");
+  });
 });
 
 // ─── Progress card hand limit ─────────────────────────────────────────────────
