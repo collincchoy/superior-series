@@ -28,6 +28,16 @@
   import { TRACK_COMMODITY, BUILD_COSTS } from "../../lib/catan/constants.js";
   import CatanPopover from "./CatanPopover.svelte";
 
+  const BUILD_ACTION_TYPES = new Set([
+    "build_road", "build_settlement", "build_city", "build_city_wall",
+  ]);
+  const KNIGHT_ACTION_TYPES = new Set([
+    "recruit_knight", "promote_knight", "activate_knight",
+    "move_knight_from", "move_knight_to",
+    "displace_knight_from", "displace_knight_to",
+    "chase_robber_from", "chase_robber_hex",
+  ]);
+
   const scienceResources: (keyof Resources)[] = [
     "brick",
     "lumber",
@@ -296,6 +306,20 @@
     if (me.improvements[track] >= 5) return "Already at maximum level.";
   }
 
+  let activeTab = $state<"build" | "knights" | "improve">("build");
+
+  const TRACK_ABILITY_SHORT: Record<ImprovementTrack, string> = {
+    science: "Inventor",
+    trade: "Master Merchant",
+    politics: "Bishop of Catan",
+  };
+
+  $effect(() => {
+    if (!pendingAction) return;
+    if (BUILD_ACTION_TYPES.has(pendingAction.type)) activeTab = "build";
+    else if (KNIGHT_ACTION_TYPES.has(pendingAction.type)) activeTab = "knights";
+  });
+
   function showBuildInfo() {
     store.openInfoModal({ kind: "build-costs" });
   }
@@ -387,285 +411,250 @@
       </p>
     </div>
   {:else if gameState.phase === "ACTION"}
-    <div class="action-group">
-      <div class="group-head">
-        <span class="group-label">Build</span>
-        <button class="info-btn" onclick={showBuildInfo} aria-label="Show build costs">i</button>
-      </div>
-      <div class="group-btns">
-        {#if pendingAction?.type === "build_road"}
-          <button class="action-btn active" onclick={() => pending(null)}
-            >Cancel Road</button
-          >
-        {:else}
-          <button
-            class="action-btn"
-            class:disabled={!canRoad}
-            aria-disabled={!canRoad}
-            onclick={(e) =>
-              canRoad
-                ? pending({ type: "build_road" })
-                : showUnavailablePopover(
-                    e,
-                    "🛣️ Build Road",
-                    BUILD_COSTS.road,
-                    roadReason(),
-                  )}
-          >🛣️ Road</button
-          >
-        {/if}
-
-        {#if pendingAction?.type === "build_settlement"}
-          <button class="action-btn active" onclick={() => pending(null)}
-            >Cancel Settlement</button
-          >
-        {:else}
-          <button
-            class="action-btn"
-            class:disabled={!canSettle}
-            aria-disabled={!canSettle}
-            onclick={(e) =>
-              canSettle
-                ? pending({ type: "build_settlement" })
-                : showUnavailablePopover(
-                    e,
-                    "🏠 Build Settlement",
-                    BUILD_COSTS.settlement,
-                    settlementReason(),
-                  )}
-          >🏠 Settlement</button
-          >
-        {/if}
-
-        {#if pendingAction?.type === "build_city"}
-          <button class="action-btn active" onclick={() => pending(null)}
-            >Cancel City</button
-          >
-        {:else}
-          <button
-            class="action-btn"
-            class:disabled={!canCity}
-            aria-disabled={!canCity}
-            onclick={(e) =>
-              canCity
-                ? pending({ type: "build_city" })
-                : showUnavailablePopover(
-                    e,
-                    "🏙️ Build City",
-                    BUILD_COSTS.city,
-                    cityReason(),
-                  )}
-          >🏙️ City</button
-          >
-        {/if}
-
-        {#if pendingAction?.type === "build_city_wall"}
-          <button class="action-btn active" onclick={() => pending(null)}
-            >Cancel Wall</button
-          >
-        {:else}
-          <button
-            class="action-btn"
-            class:disabled={!canWall}
-            aria-disabled={!canWall}
-            onclick={(e) =>
-              canWall
-                ? pending({ type: "build_city_wall" })
-                : showUnavailablePopover(
-                    e,
-                    "🏰 Build City Wall",
-                    BUILD_COSTS.cityWall,
-                    wallReason(),
-                  )}
-          >🏰 Wall</button
-          >
-        {/if}
-      </div>
+    <div class="tab-bar">
+      <button
+        class="tab-btn"
+        class:tab-active={activeTab === "build"}
+        onclick={() => (activeTab = "build")}
+      >Build <span
+          class="tab-info"
+          onclick={(e) => { e.stopPropagation(); showBuildInfo(); }}
+          onkeydown={(e) => { if (e.key === "Enter") { e.stopPropagation(); showBuildInfo(); } }}
+          role="button"
+          tabindex="0"
+          aria-label="Show build costs"
+        >ⓘ</span></button
+      >
+      <button
+        class="tab-btn"
+        class:tab-active={activeTab === "knights"}
+        onclick={() => (activeTab = "knights")}
+      >Knights <span
+          class="tab-info"
+          onclick={(e) => { e.stopPropagation(); showKnightInfo(); }}
+          onkeydown={(e) => { if (e.key === "Enter") { e.stopPropagation(); showKnightInfo(); } }}
+          role="button"
+          tabindex="0"
+          aria-label="Show knight levels"
+        >ⓘ</span></button
+      >
+      <button
+        class="tab-btn"
+        class:tab-active={activeTab === "improve"}
+        onclick={() => (activeTab = "improve")}
+      >Improve</button>
     </div>
 
-    <div class="action-group">
-      <div class="group-head">
-        <span class="group-label">Knights</span>
-        <button class="info-btn" onclick={showKnightInfo} aria-label="Show knight levels">i</button>
-      </div>
-      <div class="group-btns">
-        {#if pendingAction?.type === "recruit_knight"}
-          <button class="action-btn active" onclick={() => pending(null)}
-            >Cancel Knight</button
-          >
-        {:else}
-          <button
-            class="action-btn"
-            class:disabled={!canKnight}
-            aria-disabled={!canKnight}
-            onclick={(e) =>
-              canKnight
-                ? pending({ type: "recruit_knight" })
-                : showUnavailablePopover(
-                    e,
-                    "⚔️ Recruit Knight",
-                    BUILD_COSTS.knightRecruit,
-                    recruitKnightReason(),
-                  )}
-          >⚔️ Knight</button
-          >
-        {/if}
-
-        {#if pendingAction?.type === "promote_knight"}
-          <button class="action-btn active" onclick={() => pending(null)}
-            >Cancel Promote</button
-          >
-        {:else}
-          <button
-            class="action-btn"
-            class:disabled={!canPromote}
-            aria-disabled={!canPromote}
-            onclick={(e) =>
-              canPromote
-                ? pending({ type: "promote_knight" })
-                : showUnavailablePopover(
-                    e,
-                    "⬆️ Promote Knight",
-                    BUILD_COSTS.knightPromote,
-                    promoteKnightReason(),
-                  )}
-          >⬆️ Promote</button
-          >
-        {/if}
-
-        {#if pendingAction?.type === "activate_knight"}
-          <button class="action-btn active" onclick={() => pending(null)}
-            >Cancel Activate</button
-          >
-        {:else}
-          <button
-            class="action-btn"
-            class:disabled={!canActivate}
-            aria-disabled={!canActivate}
-            onclick={(e) =>
-              canActivate
-                ? pending({ type: "activate_knight" })
-                : showUnavailablePopover(
-                    e,
-                    "🛡️ Activate Knight",
-                    BUILD_COSTS.knightActivate,
-                    activateKnightReason(),
-                  )}
-          >🛡️ Activate</button
-          >
-        {/if}
-
-        {#if pendingAction?.type === "move_knight_from" || pendingAction?.type === "move_knight_to"}
-          <button class="action-btn active" onclick={() => pending(null)}
-            >Cancel Move</button
-          >
-        {:else}
-          <button
-            class="action-btn"
-            class:disabled={!canMove}
-            aria-disabled={!canMove}
-            onclick={(e) =>
-              canMove
-                ? pending({ type: "move_knight_from" })
-                : showUnavailablePopover(
-                    e,
-                    "🚶 Move Knight",
-                    {},
-                    moveKnightReason(),
-                  )}
-          >🚶 Move</button
-          >
-        {/if}
-
-        {#if pendingAction?.type === "displace_knight_from" || pendingAction?.type === "displace_knight_to"}
-          <button class="action-btn active" onclick={() => pending(null)}
-            >Cancel Displace</button
-          >
-        {:else}
-          <button
-            class="action-btn"
-            class:disabled={!canDisplace}
-            aria-disabled={!canDisplace}
-            onclick={(e) =>
-              canDisplace
-                ? pending({ type: "displace_knight_from" })
-                : showUnavailablePopover(
-                    e,
-                    "⚔️ Displace Knight",
-                    {},
-                    displaceKnightReason(),
-                  )}
-          >⚔️ Displace</button
-          >
-        {/if}
-      </div>
-    </div>
-
-    {#if gameState.barbarian.robberActive}
-      <div class="action-group">
-        <span class="group-label">Robber</span>
+    <div class="tab-content">
+      {#if activeTab === "build"}
         <div class="group-btns">
-          {#if pendingAction?.type === "chase_robber_from" || pendingAction?.type === "chase_robber_hex"}
-            <button class="action-btn active" onclick={() => pending(null)}
-              >Cancel Chase</button
-            >
+          {#if pendingAction?.type === "build_road"}
+            <button class="action-btn active" onclick={() => pending(null)}>Cancel Road</button>
           {:else}
             <button
               class="action-btn"
-              class:disabled={!canChaseRobberNow}
-              aria-disabled={!canChaseRobberNow}
+              class:disabled={!canRoad}
+              aria-disabled={!canRoad}
               onclick={(e) =>
-                canChaseRobberNow
-                  ? pending({ type: "chase_robber_from" })
-                  : showUnavailablePopover(
-                      e,
-                      "🏃 Chase Robber",
-                      {},
-                      chaseRobberReason(),
-                    )}
-            >🏃 Chase Robber</button
-            >
+                canRoad
+                  ? pending({ type: "build_road" })
+                  : showUnavailablePopover(e, "🛣️ Build Road", BUILD_COSTS.road, roadReason())}
+            >🛣️ Road</button>
+          {/if}
+
+          {#if pendingAction?.type === "build_settlement"}
+            <button class="action-btn active" onclick={() => pending(null)}>Cancel Settlement</button>
+          {:else}
+            <button
+              class="action-btn"
+              class:disabled={!canSettle}
+              aria-disabled={!canSettle}
+              onclick={(e) =>
+                canSettle
+                  ? pending({ type: "build_settlement" })
+                  : showUnavailablePopover(e, "🏠 Build Settlement", BUILD_COSTS.settlement, settlementReason())}
+            >🏠 Settlement</button>
+          {/if}
+
+          {#if pendingAction?.type === "build_city"}
+            <button class="action-btn active" onclick={() => pending(null)}>Cancel City</button>
+          {:else}
+            <button
+              class="action-btn"
+              class:disabled={!canCity}
+              aria-disabled={!canCity}
+              onclick={(e) =>
+                canCity
+                  ? pending({ type: "build_city" })
+                  : showUnavailablePopover(e, "🏙️ Build City", BUILD_COSTS.city, cityReason())}
+            >🏙️ City</button>
+          {/if}
+
+          {#if pendingAction?.type === "build_city_wall"}
+            <button class="action-btn active" onclick={() => pending(null)}>Cancel Wall</button>
+          {:else}
+            <button
+              class="action-btn"
+              class:disabled={!canWall}
+              aria-disabled={!canWall}
+              onclick={(e) =>
+                canWall
+                  ? pending({ type: "build_city_wall" })
+                  : showUnavailablePopover(e, "🏰 Build City Wall", BUILD_COSTS.cityWall, wallReason())}
+            >🏰 Wall</button>
           {/if}
         </div>
-      </div>
-    {/if}
 
-    <div class="action-group">
-      <span class="group-label">Improve</span>
-      <div class="group-btns">
-        {#each tracks as track}
-          <button
-            class="action-btn"
-            class:disabled={!canImproveCity(board, me, track, craneDiscount)}
-            aria-disabled={!canImproveCity(board, me, track, craneDiscount)}
-            onclick={(e) =>
-              canImproveCity(board, me, track, craneDiscount)
-                ? send({ type: "IMPROVE_CITY", pid, track })
-                : showUnavailablePopover(
-                    e,
-                    trackLabel[track].label,
-                    improveCost(track),
-                    improveReason(track),
-                  )}
-            style={`background:${trackLabel[track].color};color:${track === "trade" ? "#3f2d00" : "#ffffff"};border-color:rgba(0,0,0,0.35);`}
-          >
-            {trackLabel[track].label}
-          </button>
-        {/each}
-      </div>
+        {#if gameState.barbarian.robberActive}
+          <div class="group-btns chase-row">
+            {#if pendingAction?.type === "chase_robber_from" || pendingAction?.type === "chase_robber_hex"}
+              <button class="action-btn active" onclick={() => pending(null)}>Cancel Chase</button>
+            {:else}
+              <button
+                class="action-btn"
+                class:disabled={!canChaseRobberNow}
+                aria-disabled={!canChaseRobberNow}
+                onclick={(e) =>
+                  canChaseRobberNow
+                    ? pending({ type: "chase_robber_from" })
+                    : showUnavailablePopover(e, "🏃 Chase Robber", {}, chaseRobberReason())}
+              >🏃 Chase Robber</button>
+            {/if}
+          </div>
+        {/if}
+
+      {:else if activeTab === "knights"}
+        <div class="group-btns">
+          {#if pendingAction?.type === "recruit_knight"}
+            <button class="action-btn active" onclick={() => pending(null)}>Cancel Knight</button>
+          {:else}
+            <button
+              class="action-btn"
+              class:disabled={!canKnight}
+              aria-disabled={!canKnight}
+              onclick={(e) =>
+                canKnight
+                  ? pending({ type: "recruit_knight" })
+                  : showUnavailablePopover(e, "⚔️ Recruit Knight", BUILD_COSTS.knightRecruit, recruitKnightReason())}
+            >⚔️ Knight</button>
+          {/if}
+
+          {#if pendingAction?.type === "promote_knight"}
+            <button class="action-btn active" onclick={() => pending(null)}>Cancel Promote</button>
+          {:else}
+            <button
+              class="action-btn"
+              class:disabled={!canPromote}
+              aria-disabled={!canPromote}
+              onclick={(e) =>
+                canPromote
+                  ? pending({ type: "promote_knight" })
+                  : showUnavailablePopover(e, "⬆️ Promote Knight", BUILD_COSTS.knightPromote, promoteKnightReason())}
+            >⬆️ Promote</button>
+          {/if}
+
+          {#if pendingAction?.type === "activate_knight"}
+            <button class="action-btn active" onclick={() => pending(null)}>Cancel Activate</button>
+          {:else}
+            <button
+              class="action-btn"
+              class:disabled={!canActivate}
+              aria-disabled={!canActivate}
+              onclick={(e) =>
+                canActivate
+                  ? pending({ type: "activate_knight" })
+                  : showUnavailablePopover(e, "🛡️ Activate Knight", BUILD_COSTS.knightActivate, activateKnightReason())}
+            >🛡️ Activate</button>
+          {/if}
+
+          {#if pendingAction?.type === "move_knight_from" || pendingAction?.type === "move_knight_to"}
+            <button class="action-btn active" onclick={() => pending(null)}>Cancel Move</button>
+          {:else}
+            <button
+              class="action-btn"
+              class:disabled={!canMove}
+              aria-disabled={!canMove}
+              onclick={(e) =>
+                canMove
+                  ? pending({ type: "move_knight_from" })
+                  : showUnavailablePopover(e, "🚶 Move Knight", {}, moveKnightReason())}
+            >🚶 Move</button>
+          {/if}
+
+          {#if pendingAction?.type === "displace_knight_from" || pendingAction?.type === "displace_knight_to"}
+            <button class="action-btn active" onclick={() => pending(null)}>Cancel Displace</button>
+          {:else}
+            <button
+              class="action-btn"
+              class:disabled={!canDisplace}
+              aria-disabled={!canDisplace}
+              onclick={(e) =>
+                canDisplace
+                  ? pending({ type: "displace_knight_from" })
+                  : showUnavailablePopover(e, "⚔️ Displace Knight", {}, displaceKnightReason())}
+            >⚔️ Displace</button>
+          {/if}
+        </div>
+
+      {:else}
+        <div class="improve-tracks">
+          {#each tracks as track}
+            {@const level = me.improvements[track]}
+            {@const color = trackLabel[track].color}
+            {@const metroOwner = gameState.metropolisOwner[track]}
+            {@const canImprove = canImproveCity(board, me, track, craneDiscount)}
+            <div class="track-row">
+              <div class="track-head">
+                <span class="track-label" style="color:{color}">{trackLabel[track].label}</span>
+                <div class="track-bar">
+                  {#each [0, 1, 2, 3, 4] as i}
+                    <div
+                      class="pip"
+                      class:pip-filled={i < level}
+                      style="--c:{color}"
+                    ></div>
+                  {/each}
+                  <span class="lv-num">Lv{level}</span>
+                </div>
+                <button
+                  class="improve-btn"
+                  class:disabled={!canImprove}
+                  aria-disabled={!canImprove}
+                  style="color:{color};border-color:{color}55"
+                  onclick={(e) =>
+                    canImprove
+                      ? send({ type: "IMPROVE_CITY", pid, track })
+                      : showUnavailablePopover(e, trackLabel[track].label, improveCost(track), improveReason(track))}
+                >+</button>
+              </div>
+              {#if level >= 3}
+                <div class="track-badges">
+                  <button
+                    class="ability-badge"
+                    style="color:{color};border-color:{color}44;background:{color}18"
+                    onclick={() => store.openInfoModal({ kind: "city-improvement-ability", track })}
+                  >★ {TRACK_ABILITY_SHORT[track]}</button>
+                  {#if level >= 4}
+                    <span
+                      class="metro-badge"
+                      class:metro-owned={metroOwner === pid}
+                      class:metro-claimed={metroOwner !== null && metroOwner !== pid}
+                    >{metroOwner === pid ? "👑 Metropolis" : metroOwner !== null ? "👑 Claimed" : "👑 Eligible"}</span>
+                  {/if}
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
 
-    <div class="group-btns">
-      <button class="action-btn" onclick={() => (showTrade = true)}
-        >🏦 Bank</button
-      >
-      <button class="action-btn" onclick={() => (showPlayerTrade = true)}
-        >🤝 Trade</button
-      >
+    <div class="group-btns bottom-bar">
+      <button class="action-btn" onclick={() => (showTrade = true)}>🏦 Bank</button>
+      <button class="action-btn" onclick={() => (showPlayerTrade = true)}>🤝 Trade</button>
       <button
         class="action-btn end-turn"
-        onclick={() => send({ type: "END_TURN", pid })}>✓ End Turn</button
-      >
+        onclick={() => send({ type: "END_TURN", pid })}>✓ End Turn</button>
     </div>
   {/if}
 </div>
@@ -710,6 +699,169 @@
     flex-direction: column;
     gap: 0.3rem;
   }
+  /* ── tabs ── */
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 6px 0;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #7a9a7a;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    font: inherit;
+    transition: color 0.15s, border-color 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .tab-btn:hover {
+    color: #b0c8b0;
+  }
+  .tab-btn.tab-active {
+    color: #c8b47a;
+    font-weight: 700;
+    border-bottom-color: #c8b47a;
+  }
+  .tab-info {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.35);
+    cursor: pointer;
+    line-height: 1;
+  }
+  .tab-info:hover {
+    color: rgba(255, 255, 255, 0.7);
+  }
+  .tab-content {
+    padding: 0.4rem 0.4rem 0.2rem;
+    min-height: 82px;
+  }
+  .chase-row {
+    margin-top: 0.3rem;
+  }
+
+  /* ── improve tab ── */
+  .improve-tracks {
+    display: flex;
+    flex-direction: column;
+  }
+  .track-row {
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .track-row:last-child {
+    border-bottom: none;
+  }
+  .track-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .track-label {
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .track-bar {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    flex: 1;
+  }
+  .pip {
+    width: 18px;
+    height: 9px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    transition: background 0.25s;
+  }
+  .pip.pip-filled {
+    background: var(--c);
+  }
+  .lv-num {
+    font-size: 10px;
+    color: #6a8a6a;
+    margin-left: 3px;
+    flex-shrink: 0;
+  }
+  .improve-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    font: inherit;
+    flex-shrink: 0;
+    transition: background 0.12s, transform 0.1s;
+  }
+  .improve-btn:hover:not(.disabled) {
+    background: rgba(255, 255, 255, 0.14);
+    transform: scale(1.08);
+  }
+  .improve-btn.disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .track-badges {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-left: 2px;
+  }
+  .ability-badge {
+    font-size: 9px;
+    font-weight: 700;
+    border: 1px solid;
+    border-radius: 4px;
+    padding: 1px 6px;
+    cursor: pointer;
+    font: inherit;
+    transition: filter 0.12s;
+  }
+  .ability-badge:hover {
+    filter: brightness(1.2);
+  }
+  .metro-badge {
+    font-size: 9px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: #8a7a30;
+    background: rgba(200, 160, 40, 0.1);
+    border: 1px solid rgba(200, 160, 40, 0.25);
+  }
+  .metro-badge.metro-owned {
+    color: #ffd700;
+    background: rgba(255, 215, 0, 0.12);
+    border-color: rgba(255, 215, 0, 0.5);
+    box-shadow: 0 0 6px rgba(255, 215, 0, 0.25);
+  }
+  .metro-badge.metro-claimed {
+    color: #6a8a6a;
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  .bottom-bar {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 0.35rem;
+    margin-top: 0;
+  }
+
   .action-group {
     display: flex;
     flex-direction: column;
@@ -804,8 +956,12 @@
     animation: none;
   }
   @keyframes dice-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(107, 191, 109, 0.4); }
-    50% { box-shadow: 0 0 0 6px rgba(107, 191, 109, 0); }
+    0%, 100% {
+      box-shadow: 0 0 12px rgba(107, 191, 109, 0.35), 0 0 0 0 rgba(107, 191, 109, 0.4);
+    }
+    50% {
+      box-shadow: 0 0 28px rgba(107, 191, 109, 0.6), 0 0 0 6px rgba(107, 191, 109, 0);
+    }
   }
   .action-instruction {
     padding: 0.4rem;
