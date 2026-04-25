@@ -110,6 +110,21 @@
 
   let vpModalPid: PlayerId | null = $state(null);
   let vpModalOpen = $state(false);
+
+  let vpBouncing = $state(false);
+  let prevLocalVP = -1;
+  $effect(() => {
+    const vp = computeVP(gameState, localPid);
+    if (prevLocalVP === -1) { prevLocalVP = vp; return; }
+    if (vp > prevLocalVP) {
+      prevLocalVP = vp;
+      vpBouncing = true;
+      const t = setTimeout(() => { vpBouncing = false; }, 700);
+      return () => clearTimeout(t);
+    } else {
+      prevLocalVP = vp;
+    }
+  });
 </script>
 
 <div class="players-bar">
@@ -140,7 +155,7 @@
         {/if}
       </span>
       <button class="vp" onclick={() => { vpModalPid = pid; vpModalOpen = true; }} aria-label="View {p.name}'s VP breakdown">
-        <span>{vp} VP</span>
+        <span class:vp-bounce={pid === localPid && vpBouncing}>{vp} VP</span>
         {#if gameState.board.merchantOwner === pid}
           <span class="vp-indicator">🏪</span>
         {/if}
@@ -537,9 +552,22 @@
     font-size: 1rem;
   }
 
+  .vp-bounce {
+    display: inline-block;
+    animation: vpBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes vpBounce {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.55) rotate(-4deg); color: #fff; }
+    60% { transform: scale(1.3) rotate(3deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .player-card.active { animation: none; }
     .delta-toast { animation: none; }
     .road-badge { animation: none; }
+    .vp-bounce { animation: none; }
   }
 </style>

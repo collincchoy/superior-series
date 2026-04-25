@@ -25,6 +25,8 @@ Astro 6.1 static site deployed to GitHub Pages (`https://collincchoy.github.io/s
 
 Tests cover all pure logic in `src/lib/catan/`. Svelte components are not unit-tested — verify visually with `pnpm dev`.
 
+After any component change, always run `pnpm exec astro check` in addition to `pnpm test`. Astro check validates Svelte template references (undefined variables, type errors in templates) that `tsc` and Vitest do not catch.
+
 ## Adding Pages
 
 Create `src/pages/name.astro` → auto-routed to `/superior-series/name/`.

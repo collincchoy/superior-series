@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { GameState, PlayerId } from "../../lib/catan/types.js";
+  import type { GameState, PlayerId, EventDieFace } from "../../lib/catan/types.js";
   import type {
     PendingAction,
     PendingAdminAction,
@@ -20,6 +20,11 @@
   import VpCardModal from "./VpCardModal.svelte";
   import MasterControlModal from "./MasterControlModal.svelte";
   import BarbarianAttackOverlay from "./BarbarianAttackOverlay.svelte";
+  import LogOverlay from "./LogOverlay.svelte";
+  import TurnTransitionOverlay from "./TurnTransitionOverlay.svelte";
+  import DiceRollModal from "./DiceRollModal.svelte";
+  import VPMilestoneOverlay from "./VPMilestoneOverlay.svelte";
+  import { computeVP } from "../../lib/catan/game.js";
 
   let {
     gameState,
@@ -38,6 +43,58 @@
   let showPlayerTrade = $state(false);
   let isHost = $derived(store.isHostPlayer);
   let isGameOver = $derived(gameState.phase === "GAME_OVER");
+
+  let showTransition = $state(false);
+  let transitionPlayer = $state<{ name: string; color: string } | null>(null);
+  let prevCurrentPid: string | null = null;
+
+  let showDiceModal = $state(false);
+  let diceRoll = $state<[number, number, EventDieFace] | null>(null);
+  let diceRollerId = $state<string | null>(null);
+  let prevLastRoll: typeof gameState.lastRoll = null;
+
+  let milestoneVP = $state<number | null>(null);
+  let prevMilestoneVP = -1;
+  $effect(() => {
+    const vp = computeVP(gameState, localPid);
+    if (prevMilestoneVP === -1) { prevMilestoneVP = vp; return; }
+    if (vp > prevMilestoneVP && vp >= 10 && vp <= 12) {
+      milestoneVP = vp;
+    }
+    prevMilestoneVP = vp;
+  });
+
+  $effect(() => {
+    const roll = gameState.lastRoll;
+    if (!roll) return;
+    if (roll === prevLastRoll) return;
+    if (prevLastRoll !== null && roll[0] === prevLastRoll[0] && roll[1] === prevLastRoll[1] && roll[2] === prevLastRoll[2]) return;
+    prevLastRoll = roll;
+    diceRoll = roll;
+    diceRollerId = gameState.lastRollPid;
+    showDiceModal = true;
+  });
+
+  $effect(() => {
+    const pid = gameState.currentPlayerId;
+    const phase = gameState.phase;
+
+    if (prevCurrentPid === null) {
+      prevCurrentPid = pid;
+      return;
+    }
+    if (phase.startsWith("SETUP_")) {
+      prevCurrentPid = pid;
+      return;
+    }
+    if (pid === prevCurrentPid) return;
+    prevCurrentPid = pid;
+
+    const player = gameState.players[pid];
+    if (!player) return;
+    transitionPlayer = { name: player.name, color: player.color };
+    showTransition = true;
+  });
   let winnerName = $derived.by(() => {
     if (!gameState.winner) return null;
     return gameState.players[gameState.winner]?.name ?? gameState.winner;
@@ -158,12 +215,15 @@
     playerConnectionStatus={store.playerConnectionStatus}
   />
   <div class="board-and-panel">
-    <BoardCanvas
-      {gameState}
-      {localPid}
-      {pendingAction}
-      activeHexGlows={activeHexGlows}
-    />
+    <div class="board-wrapper">
+      <BoardCanvas
+        {gameState}
+        {localPid}
+        {pendingAction}
+        activeHexGlows={activeHexGlows}
+      />
+      <LogOverlay log={gameState.log} />
+    </div>
     <SidePanel
       {gameState}
       {localPid}
@@ -223,8 +283,35 @@
   />
 {/if}
 
-{#if gameState.phase === "RESOLVE_BARBARIANS" && gameState.pendingBarbarian}
+{#if gameState.phase === "RESOLVE_BARBARIANS" && gameState.pendingBarbarian && !showDiceModal}
   <BarbarianAttackOverlay {gameState} />
+{/if}
+
+{#if showTransition && transitionPlayer}
+  <TurnTransitionOverlay
+    name={transitionPlayer.name}
+    color={transitionPlayer.color}
+    onDone={() => (showTransition = false)}
+  />
+{/if}
+
+{#if showDiceModal && diceRoll}
+  {@const rollerPlayer = gameState.players[diceRollerId ?? localPid]}
+  <DiceRollModal
+    roll={diceRoll}
+    rollerName={rollerPlayer?.name ?? ""}
+    isLocalPlayer={diceRollerId === localPid}
+    onDone={() => (showDiceModal = false)}
+  />
+{/if}
+
+{#if milestoneVP !== null}
+  {@const localPlayer = gameState.players[localPid]}
+  <VPMilestoneOverlay
+    vp={milestoneVP}
+    color={localPlayer?.color ?? "#f5c842"}
+    onDone={() => (milestoneVP = null)}
+  />
 {/if}
 
 {#if isGameOver}
@@ -347,6 +434,15 @@
   .board-and-panel {
     flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .board-wrapper {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
   }

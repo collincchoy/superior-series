@@ -386,6 +386,8 @@ export interface GameState {
   metropolisOwner: Record<ImprovementTrack, PlayerId | null>;
   /** Last dice roll: [die1, die2, eventDie] */
   lastRoll: [number, number, EventDieFace] | null;
+  /** Player who made the last dice roll */
+  lastRollPid: PlayerId | null;
   /** Setup: remaining players in current setup round order */
   setupQueue: PlayerId[];
   /** Setup: vertex where current player just placed their building (restricts road placement to adjacent edges) */
