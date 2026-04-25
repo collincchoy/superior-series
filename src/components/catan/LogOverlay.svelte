@@ -18,19 +18,46 @@
   let { log }: { log: string[] } = $props();
 
   let isExpanded = $state(false);
+  let isPill = $state(false);
   let scrollEl = $state<HTMLDivElement | undefined>(undefined);
+  let pillTimer: ReturnType<typeof setTimeout> | undefined;
 
   function openCardInfo(name: ProgressCardName) {
     store.openInfoModal({ kind: "card-info", card: getProgressCardByName(name) });
   }
 
-  let recentLines = $derived(log.slice(-3).reverse());
-  let allLines = $derived([...log].reverse());
+  function startPillTimer() {
+    clearTimeout(pillTimer);
+    pillTimer = setTimeout(() => { isPill = true; }, 5000);
+  }
+
+  let recentLines = $derived(log.slice(-3));
+  let allLines = $derived([...log]);
+
+  $effect(() => {
+    // Pop open preview on new events and restart collapse timer
+    log.length;
+    if (!isExpanded) {
+      isPill = false;
+      startPillTimer();
+    }
+    return () => clearTimeout(pillTimer);
+  });
+
+  function handleOverlayClick() {
+    if (isPill) {
+      isPill = false;
+      startPillTimer();
+    } else {
+      clearTimeout(pillTimer);
+      isExpanded = true;
+    }
+  }
 
   $effect(() => {
     allLines.length;
     if (isExpanded && scrollEl) {
-      tick().then(() => { if (scrollEl) scrollEl.scrollTop = 0; });
+      tick().then(() => { if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight; });
     }
   });
 </script>
@@ -38,7 +65,7 @@
 {#if !isExpanded}
   <button
     class="log-overlay"
-    onclick={() => (isExpanded = true)}
+    onclick={handleOverlayClick}
     aria-label="Show event log"
     type="button"
   >
@@ -46,6 +73,7 @@
       <span class="recent-label">Recent</span>
       <span class="expand-arrow">▲</span>
     </div>
+    {#if !isPill}
     {#each recentLines as line}
       <div class="overlay-row">
         {#each parseLogLineSegments(line) as segment}
@@ -65,12 +93,13 @@
         {/each}
       </div>
     {/each}
+    {/if}
   </button>
 {:else}
   <div class="log-drawer" role="dialog" aria-label="Event log">
     <div class="drawer-header">
       <span class="drawer-title">Event Log</span>
-      <button class="close-btn" onclick={() => (isExpanded = false)} type="button">Close</button>
+      <button class="close-btn" onclick={() => { isExpanded = false; isPill = true; }} type="button" aria-label="Close event log">&times;</button>
     </div>
     <div class="drawer-content" bind:this={scrollEl}>
       {#each allLines as line}
@@ -117,6 +146,7 @@
     left: 8px;
     z-index: 10;
     max-width: 210px;
+    overflow: hidden;
     background: rgba(0, 0, 0, 0.62);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -220,19 +250,25 @@
   }
 
   .close-btn {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 7px;
-    padding: 3px 11px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 999px;
+    width: 2rem;
+    height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
     color: #f0e8d0;
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1;
     cursor: pointer;
-    font: inherit;
+    flex-shrink: 0;
   }
 
   .close-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.2);
   }
 
   .drawer-content {
