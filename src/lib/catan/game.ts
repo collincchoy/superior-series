@@ -428,6 +428,7 @@ export function createInitialState(
     longestRoadLength: 0,
     metropolisOwner: { science: null, trade: null, politics: null },
     lastRoll: null,
+    lastRollPid: null,
     setupQueue: [...playerOrder],
     setupLastPlacedVertex: null,
     pendingDisplace: null,
@@ -613,7 +614,7 @@ function applyActionReducer(state: GameState, action: GameAction): GameState {
       const redDie = d2;
       const production = yellowDie + redDie;
 
-      s = { ...s, lastRoll: [d1, d2, event] };
+      s = { ...s, lastRoll: [d1, d2, event], lastRollPid: pid };
       s = log(
         s,
         `${s.players[pid]?.name} rolled ${logDieToken("yellow", yellowDie)} ${logDieToken("red", redDie)} = ${production} ${logEventDieToken(event)}`,

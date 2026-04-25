@@ -179,6 +179,28 @@ export function rollEventDie(): EventDieFace {
   return EVENT_DIE_FACES[Math.floor(Math.random() * 6)]!;
 }
 
+export const EVENT_COLORS: Record<EventDieFace, string> = {
+  ship:     "#7a8fa0",
+  science:  "#2e9e4f",
+  trade:    "#f1c232",
+  politics: "#2f6fe4",
+};
+
+export const EVENT_LABELS: Record<EventDieFace, string> = {
+  ship:     "Barbarian",
+  science:  "Science",
+  trade:    "Trade",
+  politics: "Politics",
+};
+
+export function eventDieIcon(face: EventDieFace): string {
+  return face === "ship" ? "⛵" : "🏰";
+}
+
+export function eventDieTextColor(face: EventDieFace): string {
+  return face === "trade" ? "#2f2400" : "#ffffff";
+}
+
 export function rollProductionDie(): number {
   return Math.floor(Math.random() * 6) + 1;
 }
