@@ -6,7 +6,6 @@
   import PhaseBanner from "./PhaseBanner.svelte";
   import HandPanel from "./HandPanel.svelte";
   import ActionPanel from "./ActionPanel.svelte";
-  import LogPanel from "./LogPanel.svelte";
 
   let {
     gameState,
@@ -61,7 +60,6 @@
   {:else}
     <div class="action-panel"></div>
   {/if}
-  <LogPanel log={gameState.log} />
 </div>
 
 <style>
@@ -80,15 +78,13 @@
 
   /* Decorative dividers between panel sections */
   .side-panel :global(.hand-panel),
-  .side-panel :global(.action-panel),
-  .side-panel :global(.log-panel) {
+  .side-panel :global(.action-panel) {
     border-top: 1px solid #2c5f2e;
     position: relative;
   }
 
   .side-panel :global(.hand-panel)::before,
-  .side-panel :global(.action-panel)::before,
-  .side-panel :global(.log-panel)::before {
+  .side-panel :global(.action-panel)::before {
     content: "✦";
     position: absolute;
     top: -0.46em;

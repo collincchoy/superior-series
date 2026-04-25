@@ -6,6 +6,10 @@
     PROGRESS_CARD_INFO,
     TRACK_BADGE_COLOR,
     getProgressCardByName,
+    EVENT_COLORS,
+    EVENT_LABELS,
+    eventDieIcon,
+    eventDieTextColor,
   } from "../../lib/catan/constants.js";
   import type { EventDieFace, ProgressCardName } from "../../lib/catan/types.js";
   import DeltaChip from "./DeltaChip.svelte";
@@ -13,31 +17,6 @@
   import { parseLogLineSegments } from "../../lib/catan/logParsing.js";
 
   let { log }: { log: string[] } = $props();
-
-  let isExpanded = $state(true);
-  let el = $state<HTMLDivElement | undefined>(undefined);
-
-  const EVENT_COLORS: Record<EventDieFace, string> = {
-    ship: "#7a8fa0",
-    science: "#2e9e4f",
-    trade: "#f1c232",
-    politics: "#2f6fe4",
-  };
-
-  const EVENT_LABELS: Record<EventDieFace, string> = {
-    ship: "Barbarian",
-    science: "Science",
-    trade: "Trade",
-    politics: "Politics",
-  };
-
-  function eventIcon(event: EventDieFace): string {
-    return event === "ship" ? "⛵" : "🏰";
-  }
-
-  function eventTextColor(event: EventDieFace): string {
-    return event === "trade" ? "#2f2400" : "#ffffff";
-  }
 
   function openCardInfo(name: ProgressCardName) {
     store.openInfoModal({
@@ -97,11 +76,11 @@
             {:else}
               <span
                 class="event-die"
-                style={`background:${EVENT_COLORS[segment.face]};color:${eventTextColor(segment.face)}`}
+                style={`background:${EVENT_COLORS[segment.face]};color:${eventDieTextColor(segment.face)}`}
                 aria-label={EVENT_LABELS[segment.face]}
                 title={EVENT_LABELS[segment.face]}
               >
-                {eventIcon(segment.face)}
+                {eventDieIcon(segment.face)}
               </span>
               <span class="event-label" style={`color:${EVENT_COLORS[segment.face]}`}
                 >{EVENT_LABELS[segment.face]}</span
