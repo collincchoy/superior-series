@@ -21,7 +21,7 @@
   import { isPlayerActing } from "../../lib/catan/turnActors.js";
   import {
     HEX_SIZE,
-    TERRAIN_COLORS,
+    TERRAIN_GRADIENTS,
     TERRAIN_ICONS,
     NUMBER_DOTS,
     HARBOR_ICONS,
@@ -425,9 +425,15 @@
     xmlns="http://www.w3.org/2000/svg"
   >
     <defs>
-      <filter id="drop-shadow">
-        <feDropShadow dx="1" dy="1" stdDeviation="2" flood-opacity="0.4" />
+      <filter id="drop-shadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-opacity="0.6" />
       </filter>
+      {#each Object.entries(TERRAIN_GRADIENTS) as [terrain, [c1, c2]]}
+        <radialGradient id={`grad-${terrain}`} cx="38%" cy="32%" r="70%" gradientUnits="objectBoundingBox">
+          <stop offset="0%" stop-color={c1} />
+          <stop offset="100%" stop-color={c2} />
+        </radialGradient>
+      {/each}
     </defs>
 
     <!-- ── Hexes ── -->
@@ -442,7 +448,7 @@
           <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
           <polygon
             points={pts}
-            fill={TERRAIN_COLORS[hex.terrain]}
+            fill={`url(#grad-${hex.terrain})`}
             stroke={isValidHex ? "#ffcc00" : "#3a2a1a"}
             stroke-width={isValidHex ? 4 : 2}
             class={isValidHex ? "valid-hex" : undefined}
@@ -454,6 +460,13 @@
             onkeydown={isValidHex
               ? (event) => onKeyActivate(event, () => onHexClick(hid))
               : undefined}
+          />
+          <polygon
+            points={hexPoints(x, y, HEX_SIZE - 8)}
+            fill="none"
+            stroke="rgba(255,255,255,0.07)"
+            stroke-width="1.5"
+            style="pointer-events:none"
           />
           <text
             {x}
@@ -494,7 +507,16 @@
           {@const { x, y } = hexCenter(coord)}
           {@const isRed = hex.number === 6 || hex.number === 8}
           {#if hex.hasRobber}
-            <text {x} y={y + 5} text-anchor="middle" font-size="40">👺</text>
+            <g filter="url(#drop-shadow)" aria-label="Robber">
+              <!-- body -->
+              <ellipse cx={x} cy={y + 8} rx={12} ry={14} fill="#1e1e1e" stroke="#666" stroke-width="2"/>
+              <!-- head -->
+              <circle cx={x} cy={y - 8} r={8} fill="#1e1e1e" stroke="#666" stroke-width="2"/>
+              <!-- hat brim -->
+              <ellipse cx={x} cy={y - 14} rx={13} ry={3.5} fill="#2a2a2a" stroke="#666" stroke-width="1.5"/>
+              <!-- hat top -->
+              <rect x={x - 7} y={y - 26} width="14" height="13" rx="2" fill="#2a2a2a" stroke="#666" stroke-width="1.5"/>
+            </g>
           {:else}
             <circle
               cx={x}
@@ -619,60 +641,62 @@
           {#if p}
             {@const color =
               gameState.players[building.playerId]?.color ?? "#999"}
-            {#if building.type === "settlement"}
-              <!-- Settlement: square base + triangle roof -->
-              <rect
-                x={p.x - 10}
-                y={p.y - 5}
-                width="20"
-                height="14"
-                fill={color}
-                stroke="#fff"
-                stroke-width="2"
-              />
-              <polygon
-                points={`${p.x},${p.y - 20} ${p.x + 12},${p.y - 5} ${p.x - 12},${p.y - 5}`}
-                fill={color}
-                stroke="#fff"
-                stroke-width="2"
-              />
-            {:else if building.type === "city"}
-              <!-- City: wide base + tower -->
-              <rect
-                x={p.x - 14}
-                y={p.y - 9}
-                width="28"
-                height="18"
-                fill={color}
-                stroke="#fff"
-                stroke-width="2"
-              />
-              <rect
-                x={p.x - 7}
-                y={p.y - 21}
-                width="14"
-                height="12"
-                fill={color}
-                stroke="#fff"
-                stroke-width="2"
-              />
-              {#if building.hasWall}
+            <g filter="url(#drop-shadow)">
+              {#if building.type === "settlement"}
+                <!-- Settlement: square base + triangle roof -->
                 <rect
-                  x={p.x - 18}
-                  y={p.y + 9}
-                  width="36"
-                  height="6"
-                  fill="#8b6914"
+                  x={p.x - 10}
+                  y={p.y - 5}
+                  width="20"
+                  height="14"
+                  fill={color}
                   stroke="#fff"
-                  stroke-width="1"
+                  stroke-width="2"
                 />
+                <polygon
+                  points={`${p.x},${p.y - 20} ${p.x + 12},${p.y - 5} ${p.x - 12},${p.y - 5}`}
+                  fill={color}
+                  stroke="#fff"
+                  stroke-width="2"
+                />
+              {:else if building.type === "city"}
+                <!-- City: wide base + tower -->
+                <rect
+                  x={p.x - 14}
+                  y={p.y - 9}
+                  width="28"
+                  height="18"
+                  fill={color}
+                  stroke="#fff"
+                  stroke-width="2"
+                />
+                <rect
+                  x={p.x - 7}
+                  y={p.y - 21}
+                  width="14"
+                  height="12"
+                  fill={color}
+                  stroke="#fff"
+                  stroke-width="2"
+                />
+                {#if building.hasWall}
+                  <rect
+                    x={p.x - 18}
+                    y={p.y + 9}
+                    width="36"
+                    height="6"
+                    fill="#8b6914"
+                    stroke="#fff"
+                    stroke-width="1"
+                  />
+                {/if}
+                {#if building.metropolis !== null}
+                  <text x={p.x} y={p.y - 24} text-anchor="middle" font-size="14"
+                    >👑</text
+                  >
+                {/if}
               {/if}
-              {#if building.metropolis !== null}
-                <text x={p.x} y={p.y - 24} text-anchor="middle" font-size="14"
-                  >👑</text
-                >
-              {/if}
-            {/if}
+            </g>
           {/if}
         {/if}
       {/each}
@@ -690,7 +714,7 @@
             {@const stroke = knight.active ? "#fff" : "#4f4f4f"}
             {@const ringStroke = knight.active ? "#ffffff" : "#3a3a3a"}
             {@const fontSize = knight.strength === 1 ? 13 : knight.strength === 2 ? 16 : 19}
-            <g>
+            <g filter="url(#drop-shadow)">
               <title>
                 {`${gameState.players[knight.playerId]?.name ?? knight.playerId} level ${knight.strength} knight (${knight.active ? "active" : "inactive"})`}
               </title>

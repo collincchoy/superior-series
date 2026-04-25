@@ -31,7 +31,7 @@ export function phaseLabel(state: GameState, localPid: PlayerId): string {
       ? "Too many progress cards! Discard! 🃏"
       : "Waiting for progress discards… ⏳",
     ROBBER_MOVE: isMe
-      ? `${prefix} — Unleash the robber! 👺`
+      ? `${prefix} — Unleash the robber! 🗡️`
       : `${prefix} — Moving the robber…`,
     RESOLVE_BARBARIANS: "The barbarians attack! ⚔️🛡️",
     RESOLVE_PROGRESS_DRAW: isMe

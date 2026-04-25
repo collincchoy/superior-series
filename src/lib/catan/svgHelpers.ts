@@ -25,6 +25,15 @@ export const TERRAIN_COLORS: Record<TerrainType, string> = {
   desert: "#c8b47a",
 };
 
+export const TERRAIN_GRADIENTS: Record<TerrainType, [string, string]> = {
+  hills:     ["#cc5520", "#8a3210"],
+  forest:    ["#2a7228", "#1a5218"],
+  mountains: ["#9a9a9a", "#686868"],
+  fields:    ["#e8cc28", "#c0a012"],
+  pasture:   ["#60c040", "#3a8a28"],
+  desert:    ["#d4b87a", "#a88848"],
+};
+
 export const TERRAIN_ICONS: Record<TerrainType, string> = {
   hills: "🧱",
   forest: "🌲",

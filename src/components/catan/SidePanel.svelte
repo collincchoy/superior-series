@@ -66,7 +66,7 @@
   .side-panel {
     flex-shrink: 0;
     max-height: 42vh;
-    overflow-y: scroll;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
     background: #1a2a1a;
