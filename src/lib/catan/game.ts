@@ -2124,33 +2124,45 @@ export function computeBarbarianAttack(state: GameState): PendingBarbarian {
       }
     }
   } else {
-    // Barbarians win — pillage lowest-contribution players' non-metropolis cities
+    // Barbarians win — pillage the lowest-contribution tier with eligible cities.
     outcome = "barbarians_win";
     const contributions = state.playerOrder.map((pid) => ({
       pid,
       contrib: defensePerPlayer[pid] ?? 0,
     }));
     contributions.sort((a, b) => a.contrib - b.contrib);
-    const minContrib = contributions[0]?.contrib ?? 0;
-    const lowestTier = contributions
-      .filter((c) => c.contrib === minContrib)
-      .map((c) => c.pid);
 
-    // Cap pillage count at (barbarianStrength - totalDefense) to preserve
-    // existing behavior (one city per lowest-tier player, up to the deficit).
+    // The rules continue to the next-lowest contribution if a tier cannot
+    // pillage any city, but stop once a tier yields at least one pillage.
     let pillageBudget = barbarianStrength - totalDefense;
-    for (const pid of lowestTier) {
+    const contributionLevels = [
+      ...new Set(contributions.map((c) => c.contrib)),
+    ].sort((a, b) => a - b);
+
+    for (const contrib of contributionLevels) {
       if (pillageBudget <= 0) break;
-      const target = Object.entries(state.board.vertices).find(
-        ([vid, b]) =>
-          b?.type === "city" &&
-          b.playerId === pid &&
-          b.metropolis === null &&
-          !citiesPillaged.includes(vid as VertexId),
-      );
-      if (!target) continue;
-      citiesPillaged.push(target[0] as VertexId);
-      pillageBudget--;
+      const tierPillaged: VertexId[] = [];
+      const tier = contributions
+        .filter((c) => c.contrib === contrib)
+        .map((c) => c.pid);
+
+      for (const pid of tier) {
+        if (pillageBudget <= 0) break;
+        const target = Object.entries(state.board.vertices).find(
+          ([vid, b]) =>
+            b?.type === "city" &&
+            b.playerId === pid &&
+            b.metropolis === null &&
+            !citiesPillaged.includes(vid as VertexId),
+        );
+        if (!target) continue;
+        const cityVid = target[0] as VertexId;
+        citiesPillaged.push(cityVid);
+        tierPillaged.push(cityVid);
+        pillageBudget--;
+      }
+
+      if (tierPillaged.length > 0) break;
     }
   }
 
@@ -2240,6 +2252,13 @@ export function commitBarbarianAttack(
     }
   } else {
     // barbarians_win: pillage each city in the pre-computed list
+    if (pending.citiesPillaged.length === 0) {
+      s = log(
+        s,
+        "Barbarians won, but no cities were pillaged because all cities were protected by metropolises.",
+      );
+    }
+
     for (const cityVid of pending.citiesPillaged) {
       const cityBuilding = s.board.vertices[cityVid];
       if (cityBuilding?.type !== "city") continue; // defensive: city may have changed state

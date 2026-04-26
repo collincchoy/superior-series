@@ -559,6 +559,91 @@ describe("barbarian attack - barbarians win", () => {
     expect(committed.board.vertices[cityVertex]?.type).toBe("city");
   });
 
+  it("logs when barbarians win but all cities are protected by metropolises", () => {
+    let state = stateWithCities({ p1: 1, p2: 1 });
+    const cities = Object.entries(state.board.vertices).filter(
+      ([, b]) => b?.type === "city",
+    ) as Array<[VertexId, NonNullable<GameState["board"]["vertices"][VertexId]>]>;
+    expect(cities.length).toBe(2);
+
+    state = {
+      ...state,
+      board: {
+        ...state.board,
+        vertices: {
+          ...state.board.vertices,
+          [cities[0]![0]]: {
+            type: "city",
+            playerId: "p1",
+            hasWall: false,
+            metropolis: "science",
+          },
+          [cities[1]![0]]: {
+            type: "city",
+            playerId: "p2",
+            hasWall: false,
+            metropolis: "trade",
+          },
+        },
+      },
+      phase: "ROLL_DICE" as const,
+      barbarian: { position: 6, robberActive: false },
+    };
+
+    const committed = rollShipAndCommit(state);
+    expect(
+      Object.values(committed.board.vertices).filter((b) => b?.type === "city"),
+    ).toHaveLength(2);
+    expect(committed.log.at(-1)).toBe(
+      "Barbarians won, but no cities were pillaged because all cities were protected by metropolises.",
+    );
+  });
+
+  it("pillages the next lowest contributor when lower tiers have no eligible city", () => {
+    let state = stateWithCities({ p1: 1, p2: 1 });
+    const p1City = Object.entries(state.board.vertices).find(
+      ([, b]) => b?.type === "city" && b.playerId === "p1",
+    )?.[0] as VertexId | undefined;
+    const p2City = Object.entries(state.board.vertices).find(
+      ([, b]) => b?.type === "city" && b.playerId === "p2",
+    )?.[0] as VertexId | undefined;
+    if (!p1City || !p2City) return;
+
+    state = addActiveKnights(state, "p2", 1, 1);
+    state = {
+      ...state,
+      board: {
+        ...state.board,
+        vertices: {
+          ...state.board.vertices,
+          [p1City]: {
+            type: "city",
+            playerId: "p1",
+            hasWall: false,
+            metropolis: "science",
+          },
+        },
+      },
+      phase: "ROLL_DICE" as const,
+      barbarian: { position: 6, robberActive: false },
+    };
+
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid: "p1",
+      result: [2, 3, "ship"],
+    });
+    expect(rolled.pendingBarbarian!.outcome).toBe("barbarians_win");
+    expect(rolled.pendingBarbarian!.citiesPillaged).toEqual([p2City]);
+
+    const committed = applyAction(rolled, {
+      type: "EXECUTE_BARBARIAN_ATTACK",
+      pid: "p1",
+    });
+    expect(committed.board.vertices[p1City]?.type).toBe("city");
+    expect(committed.board.vertices[p2City]?.type).toBe("settlement");
+  });
+
   it("city wall is removed when city is pillaged", () => {
     let state = stateWithBarbarian(0);
     const allVertices = Object.keys(graph.vertices) as VertexId[];
