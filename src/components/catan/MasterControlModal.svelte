@@ -130,6 +130,19 @@
     return JSON.stringify(value);
   }
 
+  async function copyStateJson() {
+    try {
+      const json = JSON.stringify(gameState, null, 2);
+      await navigator.clipboard.writeText(json);
+      store.showToast("Copied game state to clipboard", "info");
+    } catch (err) {
+      store.showToast(
+        `Failed to copy state: ${err instanceof Error ? err.message : String(err)}`,
+        "error",
+      );
+    }
+  }
+
   function setBarbarianProgress() {
     const position = Math.max(0, Math.min(7, Math.floor(Number(barbarianProgress) || 0)));
     sendAdmin({
@@ -164,6 +177,9 @@
               sendAdmin({ type: "ADMIN_END_GAME", winner: null, reason: currentReason() })}
           >
             End Game
+          </button>
+          <button class="btn" onclick={copyStateJson}>
+            Copy Game State
           </button>
         </div>
         <input
