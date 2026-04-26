@@ -516,24 +516,6 @@
           {/if}
         </div>
 
-        {#if gameState.barbarian.robberActive}
-          <div class="group-btns chase-row">
-            {#if pendingAction?.type === "chase_robber_from" || pendingAction?.type === "chase_robber_hex"}
-              <button class="action-btn active" onclick={() => pending(null)}>Cancel Chase</button>
-            {:else}
-              <button
-                class="action-btn"
-                class:disabled={!canChaseRobberNow}
-                aria-disabled={!canChaseRobberNow}
-                onclick={(e) =>
-                  canChaseRobberNow
-                    ? pending({ type: "chase_robber_from" })
-                    : showUnavailablePopover(e, "🏃 Chase Robber", {}, chaseRobberReason())}
-              >🏃 Chase Robber</button>
-            {/if}
-          </div>
-        {/if}
-
       {:else if activeTab === "knights"}
         <div class="group-btns">
           {#if pendingAction?.type === "recruit_knight"}
@@ -604,6 +586,22 @@
                   ? pending({ type: "displace_knight_from" })
                   : showUnavailablePopover(e, "⚔️ Displace Knight", {}, displaceKnightReason())}
             >⚔️ Displace</button>
+          {/if}
+
+          {#if gameState.barbarian.robberActive}
+            {#if pendingAction?.type === "chase_robber_from" || pendingAction?.type === "chase_robber_hex"}
+              <button class="action-btn active" onclick={() => pending(null)}>Cancel Chase</button>
+            {:else}
+              <button
+                class="action-btn"
+                class:disabled={!canChaseRobberNow}
+                aria-disabled={!canChaseRobberNow}
+                onclick={(e) =>
+                  canChaseRobberNow
+                    ? pending({ type: "chase_robber_from" })
+                    : showUnavailablePopover(e, "🏃 Chase Robber", {}, chaseRobberReason())}
+              >🏃 Chase Robber</button>
+            {/if}
           {/if}
         </div>
 
@@ -759,10 +757,6 @@
     padding: 0.4rem 0.4rem 0.2rem;
     min-height: 82px;
   }
-  .chase-row {
-    margin-top: 0.3rem;
-  }
-
   /* ── improve tab ── */
   .improve-tracks {
     display: flex;
