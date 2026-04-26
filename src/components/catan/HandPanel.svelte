@@ -22,6 +22,36 @@
   } = $props();
 
   let nonVpCards = $derived(me.progressCards.filter(c => !c.isVP));
+  let resourceCardCounts = $derived(RESOURCE_KEYS.map(k => me.resources[k]).join("|"));
+  let handCardsEl = $state<HTMLDivElement>();
+  let showLeftFade = $state(false);
+  let showRightFade = $state(false);
+
+  function updateHandAffordance() {
+    if (!handCardsEl) {
+      showLeftFade = false;
+      showRightFade = false;
+      return;
+    }
+
+    const tolerance = 2;
+    const { scrollLeft, clientWidth, scrollWidth } = handCardsEl;
+    showLeftFade = scrollLeft > tolerance;
+    showRightFade = scrollLeft + clientWidth < scrollWidth - tolerance;
+  }
+
+  $effect(() => {
+    resourceCardCounts;
+    const el = handCardsEl;
+    updateHandAffordance();
+
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    const resizeObserver = new ResizeObserver(updateHandAffordance);
+    resizeObserver.observe(el);
+
+    return () => resizeObserver.disconnect();
+  });
 
   function canPlayNow(cardName: ProgressCardName, isVP: boolean): boolean {
     if (isVP || !canPlayProgress) return false;
@@ -65,16 +95,18 @@
 <div class="hand-panel">
   <div class="hand-title">Your hand</div>
   <div class="hand-row">
-    <div class="hand-cards">
-      {#each RESOURCE_KEYS as k}
-        {#if me.resources[k] > 0}
-          <ResourceCard cardKey={k} count={me.resources[k]} />
-        {/if}
-      {/each}
+    <div class={["hand-cards-wrap", showLeftFade && "fade-left", showRightFade && "fade-right"]}>
+      <div class="hand-cards" bind:this={handCardsEl} onscroll={updateHandAffordance}>
+        {#each RESOURCE_KEYS as k (k)}
+          {#if me.resources[k] > 0}
+            <ResourceCard cardKey={k} count={me.resources[k]} />
+          {/if}
+        {/each}
+      </div>
     </div>
     {#if nonVpCards.length > 0}
       <div class="progress-cards">
-        {#each nonVpCards as c}
+        {#each nonVpCards as c (c)}
           <button
             class="prog-card"
             class:clickable={canPlayNow(c.name, c.isVP)}
@@ -109,14 +141,48 @@
     gap: 6px;
   }
 
+  .hand-cards-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .hand-cards-wrap::before,
+  .hand-cards-wrap::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 3px;
+    z-index: 1;
+    width: 18px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .hand-cards-wrap::before {
+    left: 0;
+    background: linear-gradient(to right, rgba(15, 18, 22, 0.72), rgba(15, 18, 22, 0));
+  }
+
+  .hand-cards-wrap::after {
+    right: 0;
+    background: linear-gradient(to left, rgba(15, 18, 22, 0.72), rgba(15, 18, 22, 0));
+  }
+
+  .hand-cards-wrap.fade-left::before,
+  .hand-cards-wrap.fade-right::after {
+    opacity: 1;
+  }
+
   .hand-cards {
     display: flex;
     flex-wrap: nowrap;
     gap: 6px;
     overflow-x: auto;
     padding-bottom: 3px;
-    flex: 1;
-    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
     scrollbar-width: none;
   }
   .hand-cards::-webkit-scrollbar {
