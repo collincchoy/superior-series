@@ -623,6 +623,64 @@ describe("canImproveCity", () => {
     };
     expect(canImproveCity(board, player, "science")).toBe(true);
   });
+
+  it("fails at level 3→4 when player would gain a new metropolis but has no free city", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      improvements: { science: 0, trade: 3, politics: 0 },
+      resources: { ...emptyResources(), cloth: 4 },
+    });
+    const vid = getFirstVertex();
+    // Player's only city already has the science metropolis on it
+    board.vertices[vid] = {
+      type: "city",
+      playerId: "p1",
+      hasWall: false,
+      metropolis: "science",
+    };
+    const metropolisOwner = { science: "p1", trade: null, politics: null };
+    // No free city → cannot take trade metropolis at level 4
+    expect(canImproveCity(board, player, "trade", false, metropolisOwner)).toBe(false);
+  });
+
+  it("succeeds at level 4→5 when player already owns that metropolis (no new placement needed)", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      improvements: { science: 0, trade: 4, politics: 0 },
+      resources: { ...emptyResources(), cloth: 5 },
+    });
+    const vid = getFirstVertex();
+    // Player's only city has the trade metropolis — they already own it
+    board.vertices[vid] = {
+      type: "city",
+      playerId: "p1",
+      hasWall: false,
+      metropolis: "trade",
+    };
+    const metropolisOwner = { science: null, trade: "p1", politics: null };
+    // Upgrading to level 5 keeps existing placement — no free city needed
+    expect(canImproveCity(board, player, "trade", false, metropolisOwner)).toBe(true);
+  });
+
+  it("fails at level 4→5 when player would take metropolis from another player but has no free city", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      improvements: { science: 0, trade: 4, politics: 0 },
+      resources: { ...emptyResources(), cloth: 5 },
+    });
+    const vid = getFirstVertex();
+    // Player's only city already has a different metropolis on it
+    board.vertices[vid] = {
+      type: "city",
+      playerId: "p1",
+      hasWall: false,
+      metropolis: "science",
+    };
+    // p2 currently owns the trade metropolis at level 4
+    const metropolisOwner = { science: "p1", trade: "p2", politics: null };
+    // No free city → cannot take trade metropolis from p2
+    expect(canImproveCity(board, player, "trade", false, metropolisOwner)).toBe(false);
+  });
 });
 
 // ─── canTradeBank ───────────────────────────────────────────────────────────

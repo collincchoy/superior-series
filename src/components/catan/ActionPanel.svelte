@@ -304,6 +304,16 @@
   function improveReason(track: ImprovementTrack): string | undefined {
     if (!hasCity) return "Requires at least one city on the board.";
     if (me.improvements[track] >= 5) return "Already at maximum level.";
+    const targetLevel = me.improvements[track] + 1;
+    if (
+      targetLevel >= 4 &&
+      gameState.metropolisOwner[track] !== pid &&
+      !Object.values(board.vertices).some(
+        (v) => v?.type === "city" && v.playerId === pid && v.metropolis === null,
+      )
+    ) {
+      return "Build a city first — all your cities already hold a metropolis.";
+    }
   }
 
   let activeTab = $state<"build" | "knights" | "improve">("build");
@@ -611,7 +621,7 @@
             {@const level = me.improvements[track]}
             {@const color = trackLabel[track].color}
             {@const metroOwner = gameState.metropolisOwner[track]}
-            {@const canImprove = canImproveCity(board, me, track, craneDiscount)}
+            {@const canImprove = canImproveCity(board, me, track, craneDiscount, gameState.metropolisOwner)}
             {@const metroOwnerLevel = metroOwner !== null && metroOwner !== pid
               ? gameState.players[metroOwner].improvements[track]
               : 0}
@@ -636,7 +646,6 @@
                         class:pip-filled={i < level}
                         class:pip-metro={i === 3 || i === 4}
                         class:pip-metro-owned={i >= 3 && metroOwner === pid}
-                        class:pip-metro-claimed={i >= 3 && metroOwner !== null && metroOwner !== pid}
                         class:pip-metro-indicator={i === metroIndicatorPip}
                         style="--c:{color}"
                         title={i >= 3 ? `Lv${i + 1}: metropolis opportunity` : undefined}
@@ -838,16 +847,6 @@
     color: rgba(255, 255, 255, 0.9);
     line-height: 1;
     pointer-events: none;
-  }
-  .pip.pip-metro-claimed {
-    border-style: dashed;
-    border-color: rgba(255, 255, 255, 0.15);
-    background: rgba(255, 255, 255, 0.03);
-  }
-  .pip.pip-metro-claimed.pip-filled {
-    background: rgba(255, 255, 255, 0.12);
-    border: 1.5px solid rgba(255, 255, 255, 0.15);
-    box-shadow: none;
   }
   .lv-num {
     font-size: 10px;

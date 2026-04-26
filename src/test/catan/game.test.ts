@@ -1490,6 +1490,162 @@ describe("computeVP", () => {
   });
 });
 
+// ─── Metropolis deferred placement ────────────────────────────────────────────
+
+describe("metropolis deferred placement", () => {
+  it("BUILD_CITY places a pending metropolis when the player owns a track but had no free city", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    // Find a city vertex owned by this player
+    const cityVid = Object.entries(state.board.vertices).find(
+      ([, b]) => b?.type === "city" && b.playerId === pid,
+    )?.[0] as VertexId | undefined;
+    if (!cityVid) return; // skip if setup produced no cities for this player
+
+    // Manufacture state: player owns trade metropolis but it's not placed
+    // (all cities occupied by science metropolis), and player owns science track
+    let s: GameState = {
+      ...state,
+      board: {
+        ...state.board,
+        vertices: {
+          ...state.board.vertices,
+          [cityVid]: {
+            type: "city" as const,
+            playerId: pid,
+            hasWall: false,
+            metropolis: "science" as const,
+          },
+        },
+      },
+      metropolisOwner: {
+        ...state.metropolisOwner,
+        science: pid,
+        trade: pid, // player owns trade metro but no city has it
+      },
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          resources: {
+            brick: 10,
+            lumber: 10,
+            ore: 10,
+            grain: 10,
+            wool: 10,
+            cloth: 10,
+            coin: 10,
+            paper: 10,
+          },
+        },
+      },
+    };
+
+    // Find a free vertex to build a settlement then upgrade to city
+    const freeVid = Object.entries(s.board.vertices).find(
+      ([vid, b]) =>
+        b === null &&
+        (graph.adjacentVertices[vid as VertexId] ?? []).every(
+          (a) => s.board.vertices[a] === null,
+        ),
+    )?.[0] as VertexId | undefined;
+    if (!freeVid) return;
+
+    // Place settlement on a road adjacent to player's network
+    const adjEdge = Object.entries(s.board.edges).find(
+      ([eid, road]) =>
+        road !== null &&
+        road.playerId === pid &&
+        (graph.verticesOfEdge[eid as EdgeId] ?? []).some(
+          (v) => s.board.vertices[v] === null,
+        ),
+    );
+    if (!adjEdge) return;
+    const settlementVid = (graph.verticesOfEdge[adjEdge[0] as EdgeId] ?? []).find(
+      (v) => s.board.vertices[v] === null,
+    ) as VertexId | undefined;
+    if (!settlementVid) return;
+
+    s = applyAction(s, { type: "BUILD_SETTLEMENT", pid, vid: settlementVid });
+    const afterCity = applyAction(s, { type: "BUILD_CITY", pid, vid: settlementVid });
+
+    const newCity = afterCity.board.vertices[settlementVid];
+    expect(newCity?.type).toBe("city");
+    // The pending trade metropolis should now be placed on the new city
+    expect((newCity as { metropolis?: string })?.metropolis).toBe("trade");
+  });
+
+  it("metropolis transfer immediately places pending metro on old owner's freed city", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const otherPid = state.playerOrder.find((p) => p !== pid)!;
+
+    // Find city vertex for pid
+    const cityVid = Object.entries(state.board.vertices).find(
+      ([, b]) => b?.type === "city" && b.playerId === pid,
+    )?.[0] as VertexId | undefined;
+    if (!cityVid) return;
+
+    // State: pid has trade metro on their only city, and also owns politics metro
+    // (but politics metro is unplaced because no free city)
+    // otherPid is at level 4 trade; we'll push them to level 5 to take trade from pid
+    let s: GameState = {
+      ...state,
+      board: {
+        ...state.board,
+        vertices: {
+          ...state.board.vertices,
+          [cityVid]: {
+            type: "city" as const,
+            playerId: pid,
+            hasWall: false,
+            metropolis: "trade" as const,
+          },
+        },
+      },
+      metropolisOwner: {
+        ...state.metropolisOwner,
+        trade: pid,
+        politics: pid, // pending — no city has politics metro
+      },
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          improvements: { science: 0, trade: 4, politics: 4 },
+        },
+        [otherPid]: {
+          ...state.players[otherPid]!,
+          improvements: { science: 0, trade: 4, politics: 0 },
+          resources: {
+            brick: 5, lumber: 5, ore: 5, grain: 5, wool: 5,
+            cloth: 10, coin: 5, paper: 5,
+          },
+        },
+      },
+    };
+
+    // Set turn to otherPid so they can IMPROVE_CITY
+    s = { ...s, currentPlayerId: otherPid };
+    const afterImprove = applyAction(s, {
+      type: "IMPROVE_CITY",
+      pid: otherPid,
+      track: "trade",
+    });
+
+    // otherPid now owns trade metro at level 5
+    expect(afterImprove.metropolisOwner.trade).toBe(otherPid);
+
+    // pid's city should no longer have trade metro
+    const pidCity = afterImprove.board.vertices[cityVid];
+    expect((pidCity as { metropolis?: string })?.metropolis).not.toBe("trade");
+
+    // pid's city should now have the pending politics metro placed on it
+    expect((pidCity as { metropolis?: string })?.metropolis).toBe("politics");
+  });
+});
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Fast-forward to SETUP_R2 state by completing all R1 placements */

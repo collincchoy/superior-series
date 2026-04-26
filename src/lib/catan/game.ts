@@ -883,6 +883,8 @@ function applyActionReducer(state: GameState, action: GameAction): GameState {
           resourceCostTokens(BUILD_COSTS.city),
         ),
       );
+      // Assign any metropolis piece the player owns but couldn't place earlier
+      s = placePendingMetropolises(s, pid);
       return s;
     }
 
@@ -2275,6 +2277,30 @@ export function commitBarbarianAttack(
 
 // ─── Metropolis ───────────────────────────────────────────────────────────────
 
+/** Place any metropolis pieces the player owns but hasn't been able to place yet. */
+function placePendingMetropolises(state: GameState, pid: PlayerId): GameState {
+  let s = state;
+  const tracks: ImprovementTrack[] = ["science", "trade", "politics"];
+  for (const track of tracks) {
+    if (s.metropolisOwner[track] !== pid) continue;
+    // Check if the piece is already placed on one of this player's cities
+    const alreadyPlaced = Object.values(s.board.vertices).some(
+      (v) => v?.type === "city" && v.playerId === pid && v.metropolis === track,
+    );
+    if (alreadyPlaced) continue;
+    // Find a free city to place it on
+    const newVertices = { ...s.board.vertices };
+    for (const [vid, b] of Object.entries(newVertices)) {
+      if (b?.type === "city" && b.playerId === pid && b.metropolis === null) {
+        newVertices[vid as VertexId] = { ...b, metropolis: track };
+        break;
+      }
+    }
+    s = { ...s, board: { ...s.board, vertices: newVertices } };
+  }
+  return s;
+}
+
 function checkMetropolis(
   state: GameState,
   pid: PlayerId,
@@ -2298,7 +2324,7 @@ function checkMetropolis(
     // Update vertices: remove metropolis from old owner, add to a city of new owner
     let newVertices = { ...s.board.vertices };
 
-    // Remove old metropolis
+    // Remove old metropolis and reconcile any pending metros the old owner couldn't place
     if (currentOwner) {
       for (const [vid, b] of Object.entries(newVertices)) {
         if (b?.type === "city" && b.metropolis === track) {
@@ -2306,6 +2332,10 @@ function checkMetropolis(
           break;
         }
       }
+      s = { ...s, board: { ...s.board, vertices: newVertices } };
+      // Old owner's city is now free — place any metro piece they own but couldn't place
+      s = placePendingMetropolises(s, currentOwner);
+      newVertices = { ...s.board.vertices };
     }
 
     // Add metropolis to new owner's city
