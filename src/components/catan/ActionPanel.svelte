@@ -320,6 +320,17 @@
     else if (KNIGHT_ACTION_TYPES.has(pendingAction.type)) activeTab = "knights";
   });
 
+  function metroPipIndex(
+    metroOwner: PlayerId | null,
+    pid: PlayerId,
+    level: number,
+    ownerLevel: number,
+  ): number | null {
+    if (metroOwner === null) return 3;
+    if (metroOwner === pid) return level - 1;
+    return ownerLevel < 5 ? 4 : null;
+  }
+
   function showBuildInfo() {
     store.openInfoModal({ kind: "build-costs" });
   }
@@ -603,16 +614,36 @@
             {@const color = trackLabel[track].color}
             {@const metroOwner = gameState.metropolisOwner[track]}
             {@const canImprove = canImproveCity(board, me, track, craneDiscount)}
+            {@const metroOwnerLevel = metroOwner !== null && metroOwner !== pid
+              ? gameState.players[metroOwner].improvements[track]
+              : 0}
+            {@const metroIndicatorPip = metroPipIndex(metroOwner, pid, level, metroOwnerLevel)}
             <div class="track-row">
               <div class="track-head">
                 <span class="track-label" style="color:{color}">{trackLabel[track].label}</span>
                 <div class="track-bar">
                   {#each [0, 1, 2, 3, 4] as i}
-                    <div
-                      class="pip"
-                      class:pip-filled={i < level}
-                      style="--c:{color}"
-                    ></div>
+                    {#if i === 2}
+                      <button
+                        class="pip pip-ability"
+                        class:pip-filled={level > 2}
+                        class:pip-metro-indicator={metroIndicatorPip === 2}
+                        style="--c:{color}"
+                        onclick={() => store.openInfoModal({ kind: "city-improvement-ability", track })}
+                        title="{trackLabel[track].label} ability"
+                      ></button>
+                    {:else}
+                      <div
+                        class="pip"
+                        class:pip-filled={i < level}
+                        class:pip-metro={i === 3 || i === 4}
+                        class:pip-metro-owned={i >= 3 && metroOwner === pid}
+                        class:pip-metro-claimed={i >= 3 && metroOwner !== null && metroOwner !== pid}
+                        class:pip-metro-indicator={i === metroIndicatorPip}
+                        style="--c:{color}"
+                        title={i >= 3 ? `Lv${i + 1}: metropolis opportunity` : undefined}
+                      ></div>
+                    {/if}
                   {/each}
                   <span class="lv-num">Lv{level}</span>
                 </div>
@@ -620,29 +651,13 @@
                   class="improve-btn"
                   class:disabled={!canImprove}
                   aria-disabled={!canImprove}
-                  style="color:{color};border-color:{color}55"
+                  style={canImprove ? `color:${color};border-color:${color};background:${color}18` : undefined}
                   onclick={(e) =>
                     canImprove
                       ? send({ type: "IMPROVE_CITY", pid, track })
                       : showUnavailablePopover(e, trackLabel[track].label, improveCost(track), improveReason(track))}
                 >+</button>
               </div>
-              {#if level >= 3}
-                <div class="track-badges">
-                  <button
-                    class="ability-badge"
-                    style="color:{color};border-color:{color}44;background:{color}18"
-                    onclick={() => store.openInfoModal({ kind: "city-improvement-ability", track })}
-                  >★ {TRACK_ABILITY_SHORT[track]}</button>
-                  {#if level >= 4}
-                    <span
-                      class="metro-badge"
-                      class:metro-owned={metroOwner === pid}
-                      class:metro-claimed={metroOwner !== null && metroOwner !== pid}
-                    >{metroOwner === pid ? "👑 Metropolis" : metroOwner !== null ? "👑 Claimed" : "👑 Eligible"}</span>
-                  {/if}
-                </div>
-              {/if}
             </div>
           {/each}
         </div>
@@ -756,9 +771,6 @@
   .track-row {
     padding: 5px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
   }
   .track-row:last-child {
     border-bottom: none;
@@ -772,6 +784,7 @@
     font-size: 12px;
     font-weight: 600;
     flex-shrink: 0;
+    width: 74px;
   }
   .track-bar {
     display: flex;
@@ -784,10 +797,63 @@
     height: 9px;
     border-radius: 3px;
     background: rgba(255, 255, 255, 0.08);
-    transition: background 0.25s;
+    transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
   }
   .pip.pip-filled {
     background: var(--c);
+  }
+  .pip.pip-ability {
+    height: 13px;
+    border: 1.5px dashed rgba(255, 215, 0, 0.45);
+    background: rgba(255, 215, 0, 0.05);
+    cursor: pointer;
+    padding: 0;
+  }
+  .pip.pip-ability:hover {
+    filter: brightness(1.2);
+  }
+  .pip.pip-ability.pip-filled {
+    background: var(--c);
+    border: 1.5px solid rgba(255, 255, 255, 0.75);
+    box-shadow: 0 0 5px rgba(255, 215, 0, 0.35);
+  }
+  .pip.pip-metro {
+    height: 13px;
+    border: 1.5px dashed rgba(255, 185, 0, 0.35);
+    background: rgba(255, 185, 0, 0.04);
+  }
+  .pip.pip-metro.pip-filled {
+    background: var(--c);
+    border: 1.5px solid rgba(255, 255, 255, 0.75);
+    box-shadow: 0 0 6px rgba(255, 215, 0, 0.4);
+  }
+  .pip.pip-metro-owned.pip-filled {
+    border-color: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.65), 0 0 2px rgba(255, 215, 0, 0.9);
+  }
+  .pip.pip-metro-indicator {
+    position: relative;
+  }
+  .pip.pip-metro-indicator::after {
+    content: "♛";
+    position: absolute;
+    font-size: 7px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1;
+    pointer-events: none;
+  }
+  .pip.pip-metro-claimed {
+    border-style: dashed;
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .pip.pip-metro-claimed.pip-filled {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
+    box-shadow: none;
   }
   .lv-num {
     font-size: 10px;
@@ -796,65 +862,29 @@
     flex-shrink: 0;
   }
   .improve-btn {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
     border-radius: 6px;
-    padding: 2px 8px;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     line-height: 1;
+    color: rgba(255, 255, 255, 0.25);
     cursor: pointer;
-    font: inherit;
     flex-shrink: 0;
-    transition: background 0.12s, transform 0.1s;
+    transition: background 0.12s, transform 0.1s, border-color 0.12s;
   }
   .improve-btn:hover:not(.disabled) {
-    background: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.1);
     transform: scale(1.08);
   }
   .improve-btn.disabled {
-    opacity: 0.35;
     cursor: default;
-  }
-  .track-badges {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-left: 2px;
-  }
-  .ability-badge {
-    font-size: 9px;
-    font-weight: 700;
-    border: 1px solid;
-    border-radius: 4px;
-    padding: 1px 6px;
-    cursor: pointer;
-    font: inherit;
-    transition: filter 0.12s;
-  }
-  .ability-badge:hover {
-    filter: brightness(1.2);
-  }
-  .metro-badge {
-    font-size: 9px;
-    font-weight: 700;
-    border-radius: 4px;
-    padding: 1px 6px;
-    color: #8a7a30;
-    background: rgba(200, 160, 40, 0.1);
-    border: 1px solid rgba(200, 160, 40, 0.25);
-  }
-  .metro-badge.metro-owned {
-    color: #ffd700;
-    background: rgba(255, 215, 0, 0.12);
-    border-color: rgba(255, 215, 0, 0.5);
-    box-shadow: 0 0 6px rgba(255, 215, 0, 0.25);
-  }
-  .metro-badge.metro-claimed {
-    color: #6a8a6a;
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.1);
   }
   .bottom-bar {
     border-top: 1px solid rgba(255, 255, 255, 0.08);
