@@ -643,6 +643,24 @@ describe("canImproveCity", () => {
     expect(canImproveCity(board, player, "trade", false, metropolisOwner)).toBe(false);
   });
 
+  it("succeeds at level 3→4 without a free city when another player already owns that metropolis at level 4", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      improvements: { science: 0, trade: 3, politics: 0 },
+      resources: { ...emptyResources(), cloth: 4 },
+    });
+    const vid = getFirstVertex();
+    board.vertices[vid] = {
+      type: "city",
+      playerId: "p1",
+      hasWall: false,
+      metropolis: "science",
+    };
+    const metropolisOwner = { science: "p1", trade: "p2", politics: null };
+    // Matching the current owner's level does not claim the metropolis yet.
+    expect(canImproveCity(board, player, "trade", false, metropolisOwner, 4)).toBe(true);
+  });
+
   it("succeeds at level 4→5 when player already owns that metropolis (no new placement needed)", () => {
     const board = makeBoard();
     const player = makePlayer("p1", {
@@ -679,7 +697,25 @@ describe("canImproveCity", () => {
     // p2 currently owns the trade metropolis at level 4
     const metropolisOwner = { science: "p1", trade: "p2", politics: null };
     // No free city → cannot take trade metropolis from p2
-    expect(canImproveCity(board, player, "trade", false, metropolisOwner)).toBe(false);
+    expect(canImproveCity(board, player, "trade", false, metropolisOwner, 4)).toBe(false);
+  });
+
+  it("succeeds at level 4→5 without a free city when another player already has permanent level 5 ownership", () => {
+    const board = makeBoard();
+    const player = makePlayer("p1", {
+      improvements: { science: 0, trade: 4, politics: 0 },
+      resources: { ...emptyResources(), cloth: 5 },
+    });
+    const vid = getFirstVertex();
+    board.vertices[vid] = {
+      type: "city",
+      playerId: "p1",
+      hasWall: false,
+      metropolis: "science",
+    };
+    const metropolisOwner = { science: "p1", trade: "p2", politics: null };
+    // The existing level 5 owner cannot be overtaken, so no placement is needed.
+    expect(canImproveCity(board, player, "trade", false, metropolisOwner, 5)).toBe(true);
   });
 });
 

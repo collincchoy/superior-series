@@ -350,12 +350,29 @@ export function canChaseRobber(
 
 // ─── City Improvements ────────────────────────────────────────────────────────
 
+export function improvementWouldClaimMetropolis(
+  playerId: PlayerId,
+  track: ImprovementTrack,
+  targetLevel: number,
+  metropolisOwner?: Record<ImprovementTrack, PlayerId | null>,
+  metropolisOwnerLevel = 0,
+): boolean {
+  if (targetLevel < 4 || metropolisOwner === undefined) return false;
+
+  const currentOwner = metropolisOwner[track];
+  if (currentOwner === playerId) return false;
+  if (currentOwner === null) return true;
+
+  return targetLevel > metropolisOwnerLevel;
+}
+
 export function canImproveCity(
   board: BoardState,
   player: Player,
   track: ImprovementTrack,
   hasCraneDiscount = false,
   metropolisOwner?: Record<ImprovementTrack, PlayerId | null>,
+  metropolisOwnerLevel = 0,
 ): boolean {
   if (!playerHasCity(board, player.id)) return false;
 
@@ -364,14 +381,15 @@ export function canImproveCity(
 
   const targetLevel = currentLevel + 1;
 
-  // At level 4+, gaining a NEW metropolis requires a free city to place it on.
-  // If the player already owns this track's metropolis (level 4 → 5), no new
-  // placement is needed so the check is skipped.
-  if (
-    targetLevel >= 4 &&
-    metropolisOwner !== undefined &&
-    metropolisOwner[track] !== player.id
-  ) {
+  // Only improvements that actually claim or overtake a metropolis need a city
+  // without another metropolis piece to receive it.
+  if (improvementWouldClaimMetropolis(
+    player.id,
+    track,
+    targetLevel,
+    metropolisOwner,
+    metropolisOwnerLevel,
+  )) {
     const hasFreeCity = Object.values(board.vertices).some(
       (v) => v?.type === "city" && v.playerId === player.id && v.metropolis === null,
     );

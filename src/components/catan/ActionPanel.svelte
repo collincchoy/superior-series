@@ -23,6 +23,7 @@
     canDisplaceKnight,
     canChaseRobber,
     playerHasCity,
+    improvementWouldClaimMetropolis,
   } from "../../lib/catan/rules.js";
   import { buildGraph } from "../../lib/catan/board.js";
   import { TRACK_COMMODITY, BUILD_COSTS } from "../../lib/catan/constants.js";
@@ -310,13 +311,24 @@
     const cost = Math.max(0, level + 1 - (craneDiscount ? 1 : 0));
     return { [commodity]: cost } as Partial<Resources>;
   }
+
+  function metropolisOwnerLevel(track: ImprovementTrack): number {
+    const owner = gameState.metropolisOwner[track];
+    return owner ? (gameState.players[owner]?.improvements[track] ?? 0) : 0;
+  }
+
   function improveReason(track: ImprovementTrack): string | undefined {
     if (!hasCity) return "Requires at least one city on the board.";
     if (me.improvements[track] >= 5) return "Already at maximum level.";
     const targetLevel = me.improvements[track] + 1;
     if (
-      targetLevel >= 4 &&
-      gameState.metropolisOwner[track] !== pid &&
+      improvementWouldClaimMetropolis(
+        pid,
+        track,
+        targetLevel,
+        gameState.metropolisOwner,
+        metropolisOwnerLevel(track),
+      ) &&
       !Object.values(board.vertices).some(
         (v) => v?.type === "city" && v.playerId === pid && v.metropolis === null,
       )
@@ -630,10 +642,15 @@
             {@const level = me.improvements[track]}
             {@const color = trackLabel[track].color}
             {@const metroOwner = gameState.metropolisOwner[track]}
-            {@const canImprove = canImproveCity(board, me, track, craneDiscount, gameState.metropolisOwner)}
-            {@const metroOwnerLevel = metroOwner !== null && metroOwner !== pid
-              ? gameState.players[metroOwner].improvements[track]
-              : 0}
+            {@const metroOwnerLevel = metropolisOwnerLevel(track)}
+            {@const canImprove = canImproveCity(
+              board,
+              me,
+              track,
+              craneDiscount,
+              gameState.metropolisOwner,
+              metroOwnerLevel,
+            )}
             {@const metroIndicatorPip = metroPipIndex(metroOwner, pid, level, metroOwnerLevel)}
             <div class="track-row">
               <div class="track-head">
