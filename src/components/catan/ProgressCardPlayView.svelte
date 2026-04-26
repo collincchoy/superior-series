@@ -1,7 +1,9 @@
 <script lang="ts">
   import { store } from "../../lib/catan/store.svelte.js";
-  import { CARD_EMOJI } from "./cardEmoji.js";
+  import { CARD_EMOJI, RESOURCE_KEYS } from "./cardEmoji.js";
   import { PROGRESS_CARD_INFO } from "../../lib/catan/constants.js";
+  import PlayerSelector from "./PlayerSelector.svelte";
+  import ResourceCard from "./ResourceCard.svelte";
   import Die from "./Die.svelte";
   import type {
     CommodityType,
@@ -62,8 +64,9 @@
 
   let selectedTargetPid = $state<PlayerId | null>(null);
   let selectedEspCardIndex = $state<number>(0);
-  let gdResource1 = $state<keyof Resources>("grain");
-  let gdResource2 = $state<keyof Resources>("grain");
+  let gdStep = $state<1 | 2>(1);
+  let gdLockedPid = $state<PlayerId | null>(null);
+  let gdSelectedIndices = $state<number[]>([]);
   let selectedComHarborResource = $state<ResourceType>("grain");
   let alchemyLateMessage = $state(false);
 
@@ -220,12 +223,29 @@
       : ([] as (keyof Resources)[]),
   );
 
+  let gdExpandedHand = $derived.by(() => {
+    if (!gs || !gdLockedPid) return [] as (keyof Resources)[];
+    const res = gs.players[gdLockedPid]?.resources ?? {};
+    const cards: (keyof Resources)[] = [];
+    for (const key of RESOURCE_KEYS) {
+      for (let i = 0; i < (res[key] ?? 0); i++) cards.push(key);
+    }
+    return cards;
+  });
+
   $effect(() => {
     if (card.name !== "Alchemy") {
       alchemyLateMessage = false;
       return;
     }
     if (canPlayNow) alchemyLateMessage = false;
+  });
+
+  $effect(() => {
+    void card.name;
+    gdStep = 1;
+    gdLockedPid = null;
+    gdSelectedIndices = [];
   });
 
   function close() {
@@ -312,13 +332,24 @@
     }
 
     if (card.name === "GuildDues") {
-      if (!selectedTargetPid) return;
-      const takeCards: Partial<Resources> = {};
-      if (gdResource1) takeCards[gdResource1] = (takeCards[gdResource1] ?? 0) + 1;
-      if (gdResource2) takeCards[gdResource2] = (takeCards[gdResource2] ?? 0) + 1;
-      store.sendAction({ type: "PLAY_PROGRESS", pid, card: "GuildDues", params: { targetPid: selectedTargetPid, takeCards } });
-      close();
-      return;
+      if (gdStep === 1) {
+        if (!selectedTargetPid) return;
+        gdLockedPid = selectedTargetPid;
+        gdSelectedIndices = [];
+        gdStep = 2;
+        return;
+      }
+      if (gdStep === 2) {
+        if (!gdLockedPid) return;
+        const takeCards: Partial<Resources> = {};
+        for (const idx of gdSelectedIndices) {
+          const key = gdExpandedHand[idx];
+          if (key) takeCards[key] = (takeCards[key] ?? 0) + 1;
+        }
+        store.sendAction({ type: "PLAY_PROGRESS", pid, card: "GuildDues", params: { targetPid: gdLockedPid, takeCards } });
+        close();
+        return;
+      }
     }
 
     if (!PROGRESS_CARD_INFO[card.name].requiresTarget) {
@@ -480,33 +511,37 @@
     <p class="helper" style="color:#94a3b8">That player has no stealable cards.</p>
   {/if}
 {:else if canPlayNow && card.name === "GuildDues"}
-  <div class="picker-row">
-    <label for="gd-target">Target player (>= your VP)</label>
-    <select id="gd-target" bind:value={selectedTargetPid}>
-      {#each opponentsGdEligible as p}
-        <option value={p}>{gs?.players[p]?.name ?? p}</option>
-      {/each}
-    </select>
-  </div>
-  {#if selectedTargetPid}
-    <div class="picker-grid">
-      <div class="picker-row">
-        <label for="gd-card1">Card 1</label>
-        <select id="gd-card1" bind:value={gdResource1}>
-          {#each gdTargetResources as key}
-            <option value={key}>{CARD_EMOJI[key as keyof typeof CARD_EMOJI] ?? ""} {key}</option>
-          {/each}
-        </select>
+  {#if gdStep === 1}
+    <p class="gd-step-label">TARGET PLAYER (&gt;= YOUR VP)</p>
+    {#if gs}
+      <PlayerSelector players={opponentsGdEligible} gameState={gs} bind:selected={selectedTargetPid} />
+    {/if}
+  {:else if gdStep === 2 && gdLockedPid && gs}
+    {@const lockedName = gs.players[gdLockedPid]?.name ?? gdLockedPid}
+    <p class="gd-step-label">SELECT UP TO 2 CARDS FROM {lockedName.toUpperCase()}'S HAND</p>
+    {#if gdExpandedHand.length === 0}
+      <p class="helper" style="color:#94a3b8">That player has no cards to take.</p>
+    {:else}
+      <div class="gd-hand">
+        {#each gdExpandedHand as cardKey, i}
+          {@const isSelected = gdSelectedIndices.includes(i)}
+          {@const canSelect = isSelected || gdSelectedIndices.length < 2}
+          <ResourceCard
+            {cardKey}
+            selected={isSelected}
+            disabled={!canSelect}
+            onclick={() => {
+              if (isSelected) {
+                gdSelectedIndices = gdSelectedIndices.filter((x) => x !== i);
+              } else if (gdSelectedIndices.length < 2) {
+                gdSelectedIndices = [...gdSelectedIndices, i];
+              }
+            }}
+          />
+        {/each}
       </div>
-      <div class="picker-row">
-        <label for="gd-card2">Card 2</label>
-        <select id="gd-card2" bind:value={gdResource2}>
-          {#each gdTargetResources as key}
-            <option value={key}>{CARD_EMOJI[key as keyof typeof CARD_EMOJI] ?? ""} {key}</option>
-          {/each}
-        </select>
-      </div>
-    </div>
+      <p class="gd-count">{gdSelectedIndices.length} / 2 selected</p>
+    {/if}
   {/if}
 {:else if canPlayNow && card.name === "Intrigue"}
   <p class="helper">Click an enemy knight on your network to displace it.</p>
@@ -532,7 +567,27 @@
 {/if}
 
 <div class="actions">
-  {#if card.name === "Alchemy" ||
+  {#if card.name === "GuildDues" && canPlayNow}
+    {#if gdStep === 1}
+      <button
+        class="confirm"
+        type="button"
+        onclick={playProgress}
+        disabled={!canUseState.enabled || !selectedTargetPid}
+      >
+        Use Card
+      </button>
+    {:else if gdStep === 2}
+      <button
+        class="confirm"
+        type="button"
+        onclick={playProgress}
+        disabled={gdSelectedIndices.length === 0}
+      >
+        Confirm
+      </button>
+    {/if}
+  {:else if card.name === "Alchemy" ||
     (canPlayNow &&
       (!PROGRESS_CARD_INFO[card.name].requiresTarget ||
         card.name === "ResourceMonopoly" ||
@@ -548,7 +603,6 @@
         card.name === "Taxation" ||
         card.name === "CommercialHarbor" ||
         (card.name === "Espionage" && !!selectedTargetPid && espTargetCards.length > 0) ||
-        (card.name === "GuildDues" && !!selectedTargetPid && gdTargetResources.length > 0) ||
         card.name === "Intrigue" ||
         card.name === "Treason" ||
         card.name === "Diplomacy"))}
@@ -717,5 +771,28 @@
     opacity: 0.45;
     cursor: not-allowed;
     filter: grayscale(0.2);
+  }
+
+  .gd-step-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    color: #c8b47a;
+    letter-spacing: 0.04em;
+    margin-top: 0.6rem;
+    margin-bottom: 0;
+  }
+
+  .gd-hand {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 0.5rem;
+  }
+
+  .gd-count {
+    font-size: 0.72rem;
+    color: #c8b47a;
+    margin-top: 0.35rem;
+    margin-bottom: 0;
   }
 </style>

@@ -9,17 +9,7 @@
   import { TRACK_BADGE_COLOR, PROGRESS_CARD_INFO } from "../../lib/catan/constants.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import { RESOURCE_KEYS, CARD_EMOJI } from "./cardEmoji.js";
-
-  const CARD_GRADIENTS: Record<keyof Resources, [string, string]> = {
-    brick:  ["#c8622a", "#8a3010"],
-    lumber: ["#2d7a2d", "#154810"],
-    ore:    ["#8a8a8a", "#505050"],
-    grain:  ["#d4b800", "#8a7200"],
-    wool:   ["#6dbf6d", "#3a8a3a"],
-    cloth:  ["#f5cc30", "#a07800"],
-    coin:   ["#3a7ef0", "#1040a0"],
-    paper:  ["#2e9e4f", "#145a20"],
-  };
+  import ResourceCard from "./ResourceCard.svelte";
 
   let {
     me,
@@ -77,18 +67,7 @@
   <div class="hand-cards">
     {#each RESOURCE_KEYS as k}
       {#if me.resources[k] > 0}
-        {@const [c1, c2] = CARD_GRADIENTS[k]}
-        <div
-          class="res-card"
-          style="background:linear-gradient(150deg,{c1},{c2})"
-          aria-label="{k}: {me.resources[k]}"
-        >
-          <div class="res-card-inner"></div>
-          <span class="res-icon">{CARD_EMOJI[k]}</span>
-          {#if me.resources[k] > 1}
-            <span class="res-count">×{me.resources[k]}</span>
-          {/if}
-        </div>
+        <ResourceCard cardKey={k} count={me.resources[k]} />
       {/if}
     {/each}
   </div>
@@ -133,43 +112,6 @@
   }
   .hand-cards::-webkit-scrollbar {
     display: none;
-  }
-
-  .res-card {
-    width: 40px;
-    height: 54px;
-    border-radius: 7px;
-    flex-shrink: 0;
-    border: 1.5px solid rgba(255, 255, 255, 0.18);
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    position: relative;
-    user-select: none;
-  }
-
-  .res-card-inner {
-    position: absolute;
-    inset: 3px;
-    border-radius: 5px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    pointer-events: none;
-  }
-
-  .res-icon {
-    font-size: 16px;
-    line-height: 1;
-    position: relative;
-  }
-
-  .res-count {
-    font-size: 10px;
-    font-weight: 700;
-    color: rgba(255, 255, 255, 0.9);
-    position: relative;
   }
 
   .progress-cards {
