@@ -21,6 +21,7 @@ import { createInitialState } from "./game.js";
 import type { BoardPreset } from "./game.js";
 import { CatanNetwork } from "./network.js";
 import { PLAYER_COLORS } from "./constants.js";
+import { loadCatanProfile, saveBoardPreset } from "./profile.js";
 import type { PendingAction, PendingAdminAction } from "./validTargets.js";
 import {
   computePlayerCardDeltaEvents,
@@ -86,7 +87,7 @@ class CatanStore {
   hostName = $state("Player 1");
   pendingHumans = $state<string[]>([]);
   bots = $state<Array<{ name: string }>>([]);
-  boardPreset = $state<BoardPreset>("random");
+  boardPreset = $state<BoardPreset>(loadCatanProfile().boardPreset);
   lobbyStatus = $state("");
   lobbyStatusKind = $state<"info" | "error">("info");
 
@@ -344,12 +345,17 @@ class CatanStore {
     this.broadcastCurrentLobby();
   }
 
+  setBoardPreset(preset: BoardPreset) {
+    this.boardPreset = preset;
+    saveBoardPreset(preset);
+  }
+
   async hostGame(name: string) {
     this.hostName = name;
     this.setLobbyStatus("Creating room…");
     this.pendingHumans = [];
     this.bots = [];
-    this.boardPreset = "A";
+    this.boardPreset = loadCatanProfile().boardPreset;
     this.playerConnectionStatus = {};
     this.lastStateUpdateAt = null;
     this.lastStateVersion = null;

@@ -2,6 +2,7 @@
   import { onDestroy } from "svelte";
   import { store } from "../../lib/catan/store.svelte.js";
   import { PLAYER_COLORS } from "../../lib/catan/constants.js";
+  import type { BoardPreset } from "../../lib/catan/game.js";
   import QRModal from "./QRModal.svelte";
   import CopyRoomCode from "./CopyRoomCode.svelte";
 
@@ -22,6 +23,14 @@
       clearTimeout(codeCopiedTimer);
       codeCopiedTimer = setTimeout(() => (codeCopied = false), 1800);
     });
+  }
+
+  function getBoardPreset() {
+    return store.boardPreset;
+  }
+
+  function setBoardPreset(preset: BoardPreset) {
+    store.setBoardPreset(preset);
   }
 </script>
 
@@ -93,7 +102,7 @@
     <div class="lobby-section">
       <h2>⚙️ Game Settings</h2>
       <label class="setting-label" for="boardPreset">Board preset</label>
-      <select id="boardPreset" class="setting-select" bind:value={store.boardPreset}>
+      <select id="boardPreset" class="setting-select" bind:value={getBoardPreset, setBoardPreset}>
         <option value="A">A (Current configuration)</option>
         <option value="random">Random</option>
       </select>

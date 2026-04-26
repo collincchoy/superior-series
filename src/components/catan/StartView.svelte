@@ -2,6 +2,7 @@
   import { onMount, tick } from "svelte";
   import PixelBackground from "./splash/PixelBackground.svelte";
   import QRScanner from "./QRScanner.svelte";
+  import { loadCatanProfile, savePlayerName } from "../../lib/catan/profile.js";
   import { store } from "../../lib/catan/store.svelte.js";
 
   let hostNameInput = $state("Player 1");
@@ -12,17 +13,11 @@
   let showScanner = $state(false);
   let joinNameInputEl: HTMLInputElement | undefined = $state();
 
-  const STORAGE_KEY = "catan:last-used-player-name";
-
-  function saveName(name: string) {
-    localStorage.setItem(STORAGE_KEY, name);
-  }
-
   onMount(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      hostNameInput = saved;
-      joinNameInput = saved;
+    const profile = loadCatanProfile();
+    if (profile.playerName) {
+      hostNameInput = profile.playerName;
+      joinNameInput = profile.playerName;
     }
 
     const urlRoom = new URLSearchParams(window.location.search).get("room");
@@ -35,7 +30,7 @@
 
   function handleJoinKeydown(e: KeyboardEvent) {
     if (e.key === "Enter") {
-      saveName(joinNameInput || "Guest");
+      savePlayerName(joinNameInput || "Guest");
       store.joinGame(joinNameInput || "Guest", joinCodeInput);
     }
   }
@@ -52,7 +47,7 @@
     inviteMode = true;
 
     if (joinNameInput.trim()) {
-      saveName(joinNameInput);
+      savePlayerName(joinNameInput);
       store.joinGame(joinNameInput || "Guest", roomCode);
     } else {
       await tick();
@@ -81,7 +76,7 @@
             />
             <button
               class="btn-primary"
-              onclick={() => { saveName(joinNameInput || "Guest"); store.joinGame(joinNameInput || "Guest", joinCodeInput); }}
+              onclick={() => { savePlayerName(joinNameInput || "Guest"); store.joinGame(joinNameInput || "Guest", joinCodeInput); }}
               >Join Game</button
             >
           </div>
@@ -96,7 +91,7 @@
               maxlength="16"
               bind:value={hostNameInput}
             />
-            <button class="btn-primary" onclick={() => { saveName(hostNameInput); store.hostGame(hostNameInput); }}
+            <button class="btn-primary" onclick={() => { savePlayerName(hostNameInput); store.hostGame(hostNameInput); }}
               >Host Game</button
             >
           </div>
@@ -118,7 +113,7 @@
             />
             <button
               class="btn-primary"
-              onclick={() => { saveName(joinNameInput || "Guest"); store.joinGame(joinNameInput || "Guest", joinCodeInput); }}
+              onclick={() => { savePlayerName(joinNameInput || "Guest"); store.joinGame(joinNameInput || "Guest", joinCodeInput); }}
               >Join</button
             >
           </div>
