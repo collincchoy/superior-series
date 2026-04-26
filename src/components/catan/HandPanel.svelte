@@ -64,27 +64,29 @@
 
 <div class="hand-panel">
   <div class="hand-title">Your hand</div>
-  <div class="hand-cards">
-    {#each RESOURCE_KEYS as k}
-      {#if me.resources[k] > 0}
-        <ResourceCard cardKey={k} count={me.resources[k]} />
-      {/if}
-    {/each}
-  </div>
-  {#if nonVpCards.length > 0}
-    <div class="progress-cards">
-      {#each nonVpCards as c}
-        <button
-          class="prog-card"
-          class:clickable={canPlayNow(c.name, c.isVP)}
-          style="background:{TRACK_BADGE_COLOR[c.track as ImprovementTrack]}"
-          onclick={() => onCardTap(c.name, c.isVP, c.track)}
-          title={PROGRESS_CARD_INFO[c.name].short}
-        >{c.name}</button
-        >
+  <div class="hand-row">
+    <div class="hand-cards">
+      {#each RESOURCE_KEYS as k}
+        {#if me.resources[k] > 0}
+          <ResourceCard cardKey={k} count={me.resources[k]} />
+        {/if}
       {/each}
     </div>
-  {/if}
+    {#if nonVpCards.length > 0}
+      <div class="progress-cards">
+        {#each nonVpCards as c}
+          <button
+            class="prog-card"
+            class:clickable={canPlayNow(c.name, c.isVP)}
+            style="background:{TRACK_BADGE_COLOR[c.track as ImprovementTrack]}"
+            onclick={() => onCardTap(c.name, c.isVP, c.track)}
+            title={PROGRESS_CARD_INFO[c.name].short}
+          >{c.name}</button
+          >
+        {/each}
+      </div>
+    {/if}
+  </div>
 </div>
 
 <style>
@@ -101,13 +103,20 @@
     margin-bottom: 0.2rem;
   }
 
+  .hand-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   .hand-cards {
     display: flex;
     flex-wrap: nowrap;
     gap: 6px;
     overflow-x: auto;
     padding-bottom: 3px;
-    margin-bottom: 0.22rem;
+    flex: 1;
+    min-width: 0;
     scrollbar-width: none;
   }
   .hand-cards::-webkit-scrollbar {
@@ -118,7 +127,9 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.24rem;
-    margin-bottom: 0.2rem;
+    flex-shrink: 0;
+    justify-content: flex-end;
+    max-width: 45%;
   }
 
   .prog-card {
