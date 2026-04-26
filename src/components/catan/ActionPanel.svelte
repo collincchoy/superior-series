@@ -198,6 +198,8 @@
   type PopoverState = {
     x: number;
     y: number;
+    /** Trigger element rect (viewport) for popover flip/clamp. */
+    anchor: { top: number; left: number; right: number; bottom: number };
     title: string;
     cost: Partial<Resources>;
     reason?: string;
@@ -216,7 +218,14 @@
   ) {
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     const x = Math.min(rect.left, window.innerWidth - 236);
-    popover = { x, y: rect.bottom + 6, title, cost, reason };
+    popover = {
+      x,
+      y: rect.bottom + 6,
+      anchor: { top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom },
+      title,
+      cost,
+      reason,
+    };
   }
 
   function hasEnough(cost: Partial<Resources>): boolean {
@@ -685,6 +694,7 @@
   open={!!popover}
   x={popover?.x ?? 0}
   y={popover?.y ?? 0}
+  anchor={popover?.anchor}
   ariaLabel="Close unavailable action details"
   onClose={closeUnavailablePopover}
 >
