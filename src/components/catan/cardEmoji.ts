@@ -6,7 +6,7 @@ export const CARD_EMOJI: Record<keyof Resources, string> = {
   ore: "🪨",
   grain: "🌾",
   wool: "🐑",
-  cloth: "🩳",
+  cloth: "📜",
   coin: "🪙",
   paper: "📄",
 };
