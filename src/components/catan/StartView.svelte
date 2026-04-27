@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import PixelBackground from "./splash/PixelBackground.svelte";
   import QRScanner from "./QRScanner.svelte";
   import { loadCatanProfile, savePlayerName } from "../../lib/catan/profile.js";
@@ -11,7 +11,12 @@
   let pixelBgEnabled = $state(true);
   let inviteMode = $state(false);
   let showScanner = $state(false);
+  let showJoinDiagnostics = $state(false);
+  let diagnosticsCopied = $state(false);
   let joinNameInputEl: HTMLInputElement | undefined = $state();
+  let diagnosticsCopiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+  onDestroy(() => clearTimeout(diagnosticsCopiedTimer));
 
   onMount(() => {
     const profile = loadCatanProfile();
@@ -30,9 +35,22 @@
 
   function handleJoinKeydown(e: KeyboardEvent) {
     if (e.key === "Enter") {
-      savePlayerName(joinNameInput || "Guest");
-      store.joinGame(joinNameInput || "Guest", joinCodeInput);
+      joinExistingGame();
     }
+  }
+
+  function joinExistingGame(roomCode = joinCodeInput) {
+    savePlayerName(joinNameInput || "Guest");
+    showJoinDiagnostics = false;
+    store.joinGame(joinNameInput || "Guest", roomCode);
+  }
+
+  function copyDiagnostics() {
+    navigator.clipboard.writeText(store.getJoinDiagnosticsReport()).then(() => {
+      diagnosticsCopied = true;
+      clearTimeout(diagnosticsCopiedTimer);
+      diagnosticsCopiedTimer = setTimeout(() => (diagnosticsCopied = false), 1800);
+    });
   }
 
   async function handleScan(text: string) {
@@ -48,7 +66,7 @@
 
     if (joinNameInput.trim()) {
       savePlayerName(joinNameInput);
-      store.joinGame(joinNameInput || "Guest", roomCode);
+      joinExistingGame(roomCode);
     } else {
       await tick();
       joinNameInputEl?.focus();
@@ -76,7 +94,7 @@
             />
             <button
               class="btn-primary"
-              onclick={() => { savePlayerName(joinNameInput || "Guest"); store.joinGame(joinNameInput || "Guest", joinCodeInput); }}
+              onclick={() => joinExistingGame()}
               >Join Game</button
             >
           </div>
@@ -113,7 +131,7 @@
             />
             <button
               class="btn-primary"
-              onclick={() => { savePlayerName(joinNameInput || "Guest"); store.joinGame(joinNameInput || "Guest", joinCodeInput); }}
+              onclick={() => joinExistingGame()}
               >Join</button
             >
           </div>
@@ -128,7 +146,50 @@
         </div>
       {/if}
       {#if store.lobbyStatus}
-        <div class="start-status {store.lobbyStatusKind}">{store.lobbyStatus}</div>
+        <div class="start-status {store.lobbyStatusKind}" aria-live="polite">{store.lobbyStatus}</div>
+      {/if}
+      {#if store.lastJoinFailure}
+        <div class="diagnostics-card" aria-live="polite">
+          <div class="diagnostics-title">Connection details</div>
+          <p class="diagnostics-message">{store.lastJoinFailure.message}</p>
+          <p class="diagnostics-hint">{store.lastJoinFailure.hint}</p>
+          <div class="diagnostics-meta">
+            <span>Stage: {store.lastJoinFailure.stage}</span>
+            {#if store.lastJoinFailure.errorType}
+              <span>PeerJS: {store.lastJoinFailure.errorType}</span>
+            {/if}
+            {#if typeof store.lastJoinFailure.elapsedMs === "number"}
+              <span>{store.lastJoinFailure.elapsedMs}ms</span>
+            {/if}
+          </div>
+          <div class="diagnostics-actions">
+            <button class="btn-secondary-small" onclick={() => joinExistingGame()}>Retry</button>
+            <button class="btn-secondary-small" onclick={copyDiagnostics}>
+              {diagnosticsCopied ? "Copied" : "Copy diagnostics"}
+            </button>
+            {#if store.connectionEvents.length > 0}
+              <button
+                class="btn-secondary-small"
+                aria-expanded={showJoinDiagnostics}
+                onclick={() => (showJoinDiagnostics = !showJoinDiagnostics)}
+              >
+                {showJoinDiagnostics ? "Hide details" : "Show details"}
+              </button>
+            {/if}
+          </div>
+          {#if showJoinDiagnostics}
+            <ol class="diagnostics-events">
+              {#each store.connectionEvents as event (event.id)}
+                <li>
+                  <span class="event-status {event.status}">{event.status}</span>
+                  <span>{event.stage}</span>
+                  <span>{event.message}</span>
+                  {#if event.errorType}<span>({event.errorType})</span>{/if}
+                </li>
+              {/each}
+            </ol>
+          {/if}
+        </div>
       {/if}
       <p class="flavor-text">The island awaits brave settlers…</p>
     </div>
@@ -282,6 +343,21 @@
     cursor: default;
   }
 
+  .btn-secondary-small {
+    background: rgba(255, 255, 255, 0.08);
+    color: #f0e8d0;
+    border: 1px solid #5a6a2a;
+    border-radius: 0;
+    padding: 0.38rem 0.55rem;
+    font-size: 0.76rem;
+    cursor: pointer;
+  }
+
+  .btn-secondary-small:hover {
+    border-color: #c8b47a;
+    background: rgba(200, 180, 122, 0.12);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .btn-primary { transition: none; }
     .btn-primary:hover { transform: none; box-shadow: none; }
@@ -297,6 +373,76 @@
 
   .start-status.error {
     color: #e74c3c;
+  }
+
+  .diagnostics-card {
+    background: rgba(20, 10, 10, 0.72);
+    border: 2px solid #7a1e1e;
+    box-shadow:
+      inset 0 0 0 1px #3a120f,
+      3px 3px 0 #0a0a0a;
+    padding: 0.8rem;
+    font-size: 0.82rem;
+  }
+
+  .diagnostics-title {
+    color: #f0c0b8;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .diagnostics-message {
+    color: #ffd6d0;
+    font-weight: 700;
+    margin: 0 0 0.35rem;
+  }
+
+  .diagnostics-hint {
+    color: #e0b8ae;
+    line-height: 1.35;
+    margin: 0 0 0.5rem;
+  }
+
+  .diagnostics-meta,
+  .diagnostics-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+  }
+
+  .diagnostics-meta {
+    color: #bfa6a1;
+    font-family: monospace;
+    font-size: 0.72rem;
+    margin-bottom: 0.55rem;
+  }
+
+  .diagnostics-events {
+    margin: 0.65rem 0 0;
+    padding-left: 1.1rem;
+    color: #d9c8c4;
+    font-size: 0.72rem;
+    line-height: 1.35;
+  }
+
+  .diagnostics-events li {
+    margin-bottom: 0.25rem;
+  }
+
+  .event-status {
+    font-family: monospace;
+    margin-right: 0.35rem;
+  }
+
+  .event-status.error {
+    color: #ff9d8f;
+  }
+
+  .event-status.success {
+    color: #9fe09f;
   }
 
   .bg-toggle {

@@ -32,6 +32,14 @@
   function setBoardPreset(preset: BoardPreset) {
     store.setBoardPreset(preset);
   }
+
+  function formatEventTime(at: number) {
+    return new Date(at).toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }
 </script>
 
 <div class="lobby">
@@ -98,6 +106,20 @@
       <p class="waiting-hint">Waiting for the host to start the game…</p>
     {/if}
   </div>
+  {#if isHost && store.lobbyConnectionEvents.length > 0}
+    <div class="lobby-section">
+      <h2>Connection Activity</h2>
+      <div class="connection-events">
+        {#each store.lobbyConnectionEvents as event (event.id)}
+          <div class="connection-event {event.status}">
+            <span class="event-name">{event.name}</span>
+            <span class="event-detail">{event.detail}</span>
+            <span class="event-time">{formatEventTime(event.at)}</span>
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
   {#if isHost}
     <div class="lobby-section">
       <h2>⚙️ Game Settings</h2>
@@ -337,6 +359,43 @@
   .waiting-player-name {
     flex: 1;
     font-size: 0.9rem;
+  }
+
+  .connection-events {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .connection-event {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.1rem 0.5rem;
+    padding: 0.45rem 0.55rem;
+    border-left: 3px solid #c8b47a;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+  }
+
+  .connection-event.disconnected {
+    border-left-color: #e74c3c;
+  }
+
+  .event-name {
+    font-weight: 700;
+    color: #f0e8d0;
+  }
+
+  .event-detail {
+    grid-column: 1 / -1;
+    color: #a0b0a0;
+    font-size: 0.78rem;
+  }
+
+  .event-time {
+    color: #8d9c8d;
+    font-family: monospace;
+    font-size: 0.72rem;
   }
 
   .slot-color {
