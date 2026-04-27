@@ -199,7 +199,8 @@ export function computeValidTargets(
           // Intrigue: opponent knights on player's network
           Object.entries(board.knights).forEach(([vid, k]) => {
             if (
-              k?.playerId !== pid &&
+              k &&
+              k.playerId !== pid &&
               isOnPlayerNetwork(board, graph, pid, vid as VertexId)
             ) {
               validVertices.add(vid as VertexId);
@@ -208,7 +209,7 @@ export function computeValidTargets(
         } else if (pending.card === "Treason") {
           // Treason: any opponent knight
           Object.entries(board.knights).forEach(([vid, k]) => {
-            if (k?.playerId !== pid) {
+            if (k && k.playerId !== pid) {
               validVertices.add(vid as VertexId);
             }
           });

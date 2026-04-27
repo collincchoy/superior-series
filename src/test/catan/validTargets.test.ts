@@ -1016,6 +1016,7 @@ describe("computeValidTargets", () => {
     it("progress_select_knight for Treason highlights any opponent knight", () => {
       const opponentKnightVid = vids[50]!;
       const ownKnightVid = vids[1]!;
+      const emptyKnightVid = vids[2]!;
 
       const state: GameState = {
         ...actionState,
@@ -1035,6 +1036,8 @@ describe("computeValidTargets", () => {
       });
       expect(targets.validVertices.has(opponentKnightVid)).toBe(true);
       expect(targets.validVertices.has(ownKnightVid)).toBe(false);
+      expect(state.board.knights[emptyKnightVid]).toBeNull();
+      expect(targets.validVertices.has(emptyKnightVid)).toBe(false);
     });
 
     it("progress_select_hex for Merchant highlights hexes adjacent to own buildings", () => {
