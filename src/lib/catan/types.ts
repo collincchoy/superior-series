@@ -228,6 +228,12 @@ export interface BarbarianTrack {
 
 export type EventDieFace = "ship" | "science" | "trade" | "politics";
 
+export interface LastRollSnapshot {
+  id: number;
+  playerId: PlayerId;
+  dice: [number, number, EventDieFace];
+}
+
 export type TurnPhase =
   | "SETUP_R1_SETTLEMENT" // place settlement
   | "SETUP_R1_ROAD" // place road after settlement
@@ -384,10 +390,8 @@ export interface GameState {
   longestRoadLength: number;
   /** Who permanently owns each metropolis (level 5) or temporarily (level 4) */
   metropolisOwner: Record<ImprovementTrack, PlayerId | null>;
-  /** Last dice roll: [die1, die2, eventDie] */
-  lastRoll: [number, number, EventDieFace] | null;
-  /** Player who made the last dice roll */
-  lastRollPid: PlayerId | null;
+  /** Last dice roll and the action that produced it */
+  lastRoll: LastRollSnapshot | null;
   /** Setup: remaining players in current setup round order */
   setupQueue: PlayerId[];
   /** Setup: vertex where current player just placed their building (restricts road placement to adjacent edges) */

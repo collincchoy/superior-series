@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { GameState, PlayerId, EventDieFace } from "../../lib/catan/types.js";
+  import { untrack } from "svelte";
+  import type { GameState, PlayerId } from "../../lib/catan/types.js";
   import type {
     PendingAction,
     PendingAdminAction,
@@ -48,10 +49,13 @@
   let transitionPlayer = $state<{ name: string; color: string } | null>(null);
   let prevCurrentPid: string | null = null;
 
-  let showDiceModal = $state(false);
-  let diceRoll = $state<[number, number, EventDieFace] | null>(null);
-  let diceRollerId = $state<string | null>(null);
-  let prevLastRoll: typeof gameState.lastRoll = null;
+  // Seed from the current roll snapshot so late joiners don't replay an old roll.
+  let acknowledgedRollId = $state<number | null>(
+    untrack(() => gameState.lastRoll?.id ?? null),
+  );
+  let pendingDiceAck = $derived(
+    gameState.lastRoll !== null && acknowledgedRollId !== gameState.lastRoll.id,
+  );
 
   let milestoneVP = $state<number | null>(null);
   let prevMilestoneVP = -1;
@@ -62,17 +66,6 @@
       milestoneVP = vp;
     }
     prevMilestoneVP = vp;
-  });
-
-  $effect(() => {
-    const roll = gameState.lastRoll;
-    if (!roll) return;
-    if (roll === prevLastRoll) return;
-    if (prevLastRoll !== null && roll[0] === prevLastRoll[0] && roll[1] === prevLastRoll[1] && roll[2] === prevLastRoll[2]) return;
-    prevLastRoll = roll;
-    diceRoll = roll;
-    diceRollerId = gameState.lastRollPid;
-    showDiceModal = true;
   });
 
   $effect(() => {
@@ -235,8 +228,10 @@
   </div>
 </div>
 
-<DiscardModal {gameState} {localPid} />
-<DiscardProgressModal {gameState} {localPid} />
+{#if !pendingDiceAck}
+  <DiscardModal {gameState} {localPid} />
+  <DiscardProgressModal {gameState} {localPid} />
+{/if}
 {#if showTrade}
   <TradeBankModal {gameState} {localPid} bind:open={showTrade} />
 {/if}
@@ -283,7 +278,7 @@
   />
 {/if}
 
-{#if gameState.phase === "RESOLVE_BARBARIANS" && gameState.pendingBarbarian && !showDiceModal}
+{#if gameState.phase === "RESOLVE_BARBARIANS" && gameState.pendingBarbarian && !pendingDiceAck}
   <BarbarianAttackOverlay {gameState} />
 {/if}
 
@@ -295,14 +290,19 @@
   />
 {/if}
 
-{#if showDiceModal && diceRoll}
-  {@const rollerPlayer = gameState.players[diceRollerId ?? localPid]}
-  <DiceRollModal
-    roll={diceRoll}
-    rollerName={rollerPlayer?.name ?? ""}
-    isLocalPlayer={diceRollerId === localPid}
-    onDone={() => (showDiceModal = false)}
-  />
+{#if pendingDiceAck && gameState.lastRoll}
+  {@const roll = gameState.lastRoll}
+  {@const rollerPlayer = gameState.players[roll.playerId]}
+  {#key roll.id}
+    <DiceRollModal
+      roll={roll.dice}
+      rollerName={rollerPlayer?.name ?? ""}
+      isLocalPlayer={roll.playerId === localPid}
+      onDone={() => {
+        if (roll.id === gameState.lastRoll?.id) acknowledgedRollId = roll.id;
+      }}
+    />
+  {/key}
 {/if}
 
 {#if milestoneVP !== null}
@@ -316,7 +316,7 @@
 
 {#if isGameOver}
   <div class="confetti-overlay" aria-hidden="true">
-    {#each Array(24) as _, i}
+    {#each Array(24) as _, i (i)}
       <span
         class="confetti-piece"
         style="--i:{i};--x:{Math.random() * 100}vw;--r:{Math.random() * 360}deg;--d:{1.5 + Math.random() * 2}s;--c:{['#f5c842','#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e91e63'][i % 8]}"

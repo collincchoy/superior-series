@@ -64,6 +64,11 @@ describe("createInitialState", () => {
     expect(state.version).toBe(0);
   });
 
+  it("starts with no last roll", () => {
+    const state = createInitialState(makePlayers(3));
+    expect(state.lastRoll).toBeNull();
+  });
+
   it("all players start with zero resources", () => {
     const state = createInitialState(makePlayers(3));
     for (const player of Object.values(state.players)) {
@@ -304,6 +309,24 @@ describe("setup phase - PLACE_BUILDING", () => {
 // ─── Resource Production ──────────────────────────────────────────────────────
 
 describe("resource production", () => {
+  it("sets a unique last roll snapshot from the roll action version", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid,
+      result: [3, 4, "politics" as const],
+    });
+
+    expect(rolled.lastRoll).toEqual({
+      id: rolled.version,
+      playerId: pid,
+      dice: [3, 4, "politics"],
+    });
+    expect(rolled.lastRoll?.id).toBe(state.version + 1);
+  });
+
   it("settlement on hex with rolled number gets 1 resource", () => {
     const state = buildActionState();
     const pid = state.currentPlayerId;
@@ -887,8 +910,8 @@ describe("progress card effects", () => {
       params: { die1: 6, die2: 1 },
     });
 
-    expect(next.lastRoll?.[0]).toBe(6);
-    expect(next.lastRoll?.[1]).toBe(1);
+    expect(next.lastRoll?.dice[0]).toBe(6);
+    expect(next.lastRoll?.dice[1]).toBe(1);
     expect(
       next.players[pid]!.progressCards.some((c) => c.name === "Alchemy"),
     ).toBe(false);
@@ -2360,6 +2383,50 @@ describe("progress card hand limit (4 non-VP)", () => {
     expect(after.players[pid]!.progressCards.filter((c) => !c.isVP)).toHaveLength(4);
     expect(after.phase).toBe("ACTION");
     expect(after.pendingProgressDiscard).toBeNull();
+  });
+
+  it("DISCARD_PROGRESS resumes pending roll production when complete", () => {
+    const base = buildActionState();
+    const pid = base.currentPlayerId;
+    const discardPid = base.playerOrder.find((p) => p !== pid)!;
+    const toDiscard = nonVpCard;
+    const state: GameState = {
+      ...base,
+      phase: "DISCARD_PROGRESS",
+      pendingProgressDiscard: { remaining: { [pid]: 1 } },
+      pendingRollResume: { rollerPid: pid, production: 7 },
+      players: {
+        ...base.players,
+        [pid]: {
+          ...base.players[pid]!,
+          progressCards: [nonVpCard, nonVpCard, nonVpCard, nonVpCard, toDiscard],
+        },
+        [discardPid]: {
+          ...base.players[discardPid]!,
+          resources: {
+            brick: 8,
+            lumber: 0,
+            ore: 0,
+            grain: 0,
+            wool: 0,
+            cloth: 0,
+            coin: 0,
+            paper: 0,
+          },
+        },
+      },
+    };
+
+    const after = applyAction(state, {
+      type: "DISCARD_PROGRESS",
+      pid,
+      cards: [toDiscard],
+    });
+
+    expect(after.pendingProgressDiscard).toBeNull();
+    expect(after.pendingRollResume).toBeNull();
+    expect(after.phase).toBe("DISCARD");
+    expect(after.pendingDiscard?.remaining[discardPid]).toBe(4);
   });
 
   it("DRAW_PROGRESS succeeds when the 4 held cards are all VP cards", () => {

@@ -219,8 +219,9 @@ class CatanStore {
       this.pushCardDeltaToast(delta.pid, delta.tokens);
     }
 
-    if (this.didRollChange(previous, next)) {
-      const production = (next.lastRoll?.[0] ?? 0) + (next.lastRoll?.[1] ?? 0);
+    const roll = next.lastRoll;
+    if (previous.lastRoll?.id !== roll?.id && roll) {
+      const production = roll.dice[0] + roll.dice[1];
       if (production !== 7) {
         this.pushHexGlowEvent(getProducingHexIds(next, production));
       }
@@ -272,17 +273,6 @@ class CatanStore {
       ...this.cardDeltaToasts,
       { id, pid, tokens, expiresAt },
     ];
-  }
-
-  private didRollChange(previous: GameState, next: GameState) {
-    const prevRoll = previous.lastRoll;
-    const nextRoll = next.lastRoll;
-    if (!prevRoll || !nextRoll) return prevRoll !== nextRoll;
-    return (
-      prevRoll[0] !== nextRoll[0] ||
-      prevRoll[1] !== nextRoll[1] ||
-      prevRoll[2] !== nextRoll[2]
-    );
   }
 
   private pushHexGlowEvent(hexIds: HexId[]) {

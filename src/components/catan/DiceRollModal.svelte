@@ -16,12 +16,17 @@
   } = $props();
 
   type Phase = "shaking" | "reveal" | "done";
+  const ROLL_ANIMATION_MS = 900;
+  const REVEAL_MS = 500;
+  const AUTO_ACKNOWLEDGE_MS = 2500;
 
   let phase = $state<Phase>("shaking");
   let displayD1 = $state(Math.ceil(Math.random() * 6));
   let displayD2 = $state(Math.ceil(Math.random() * 6));
 
   $effect(() => {
+    phase = "shaking";
+
     const interval = setInterval(() => {
       displayD1 = Math.ceil(Math.random() * 6);
       displayD2 = Math.ceil(Math.random() * 6);
@@ -32,12 +37,19 @@
       displayD1 = roll[0];
       displayD2 = roll[1];
       phase = "reveal";
-      setTimeout(() => { phase = "done"; }, 500);
-    }, 900);
+    }, ROLL_ANIMATION_MS);
+
+    let autoAcknowledgeTimer: ReturnType<typeof setTimeout> | undefined;
+    const doneTimer = setTimeout(() => {
+      phase = "done";
+      autoAcknowledgeTimer = setTimeout(onDone, AUTO_ACKNOWLEDGE_MS);
+    }, ROLL_ANIMATION_MS + REVEAL_MS);
 
     return () => {
       clearInterval(interval);
       clearTimeout(revealTimer);
+      clearTimeout(doneTimer);
+      if (autoAcknowledgeTimer) clearTimeout(autoAcknowledgeTimer);
     };
   });
 

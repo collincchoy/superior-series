@@ -266,6 +266,20 @@ function applyProductionAfterRoll(
   return { ...next, phase: "ACTION" };
 }
 
+function applyPendingRollResumeIfAny(
+  s: GameState,
+  graph: ReturnType<typeof buildGraph>,
+): GameState | null {
+  const resume = s.pendingRollResume;
+  if (!resume) return null;
+  return applyProductionAfterRoll(
+    { ...s, pendingRollResume: null },
+    graph,
+    resume.rollerPid,
+    resume.production,
+  );
+}
+
 function addResources(r: Resources, delta: Partial<Resources>): Resources {
   const result = { ...r };
   for (const [k, v] of Object.entries(delta) as [keyof Resources, number][]) {
@@ -428,7 +442,6 @@ export function createInitialState(
     longestRoadLength: 0,
     metropolisOwner: { science: null, trade: null, politics: null },
     lastRoll: null,
-    lastRollPid: null,
     setupQueue: [...playerOrder],
     setupLastPlacedVertex: null,
     pendingDisplace: null,
@@ -614,7 +627,10 @@ function applyActionReducer(state: GameState, action: GameAction): GameState {
       const redDie = d2;
       const production = yellowDie + redDie;
 
-      s = { ...s, lastRoll: [d1, d2, event], lastRollPid: pid };
+      s = {
+        ...s,
+        lastRoll: { id: s.version, playerId: pid, dice: [d1, d2, event] },
+      };
       s = log(
         s,
         `${s.players[pid]?.name} rolled ${logDieToken("yellow", yellowDie)} ${logDieToken("red", redDie)} = ${production} ${logEventDieToken(event)}`,
@@ -692,16 +708,7 @@ function applyActionReducer(state: GameState, action: GameAction): GameState {
         };
       }
 
-      // Resume the interrupted roll — reuse the exact same path the progress-discard
-      // resume takes after DISCARD_PROGRESS finishes.
-      const resume = s.pendingRollResume;
-      if (!resume) {
-        // No roll to resume (e.g. admin-triggered attack); land back in ACTION.
-        return { ...s, phase: "ACTION" };
-      }
-      s = { ...s, pendingRollResume: null };
-      s = applyProductionAfterRoll(s, graph, resume.rollerPid, resume.production);
-      return s;
+      return applyPendingRollResumeIfAny(s, graph) ?? { ...s, phase: "ACTION" };
     }
 
     // ── Discard ────────────────────────────────────────────────────────────────
@@ -1279,15 +1286,7 @@ function applyActionReducer(state: GameState, action: GameAction): GameState {
       }
 
       s = { ...s, pendingProgressDiscard: null };
-      const resume = s.pendingRollResume;
-      if (resume) {
-        s = { ...s, pendingRollResume: null };
-        s = applyProductionAfterRoll(s, graph, resume.rollerPid, resume.production);
-        return s;
-      }
-
-      s = { ...s, phase: "ACTION" };
-      return s;
+      return applyPendingRollResumeIfAny(s, graph) ?? { ...s, phase: "ACTION" };
     }
 
     case "PLAY_PROGRESS": {
@@ -2141,7 +2140,7 @@ export function computeBarbarianAttack(state: GameState): PendingBarbarian {
 
     for (const contrib of contributionLevels) {
       if (pillageBudget <= 0) break;
-      const tierPillaged: VertexId[] = [];
+      let pillagedThisTier = false;
       const tier = contributions
         .filter((c) => c.contrib === contrib)
         .map((c) => c.pid);
@@ -2158,11 +2157,11 @@ export function computeBarbarianAttack(state: GameState): PendingBarbarian {
         if (!target) continue;
         const cityVid = target[0] as VertexId;
         citiesPillaged.push(cityVid);
-        tierPillaged.push(cityVid);
+        pillagedThisTier = true;
         pillageBudget--;
       }
 
-      if (tierPillaged.length > 0) break;
+      if (pillagedThisTier) break;
     }
   }
 
