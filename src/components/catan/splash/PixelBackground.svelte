@@ -40,9 +40,18 @@
     <CastleSvg />
 
     <KnightSvg />
-
-    <RainSvg />
   </svg>
+</svg>
+
+<svg
+  class="rain-layer"
+  aria-hidden="true"
+  viewBox="0 0 320 568"
+  preserveAspectRatio="none"
+  width="100%"
+  height="100%"
+>
+  <RainSvg />
 </svg>
 
 <style>
@@ -57,8 +66,20 @@
     pointer-events: none;
   }
 
+  .rain-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    shape-rendering: crispEdges;
+    image-rendering: pixelated;
+    pointer-events: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .pixel-scene :global(*) {
+    .pixel-scene :global(*),
+    .rain-layer :global(*) {
       animation: none !important;
     }
   }

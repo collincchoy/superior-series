@@ -10,7 +10,7 @@
 </script>
 
 <g id="rain" aria-hidden="true">
-  {#each drops as drop}
+  {#each drops as drop (drop.x)}
     <rect
       class="rain-drop"
       x={drop.x}
@@ -37,6 +37,8 @@
     animation-name: rain-fall;
     animation-timing-function: linear;
     animation-iteration-count: infinite;
+    transform-box: fill-box;
+    transform-origin: center;
   }
 
   #lightning {
