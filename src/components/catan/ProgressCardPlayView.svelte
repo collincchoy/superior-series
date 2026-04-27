@@ -252,6 +252,29 @@
     onClose();
   }
 
+  function getBoardTargetPendingAction(): PendingAction | null {
+    switch (card.name) {
+      case "Medicine":
+        return { type: "progress_select_vertex", card: "Medicine" };
+      case "Engineering":
+        return { type: "progress_select_vertex", card: "Engineering" };
+      case "Merchant":
+        return { type: "progress_select_hex", card: "Merchant" };
+      case "Invention":
+        return { type: "progress_select_hex_pair", card: "Invention", picked: [] };
+      case "Taxation":
+        return { type: "progress_select_hex", card: "Taxation" };
+      case "Intrigue":
+        return { type: "progress_select_knight", card: "Intrigue" };
+      case "Treason":
+        return { type: "progress_select_knight", card: "Treason" };
+      case "Diplomacy":
+        return { type: "progress_select_edge", card: "Diplomacy" };
+      default:
+        return null;
+    }
+  }
+
   function playProgress() {
     const pid = store.localPid;
     if (!pid) return;
@@ -352,6 +375,13 @@
       }
     }
 
+    const boardTargetPendingAction = getBoardTargetPendingAction();
+    if (boardTargetPendingAction) {
+      store.setPendingAction(boardTargetPendingAction);
+      close();
+      return;
+    }
+
     if (!PROGRESS_CARD_INFO[card.name].requiresTarget) {
       store.sendAction({ type: "PLAY_PROGRESS", pid, card: card.name });
       close();
@@ -371,7 +401,7 @@
   <div class="picker-row">
     <label for="res-select">Resource</label>
     <select id="res-select" bind:value={selectedResource}>
-      {#each RESOURCE_OPTIONS as option}
+      {#each RESOURCE_OPTIONS as option (option)}
         <option value={option}>{CARD_EMOJI[option]} {option}</option>
       {/each}
     </select>
@@ -380,7 +410,7 @@
   <div class="picker-row">
     <label for="com-select">Commodity</label>
     <select id="com-select" bind:value={selectedCommodity}>
-      {#each COMMODITY_OPTIONS as option}
+      {#each COMMODITY_OPTIONS as option (option)}
         <option value={option}>{CARD_EMOJI[option]} {option}</option>
       {/each}
     </select>
@@ -390,7 +420,7 @@
     <div class="die-row">
       <span class="die-label yellow-label">Yellow Die</span>
       <div class="die-options">
-        {#each [1, 2, 3, 4, 5, 6] as v}
+        {#each [1, 2, 3, 4, 5, 6] as v (v)}
           <button
             class="die-btn"
             class:selected={die1 === v}
@@ -407,7 +437,7 @@
     <div class="die-row">
       <span class="die-label red-label">Red Die</span>
       <div class="die-options">
-        {#each [1, 2, 3, 4, 5, 6] as v}
+        {#each [1, 2, 3, 4, 5, 6] as v (v)}
           <button
             class="die-btn"
             class:selected={die2 === v}
@@ -427,7 +457,7 @@
   <div class="picker-row">
     <label for="fleet-select">2:1 card type</label>
     <select id="fleet-select" bind:value={selectedCardType}>
-      {#each CARD_TYPE_OPTIONS as option}
+      {#each CARD_TYPE_OPTIONS as option (option)}
         <option value={option}>{CARD_EMOJI[option]} {option}</option>
       {/each}
     </select>
@@ -436,55 +466,30 @@
   <div class="picker-row">
     <label for="crane-select">Discount track</label>
     <select id="crane-select" bind:value={selectedCraneTrack}>
-      {#each CRANE_TRACK_OPTIONS as option}
+      {#each CRANE_TRACK_OPTIONS as option (option)}
         <option value={option}>{option}</option>
       {/each}
     </select>
   </div>
 {:else if canPlayNow && card.name === "Medicine"}
   <p class="helper">Click a settlement on the board to upgrade it.</p>
-  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
-    if (!canUseState.enabled) return;
-    store.setPendingAction({ type: "progress_select_vertex", card: "Medicine" });
-    onClose();
-  }}>Select on board</button>
 {:else if canPlayNow && card.name === "Engineering"}
   <p class="helper">Click a city on the board to add a wall.</p>
-  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
-    if (!canUseState.enabled) return;
-    store.setPendingAction({ type: "progress_select_vertex", card: "Engineering" });
-    onClose();
-  }}>Select on board</button>
 {:else if canPlayNow && card.name === "Merchant"}
   <p class="helper">Click a land hex adjacent to your buildings to place the merchant.</p>
-  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
-    if (!canUseState.enabled) return;
-    store.setPendingAction({ type: "progress_select_hex", card: "Merchant" });
-    onClose();
-  }}>Select on board</button>
 {:else if canPlayNow && card.name === "Invention"}
   <p class="helper">Click two number hexes (not 2, 6, 8, or 12) to swap their values.</p>
-  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
-    if (!canUseState.enabled) return;
-    store.setPendingAction({ type: "progress_select_hex_pair", card: "Invention", picked: [] });
-    onClose();
-  }}>Select on board</button>
 {:else if canPlayNow && card.name === "Taxation"}
   {#if !gs?.barbarian.robberActive}
     <p class="helper" style="color:#f87171">Taxation requires the robber to be active (after first barbarian attack).</p>
   {:else}
     <p class="helper">Click a hex to move the robber there.</p>
-    <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
-      if (!canUseState.enabled) return;
-      store.setPendingAction({ type: "progress_select_hex", card: "Taxation" });
-      onClose();
-    }}>Select on board</button>
   {/if}
 {:else if canPlayNow && card.name === "CommercialHarbor"}
   <div class="picker-row">
     <label for="ch-res">Offer resource</label>
     <select id="ch-res" bind:value={selectedComHarborResource}>
-      {#each RESOURCE_OPTIONS as option}
+      {#each RESOURCE_OPTIONS as option (option)}
         <option value={option}>{CARD_EMOJI[option]} {option}</option>
       {/each}
     </select>
@@ -493,7 +498,7 @@
   <div class="picker-row">
     <label for="esp-target">Target player</label>
     <select id="esp-target" bind:value={selectedTargetPid}>
-      {#each opponents as p}
+      {#each opponents as p (p)}
         <option value={p}>{gs?.players[p]?.name ?? p}</option>
       {/each}
     </select>
@@ -502,7 +507,7 @@
     <div class="picker-row">
       <label for="esp-card">Card to steal</label>
       <select id="esp-card" bind:value={selectedEspCardIndex}>
-        {#each espTargetCards as targetCard, i}
+        {#each espTargetCards as targetCard, i (`${targetCard.name}-${i}`)}
           <option value={i}>{targetCard.name}</option>
         {/each}
       </select>
@@ -523,7 +528,7 @@
       <p class="helper" style="color:#94a3b8">That player has no cards to take.</p>
     {:else}
       <div class="gd-hand">
-        {#each gdExpandedHand as cardKey, i}
+        {#each gdExpandedHand as cardKey, i (`${cardKey}-${i}`)}
           {@const isSelected = gdSelectedIndices.includes(i)}
           {@const canSelect = isSelected || gdSelectedIndices.length < 2}
           <ResourceCard
@@ -545,25 +550,10 @@
   {/if}
 {:else if canPlayNow && card.name === "Intrigue"}
   <p class="helper">Click an enemy knight on your network to displace it.</p>
-  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
-    if (!canUseState.enabled) return;
-    store.setPendingAction({ type: "progress_select_knight", card: "Intrigue" });
-    onClose();
-  }}>Select on board</button>
 {:else if canPlayNow && card.name === "Treason"}
   <p class="helper">Click an enemy knight to remove it.</p>
-  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
-    if (!canUseState.enabled) return;
-    store.setPendingAction({ type: "progress_select_knight", card: "Treason" });
-    onClose();
-  }}>Select on board</button>
 {:else if canPlayNow && card.name === "Diplomacy"}
   <p class="helper">Click an open enemy road to remove it.</p>
-  <button class="board-select-btn" disabled={!canUseState.enabled} onclick={() => {
-    if (!canUseState.enabled) return;
-    store.setPendingAction({ type: "progress_select_edge", card: "Diplomacy" });
-    onClose();
-  }}>Select on board</button>
 {/if}
 
 <div class="actions">
@@ -658,12 +648,6 @@
     gap: 0.3rem;
   }
 
-  .picker-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.6rem;
-  }
-
   .picker-row label {
     font-size: 0.72rem;
     text-transform: uppercase;
@@ -748,29 +732,6 @@
     padding: 0.4rem 0.75rem;
     font-size: 0.82rem;
     font-weight: 700;
-  }
-
-  .board-select-btn {
-    background: #3a5e1e;
-    color: #f5c842;
-    border: 1px solid #6dbf6d;
-    border-radius: 7px;
-    padding: 0.4rem 0.75rem;
-    font-size: 0.79rem;
-    font-weight: 600;
-    cursor: pointer;
-    margin-top: 0.6rem;
-    width: 100%;
-  }
-
-  .board-select-btn:hover {
-    background: #4a7a28;
-  }
-
-  .board-select-btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-    filter: grayscale(0.2);
   }
 
   .gd-step-label {
