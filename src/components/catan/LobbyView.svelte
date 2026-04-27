@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
+  import { createCopiedFlash } from "../../lib/copiedFlash.js";
+  import { copyToClipboard } from "../../lib/copyToClipboard.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import { PLAYER_COLORS } from "../../lib/catan/constants.js";
   import type { BoardPreset } from "../../lib/catan/game.js";
@@ -12,17 +14,11 @@
   let canStart = $derived(totalSlots >= 2);
   let showQR = $state(false);
   let codeCopied = $state(false);
-  let codeCopiedTimer: ReturnType<typeof setTimeout> | undefined;
-
-  onDestroy(() => clearTimeout(codeCopiedTimer));
+  const copiedRoomCode = createCopiedFlash((v) => (codeCopied = v), onDestroy);
 
   function copyRoomCode() {
     if (!store.roomCode) return;
-    navigator.clipboard.writeText(store.roomCode).then(() => {
-      codeCopied = true;
-      clearTimeout(codeCopiedTimer);
-      codeCopiedTimer = setTimeout(() => (codeCopied = false), 1800);
-    });
+    void copyToClipboard(store.roomCode).then(() => copiedRoomCode.flash());
   }
 
   function getBoardPreset() {

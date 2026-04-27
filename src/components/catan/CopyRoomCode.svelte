@@ -1,16 +1,25 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
+  import { createCopiedFlash } from "../../lib/copiedFlash.js";
+  import { copyToClipboard } from "../../lib/copyToClipboard.js";
+
   interface Props {
     roomCode: string;
   }
   let { roomCode }: Props = $props();
 
+  let linkCopied = $state(false);
+  const linkCopiedFlash = createCopiedFlash((v) => (linkCopied = v), onDestroy);
+
   function copyLink() {
     const url = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
-    navigator.clipboard.writeText(url).then(() => {});
+    void copyToClipboard(url).then(() => linkCopiedFlash.flash());
   }
 </script>
 
-<button class="btn-secondary" onclick={copyLink}>Copy link</button>
+<button class="btn-secondary" onclick={copyLink}>
+  {linkCopied ? "Copied" : "Copy link"}
+</button>
 
 <style>
   .btn-secondary {

@@ -3,6 +3,8 @@
   import PixelBackground from "./splash/PixelBackground.svelte";
   import QRScanner from "./QRScanner.svelte";
   import { loadCatanProfile, savePlayerName } from "../../lib/catan/profile.js";
+  import { createCopiedFlash } from "../../lib/copiedFlash.js";
+  import { copyToClipboard } from "../../lib/copyToClipboard.js";
   import { store } from "../../lib/catan/store.svelte.js";
 
   let hostNameInput = $state("Player 1");
@@ -14,9 +16,11 @@
   let showJoinDiagnostics = $state(false);
   let diagnosticsCopied = $state(false);
   let joinNameInputEl: HTMLInputElement | undefined = $state();
-  let diagnosticsCopiedTimer: ReturnType<typeof setTimeout> | undefined;
 
-  onDestroy(() => clearTimeout(diagnosticsCopiedTimer));
+  const diagnosticsCopiedFlash = createCopiedFlash(
+    (v) => (diagnosticsCopied = v),
+    onDestroy,
+  );
 
   onMount(() => {
     const profile = loadCatanProfile();
@@ -46,11 +50,9 @@
   }
 
   function copyDiagnostics() {
-    navigator.clipboard.writeText(store.getJoinDiagnosticsReport()).then(() => {
-      diagnosticsCopied = true;
-      clearTimeout(diagnosticsCopiedTimer);
-      diagnosticsCopiedTimer = setTimeout(() => (diagnosticsCopied = false), 1800);
-    });
+    void copyToClipboard(store.getJoinDiagnosticsReport()).then(() =>
+      diagnosticsCopiedFlash.flash(),
+    );
   }
 
   async function handleScan(text: string) {
