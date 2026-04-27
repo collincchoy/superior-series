@@ -143,6 +143,39 @@ describe("CatanNetwork bot sub-phase handling", () => {
   });
 });
 
+describe("CatanNetwork destroy and deferred bot work", () => {
+  it("does not run bot logic or emit state after destroy", () => {
+    const onStateUpdate = vi.fn();
+    const network = new CatanNetwork({
+      onStateUpdate,
+      onError: vi.fn(),
+    });
+
+    (network as any).state = makeStateWithPendingBotDiscard();
+    network.destroy();
+    (network as any).runBotTurns();
+
+    expect(onStateUpdate).not.toHaveBeenCalled();
+  });
+
+  it("clears a scheduled bot turn timer on destroy", () => {
+    vi.useFakeTimers();
+    const onStateUpdate = vi.fn();
+    const network = new CatanNetwork({
+      onStateUpdate,
+      onError: vi.fn(),
+    });
+
+    const pending = vi.fn();
+    (network as any).botTurnTimer = setTimeout(pending, 0);
+    network.destroy();
+    vi.runAllTimers();
+    expect(pending).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
+});
+
 describe("CatanNetwork master control authority", () => {
   it("rejects admin actions from non-host clients", () => {
     const onError = vi.fn();
@@ -211,6 +244,15 @@ describe("CatanNetwork connection diagnostics", () => {
     expect(classified.message).toBe("WebRTC connection failed");
     expect(classified.hint).toContain("network");
     expect(classified.errorType).toBe("webrtc");
+  });
+
+  it("reuses the same user-facing message for peer-open timeout as for PeerJS network errors", () => {
+    const timeoutFailure = createJoinTimeoutFailure("peer-open", {});
+    const fromClassify = classifyPeerJoinError({
+      type: "network",
+      message: "e",
+    });
+    expect(timeoutFailure.message).toBe(fromClassify.message);
   });
 
   it("creates timeout failures with stage-specific diagnostics", () => {

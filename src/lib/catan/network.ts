@@ -71,6 +71,15 @@ interface PeerJoinErrorDetails {
   errorType?: string;
 }
 
+const PEERJS_SIGNALING_UNREACHABLE_MESSAGE =
+  "Could not reach PeerJS signaling server";
+
+const PEERJS_SIGNALING_CLASSIFY_HINT =
+  "Check internet access, VPN/firewall settings, or try again in a moment.";
+
+const PEERJS_SIGNALING_TIMEOUT_PEER_OPEN_HINT =
+  "The PeerJS server did not assign a client id in time. Check connectivity or try again.";
+
 const JOIN_STAGE_TIMEOUT_MS: Record<JoinDiagnosticStage, number> = {
   "peer-open": 12000,
   "data-channel-open": 12000,
@@ -131,8 +140,8 @@ export function classifyPeerJoinError(error: unknown): PeerJoinErrorDetails {
     case "socket-error":
     case "socket-closed":
       return {
-        message: "Could not reach PeerJS signaling server",
-        hint: "Check internet access, VPN/firewall settings, or try again in a moment.",
+        message: PEERJS_SIGNALING_UNREACHABLE_MESSAGE,
+        hint: PEERJS_SIGNALING_CLASSIFY_HINT,
         errorType,
       };
     case "webrtc":
@@ -173,8 +182,8 @@ export function createJoinTimeoutFailure(
 ): JoinFailure {
   const stageText: Record<JoinDiagnosticStage, PeerJoinErrorDetails> = {
     "peer-open": {
-      message: "Could not reach PeerJS signaling server",
-      hint: "The PeerJS server did not assign a client id in time. Check connectivity or try again.",
+      message: PEERJS_SIGNALING_UNREACHABLE_MESSAGE,
+      hint: PEERJS_SIGNALING_TIMEOUT_PEER_OPEN_HINT,
     },
     "data-channel-open": {
       message: "Could not open connection to host",
@@ -268,6 +277,8 @@ export class CatanNetwork {
   private isHost = false;
   private localPid: PlayerId | null = null;
   private state: GameState | null = null;
+  private destroyed = false;
+  private botTurnTimer: ReturnType<typeof setTimeout> | null = null;
   private callbacks: NetworkCallbacks;
   private pendingJoins: Array<{ conn: DataConnection; name: string }> = [];
   private preGameConns: DataConnection[] = [];
@@ -549,7 +560,7 @@ export class CatanNetwork {
   }
 
   private runBotTurns() {
-    if (!this.state) return;
+    if (this.destroyed || !this.state) return;
     const BATCH_SIZE = 100;
     let guard = 0;
     let prevVersion = -1;
@@ -581,8 +592,12 @@ export class CatanNetwork {
       this.broadcastState();
     }
 
-    if (this.botTurnPending()) {
-      setTimeout(() => this.runBotTurns(), 0);
+    if (this.botTurnPending() && !this.destroyed) {
+      if (this.botTurnTimer) clearTimeout(this.botTurnTimer);
+      this.botTurnTimer = setTimeout(() => {
+        this.botTurnTimer = null;
+        this.runBotTurns();
+      }, 0);
     }
   }
 
@@ -937,6 +952,11 @@ export class CatanNetwork {
   }
 
   destroy() {
+    this.destroyed = true;
+    if (this.botTurnTimer) {
+      clearTimeout(this.botTurnTimer);
+      this.botTurnTimer = null;
+    }
     this.peer?.destroy();
     this.peer = null;
     this.connections.clear();
