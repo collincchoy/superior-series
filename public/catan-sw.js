@@ -1,7 +1,7 @@
 /**
  * catan-sw.js — Service Worker for Catan: Cities & Knights PWA
  *
- * Network-first for HTML navigation and PeerJS CDN.
+ * Network-first for HTML navigation.
  * Cache-first for hashed assets (JS, CSS, images).
  */
 
@@ -38,25 +38,9 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Fetch: cache-first for own assets, network-first for CDN
+// Fetch: network-first for navigation, cache-first for own assets
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-
-  // Network-first for PeerJS CDN
-  if (url.hostname === "unpkg.com") {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const clone = response.clone();
-          caches
-            .open(CACHE_NAME)
-            .then((cache) => cache.put(event.request, clone));
-          return response;
-        })
-        .catch(() => caches.match(event.request)),
-    );
-    return;
-  }
 
   // Own origin
   if (url.origin === self.location.origin) {

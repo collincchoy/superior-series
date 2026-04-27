@@ -5,6 +5,7 @@
  * Clients connect to host's peer.id, send actions, receive state updates.
  * Bot turns run only on the host after every state update.
  */
+import Peer, { type DataConnection } from "peerjs";
 import {
   type GameState,
   type GameAction,
@@ -15,25 +16,6 @@ import {
 import { applyAction } from "./game.js";
 import { chooseBotAction } from "./ai.js";
 import { getActingPlayerIds } from "./turnActors.js";
-
-// ─── PeerJS Interface Definitions ──────────────────────────────────────────────
-
-interface DataConnection {
-  on(event: string, callback: (...args: unknown[]) => void): void;
-  send(data: unknown): void;
-  close(): void;
-}
-
-interface PeerInstance {
-  id: string;
-  on(event: string, callback: (...args: unknown[]) => void): void;
-  connect(peerId: string): DataConnection;
-  destroy(): void;
-}
-
-interface PeerConstructor {
-  new (): PeerInstance;
-}
 
 export type LobbyData = {
   hostName: string;
@@ -77,7 +59,7 @@ export interface NetworkCallbacks {
 // ─── Network Manager ──────────────────────────────────────────────────────────
 
 export class CatanNetwork {
-  private peer: PeerInstance | null = null;
+  private peer: Peer | null = null;
   private connections: Map<PlayerId, DataConnection> = new Map();
   private isHost = false;
   private localPid: PlayerId | null = null;
@@ -107,7 +89,6 @@ export class CatanNetwork {
       "Starting host peer",
     );
 
-    const Peer = await loadPeer();
     return new Promise((resolve, reject) => {
       this.peer = new Peer();
 
@@ -420,7 +401,6 @@ export class CatanNetwork {
       "connecting",
       "Connecting to host",
     );
-    const Peer = await loadPeer();
     return new Promise((resolve, reject) => {
       let settled = false;
       const safeResolve = () => {
@@ -575,33 +555,4 @@ export class CatanNetwork {
     this.peer = null;
     this.connections.clear();
   }
-}
-
-// ─── PeerJS Loader ────────────────────────────────────────────────────────────
-
-let PeerClass: PeerConstructor | null = null;
-
-async function loadPeer(): Promise<PeerConstructor> {
-  if (PeerClass) return PeerClass;
-  // In browser: load from CDN via script tag if not already loaded
-  if (typeof window !== "undefined") {
-    if ((window as any).Peer) {
-      PeerClass = (window as any).Peer;
-      return PeerClass!;
-    }
-    await new Promise<void>((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = "https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js";
-      s.onload = () => {
-        PeerClass = (window as any).Peer;
-        resolve();
-      };
-      s.onerror = () => reject(new Error("Failed to load PeerJS"));
-      document.head.appendChild(s);
-    });
-  }
-  if (!PeerClass) {
-    throw new Error("PeerJS is not available in this environment");
-  }
-  return PeerClass;
 }

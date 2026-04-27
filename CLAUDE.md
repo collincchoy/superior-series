@@ -95,12 +95,12 @@ Full rules in `catan_base_rules.txt` and `catan_ck_rules.txt` (converted from PD
 - Client: enter room code in lobby → `peer.connect(roomCode)` → sends JOIN → receives full GameState
 - All actions go Client → Host → `applyAction` → broadcast full state to all peers
 - Bot turns execute on host after every action via `runBotTurns()` loop
-- PeerJS loaded from CDN (`unpkg.com/peerjs@1.5.4`) at runtime; cached by service worker
+- PeerJS is bundled from the `peerjs` package during the Astro build
 
 ## PWA
 
 - Manifest: `public/catan-manifest.json`
-- Service worker: `public/catan-sw.js` (cache-first for own assets, network-first for PeerJS CDN)
+- Service worker: `public/catan-sw.js` (network-first for navigation, cache-first for own assets)
 - Icons: `public/catan-icons/` (SVG, 192×192 and 512×512)
 - Mobile-first layout; board takes full width, side panel below (desktop: side panel on right)
 
