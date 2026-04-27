@@ -19,7 +19,8 @@ import type {
 } from "./types.js";
 import { createInitialState } from "./game.js";
 import type { BoardPreset } from "./game.js";
-import { CatanNetwork } from "./network.js";
+import { CatanNetwork, isJoinFailureError } from "./network.js";
+import type { JoinDiagnosticEvent, JoinFailure } from "./network.js";
 import { PLAYER_COLORS } from "./constants.js";
 import { loadCatanProfile, saveBoardPreset } from "./profile.js";
 import type { PendingAction, PendingAdminAction } from "./validTargets.js";
@@ -42,6 +43,17 @@ export interface HexGlowEvent {
   hexIds: HexId[];
   expiresAt: number;
 }
+
+export interface LobbyConnectionEvent {
+  id: number;
+  at: number;
+  name: string;
+  status: "pending" | "disconnected";
+  detail: string;
+}
+
+/** Join diagnostic row with a stable list key for the start screen. */
+type TrackedJoinDiagnostic = JoinDiagnosticEvent & { id: number };
 
 export type Screen = "start" | "lobby" | "game";
 export type ConnectionStatus =
@@ -99,6 +111,9 @@ class CatanStore {
   playerConnectionStatus = $state<
     Partial<Record<PlayerId, "connected" | "disconnected">>
   >({});
+  connectionEvents = $state<TrackedJoinDiagnostic[]>([]);
+  lastJoinFailure = $state<JoinFailure | null>(null);
+  lobbyConnectionEvents = $state<LobbyConnectionEvent[]>([]);
 
   // ── Toast ─────────────────────────────────────────────────────────────────
   toast = $state<{ msg: string; kind: "info" | "error" } | null>(null);
@@ -115,6 +130,8 @@ class CatanStore {
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private lastConnectionToastStatus: ConnectionStatus = "idle";
   private visualEventSeq = 1;
+  private lobbyConnectionEventSeq = 1;
+  private connectionDiagnosticSeq = 1;
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -176,6 +193,9 @@ class CatanStore {
   returnToLobby() {
     this.net?.destroy?.();
     this.net = null;
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastTimer = null;
+    this.toast = null;
     this.screen = "start";
     this.gameState = null;
     this.localPid = null;
@@ -190,6 +210,82 @@ class CatanStore {
     this.lastStateVersion = null;
     this.playerConnectionStatus = {};
     this.lobbyStatus = "";
+    this.resetJoinDiagnostics();
+    this.lobbyConnectionEvents = [];
+  }
+
+  private resetJoinDiagnostics() {
+    this.connectionEvents = [];
+    this.lastJoinFailure = null;
+  }
+
+  private recordJoinDiagnostic(event: JoinDiagnosticEvent) {
+    const row: TrackedJoinDiagnostic = {
+      ...event,
+      id: this.connectionDiagnosticSeq++,
+    };
+    this.connectionEvents = [...this.connectionEvents, row].slice(-12);
+  }
+
+  private recordLobbyConnectionEvent(
+    name: string,
+    status: LobbyConnectionEvent["status"],
+    detail: string,
+  ) {
+    this.lobbyConnectionEvents = [
+      {
+        id: this.lobbyConnectionEventSeq++,
+        at: Date.now(),
+        name,
+        status,
+        detail,
+      },
+      ...this.lobbyConnectionEvents,
+    ].slice(0, 5);
+  }
+
+  getJoinDiagnosticsReport() {
+    const failure = this.lastJoinFailure;
+    const lines = [
+      "Catan join diagnostics",
+      `Generated: ${new Date().toISOString()}`,
+      `Room: ${failure?.roomCode ?? this.roomCode ?? "unknown"}`,
+      `Status: ${this.connectionStatus} ${this.connectionStatusDetail ? `(${this.connectionStatusDetail})` : ""}`,
+    ];
+
+    if (failure) {
+      lines.push(
+        `Failure: ${failure.message}`,
+        `Hint: ${failure.hint}`,
+        `Stage: ${failure.stage}`,
+        `Source: ${failure.source ?? "unknown"}`,
+        `PeerJS error type: ${failure.errorType ?? "n/a"}`,
+        `Client peer id: ${failure.peerId ?? "n/a"}`,
+        `Elapsed: ${failure.elapsedMs ?? "n/a"}ms`,
+      );
+    }
+
+    if (this.connectionEvents.length > 0) {
+      lines.push("", "Events:");
+      for (const event of this.connectionEvents) {
+        lines.push(
+          [
+            new Date(event.at).toISOString(),
+            event.status,
+            event.stage,
+            event.source ?? "unknown",
+            event.message,
+            event.errorType ? `type=${event.errorType}` : "",
+            typeof event.elapsedMs === "number" ? `${event.elapsedMs}ms` : "",
+            event.online === false ? "offline" : "",
+          ]
+            .filter(Boolean)
+            .join(" | "),
+        );
+      }
+    }
+
+    return lines.join("\n");
   }
 
   applyStateUpdate(state: GameState) {
@@ -347,6 +443,8 @@ class CatanStore {
     this.bots = [];
     this.boardPreset = loadCatanProfile().boardPreset;
     this.playerConnectionStatus = {};
+    this.lobbyConnectionEvents = [];
+    this.resetJoinDiagnostics();
     this.lastStateUpdateAt = null;
     this.lastStateVersion = null;
     this.setConnectionStatus("connecting", "Creating room…");
@@ -371,7 +469,19 @@ class CatanStore {
       },
       onPendingJoin: (pname) => {
         this.pendingHumans.push(pname);
+        this.recordLobbyConnectionEvent(
+          pname,
+          "pending",
+          "Waiting in lobby",
+        );
         this.showToast(`${pname} is waiting to join`, "info");
+        this.broadcastCurrentLobby();
+      },
+      onPendingJoinClosed: (pname, detail) => {
+        const idx = this.pendingHumans.indexOf(pname);
+        if (idx !== -1) this.pendingHumans.splice(idx, 1);
+        this.recordLobbyConnectionEvent(pname, "disconnected", detail);
+        this.showToast(`${pname} left lobby`, "error");
         this.broadcastCurrentLobby();
       },
       onPlayerJoined: (pname) => this.showToast(`${pname} joined`, "info"),
@@ -439,12 +549,14 @@ class CatanStore {
   }
 
   async joinGame(name: string, code: string) {
-    const sessionKey = `catan-pid-${code}`;
+    const roomCode = code.trim();
+    const sessionKey = `catan-pid-${roomCode}`;
     const savedPid = sessionStorage.getItem(sessionKey) as PlayerId | null;
 
     this.joiningName = name;
     this.setLobbyStatus("Connecting…");
     this.setConnectionStatus("connecting", "Connecting to host…");
+    this.resetJoinDiagnostics();
     this.lastStateUpdateAt = null;
     this.lastStateVersion = null;
 
@@ -460,28 +572,38 @@ class CatanStore {
         this.hostName = data.hostName;
         this.pendingHumans = [...data.pendingNames];
         this.bots = [...data.bots];
-        this.roomCode = code;
+        this.roomCode = roomCode;
         this.screen = "lobby";
         this.setLobbyStatus("");
+        this.lastJoinFailure = null;
       },
       onError: (msg) => this.showToast(msg, "error"),
       onConnectionStatusChange: (status, detail) => {
         this.setConnectionStatus(status, detail, true);
       },
+      onJoinDiagnostic: (event) => this.recordJoinDiagnostic(event),
+      onJoinFailure: (failure) => {
+        this.lastJoinFailure = failure;
+      },
     });
 
     try {
-      await this.net.joinGame(code, name, savedPid ?? undefined);
+      await this.net.joinGame(roomCode, name, savedPid ?? undefined);
       this.setConnectionStatus("connected", "Connected to host");
+      this.lastJoinFailure = null;
     } catch (e: unknown) {
       this.net = null;
       const msg = e instanceof Error ? e.message : String(e);
+      const hint = isJoinFailureError(e) ? ` ${e.hint}` : "";
       this.setConnectionStatus(
         "disconnected",
         msg || "Failed to join",
         true,
       );
-      this.setLobbyStatus(`Failed: ${msg || "connection error"}`, "error");
+      this.setLobbyStatus(
+        `Failed: ${msg || "connection error"}.${hint}`,
+        "error",
+      );
       this.showToast(`Failed to join: ${msg}`, "error");
     }
   }

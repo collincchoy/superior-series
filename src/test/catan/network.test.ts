@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { createInitialState } from "../../lib/catan/game.js";
 import { buildGraph } from "../../lib/catan/board.js";
-import { CatanNetwork } from "../../lib/catan/network.js";
+import {
+  CatanNetwork,
+  classifyPeerJoinError,
+  createJoinTimeoutFailure,
+  isJoinFailureError,
+} from "../../lib/catan/network.js";
 import type { GameState } from "../../lib/catan/types.js";
 
 const graph = buildGraph();
@@ -186,6 +191,49 @@ describe("CatanNetwork master control authority", () => {
 });
 
 describe("CatanNetwork connection diagnostics", () => {
+  it("classifies PeerJS peer-unavailable errors as missing rooms", () => {
+    const classified = classifyPeerJoinError({
+      type: "peer-unavailable",
+      message: "Could not connect to peer abc",
+    });
+
+    expect(classified.message).toBe("Room not found");
+    expect(classified.hint).toContain("room code");
+    expect(classified.errorType).toBe("peer-unavailable");
+  });
+
+  it("classifies PeerJS WebRTC errors as direct connection failures", () => {
+    const classified = classifyPeerJoinError({
+      type: "webrtc",
+      message: "ICE negotiation failed",
+    });
+
+    expect(classified.message).toBe("WebRTC connection failed");
+    expect(classified.hint).toContain("network");
+    expect(classified.errorType).toBe("webrtc");
+  });
+
+  it("creates timeout failures with stage-specific diagnostics", () => {
+    const failure = createJoinTimeoutFailure("host-state", {
+      roomCode: "abc123",
+      elapsedMs: 15001,
+      peerId: "client-peer",
+    });
+
+    expect(failure.message).toBe("Host did not answer");
+    expect(failure.stage).toBe("host-state");
+    expect(failure.roomCode).toBe("abc123");
+    expect(failure.peerId).toBe("client-peer");
+    expect(failure.elapsedMs).toBe(15001);
+    expect(failure.hint).toContain("host");
+  });
+
+  it("isJoinFailureError recognizes join failures from createJoinTimeoutFailure", () => {
+    const f = createJoinTimeoutFailure("peer-open", {});
+    expect(isJoinFailureError(f)).toBe(true);
+    expect(isJoinFailureError(new Error("plain"))).toBe(false);
+  });
+
   it("drops stale host-side client connections and emits disconnected status", () => {
     const onPlayerConnectionChange = vi.fn();
     const network = new CatanNetwork({
