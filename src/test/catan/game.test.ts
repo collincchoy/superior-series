@@ -1278,6 +1278,67 @@ describe("action logging", () => {
   });
 });
 
+describe("turn action guards", () => {
+  it("ignores ROLL_DICE when phase is not ROLL_DICE", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const beforeResources = { ...state.players[pid]!.resources };
+    const beforeRoll = state.lastRoll;
+
+    const next = applyAction(
+      { ...state, phase: "ACTION" },
+      { type: "ROLL_DICE", pid, result: [3, 4, "science"] },
+    );
+
+    expect(next.phase).toBe("ACTION");
+    expect(next.currentPlayerId).toBe(pid);
+    expect(next.players[pid]!.resources).toEqual(beforeResources);
+    expect(next.lastRoll).toEqual(beforeRoll);
+  });
+
+  it("ignores ROLL_DICE from a non-current player", () => {
+    const state = buildActionState();
+    const currentPid = state.currentPlayerId;
+    const otherPid = state.playerOrder.find((p) => p !== currentPid)!;
+
+    const next = applyAction(
+      { ...state, phase: "ROLL_DICE" },
+      { type: "ROLL_DICE", pid: otherPid, result: [3, 4, "trade"] },
+    );
+
+    expect(next.phase).toBe("ROLL_DICE");
+    expect(next.currentPlayerId).toBe(currentPid);
+    expect(next.lastRoll).toBeNull();
+  });
+
+  it("ignores END_TURN when phase is not ACTION", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    const next = applyAction(
+      { ...state, phase: "ROLL_DICE" },
+      { type: "END_TURN", pid },
+    );
+
+    expect(next.phase).toBe("ROLL_DICE");
+    expect(next.currentPlayerId).toBe(pid);
+  });
+
+  it("ignores END_TURN from a non-current player", () => {
+    const state = buildActionState();
+    const currentPid = state.currentPlayerId;
+    const otherPid = state.playerOrder.find((p) => p !== currentPid)!;
+
+    const next = applyAction(
+      { ...state, phase: "ACTION" },
+      { type: "END_TURN", pid: otherPid },
+    );
+
+    expect(next.phase).toBe("ACTION");
+    expect(next.currentPlayerId).toBe(currentPid);
+  });
+});
+
 describe("displaced knight resolution", () => {
   it("keeps the displacer in place and relocates the displaced knight", () => {
     const state = createInitialState(makePlayers(2));
