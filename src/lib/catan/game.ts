@@ -618,6 +618,7 @@ function applyActionReducer(state: GameState, action: GameAction): GameState {
     // ── Roll Dice ──────────────────────────────────────────────────────────────
     case "ROLL_DICE": {
       const { pid } = action;
+      if (s.phase !== "ROLL_DICE" || s.currentPlayerId !== pid) return s;
       let [d1, d2, event] = action.result ?? [
         rollProductionDie(),
         rollProductionDie(),
@@ -1951,12 +1952,14 @@ function applyActionReducer(state: GameState, action: GameAction): GameState {
 
     case "END_TURN": {
       const { pid } = action;
+      if (s.phase !== "ACTION" || s.currentPlayerId !== pid) return s;
       const idx = s.playerOrder.indexOf(pid);
       const nextIdx = (idx + 1) % s.playerOrder.length;
       s = {
         ...s,
         currentPlayerId: s.playerOrder[nextIdx]!,
         phase: "ROLL_DICE",
+        pendingTradeOffer: null,
         knightsActivatedThisTurn: [],
         progressEffects: {
           craneDiscountPlayerId:
