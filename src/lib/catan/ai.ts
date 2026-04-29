@@ -1253,6 +1253,20 @@ function findCityWallTarget(
 
 // ─── Knight offense ──────────────────────────────────────────────────────────
 
+function getUsableActiveKnightVertices(
+  state: GameState,
+  pid: PlayerId,
+): VertexId[] {
+  const activatedThisTurn = new Set(state.knightsActivatedThisTurn);
+  const usable: VertexId[] = [];
+  for (const [vid, knight] of Object.entries(state.board.knights)) {
+    if (knight?.playerId !== pid || !knight.active) continue;
+    if (activatedThisTurn.has(vid as VertexId)) continue;
+    usable.push(vid as VertexId);
+  }
+  return usable;
+}
+
 function chooseChaseRobber(
   state: GameState,
   pid: PlayerId,
@@ -1262,9 +1276,8 @@ function chooseChaseRobber(
   const robberHex = Object.values(state.board.hexes).find((h) => h.hasRobber);
   if (!robberHex) return null;
 
-  for (const [vid, knight] of Object.entries(state.board.knights)) {
-    if (knight?.playerId !== pid || !knight.active) continue;
-    if (!canChaseRobber(state.board, graph, pid, vid as VertexId)) continue;
+  for (const knightVid of getUsableActiveKnightVertices(state, pid)) {
+    if (!canChaseRobber(state.board, graph, pid, knightVid)) continue;
     // Pick a steal target among the robber hex's other vertices.
     const hexVerts = graph.verticesOfHex[robberHex.id] ?? [];
     let stealFrom: PlayerId | null = null;
@@ -1285,7 +1298,7 @@ function chooseChaseRobber(
     return {
       type: "CHASE_ROBBER",
       pid,
-      knight: vid as VertexId,
+      knight: knightVid,
       hid: destHex,
       stealFrom: bestCards > 0 ? stealFrom : null,
     };
@@ -1323,8 +1336,7 @@ function chooseDisplaceKnight(
   pid: PlayerId,
   graph: CatanGraph,
 ): GameAction | null {
-  for (const [fromVid, k] of Object.entries(state.board.knights)) {
-    if (k?.playerId !== pid || !k.active) continue;
+  for (const fromVid of getUsableActiveKnightVertices(state, pid)) {
     for (const [targetVid, tk] of Object.entries(state.board.knights)) {
       if (!tk || tk.playerId === pid) continue;
       if (
@@ -1332,14 +1344,14 @@ function chooseDisplaceKnight(
           state.board,
           graph,
           pid,
-          fromVid as VertexId,
+          fromVid,
           targetVid as VertexId,
         )
       ) {
         return {
           type: "DISPLACE_KNIGHT",
           pid,
-          from: fromVid as VertexId,
+          from: fromVid,
           target: targetVid as VertexId,
         };
       }
@@ -1358,9 +1370,8 @@ function chooseRepositionKnight(
   if (!robberHex) return null;
   const robberVerts = new Set(graph.verticesOfHex[robberHex.id] ?? []);
 
-  for (const [fromVid, k] of Object.entries(state.board.knights)) {
-    if (k?.playerId !== pid || !k.active) continue;
-    if (robberVerts.has(fromVid as VertexId)) continue; // already adjacent
+  for (const fromVid of getUsableActiveKnightVertices(state, pid)) {
+    if (robberVerts.has(fromVid)) continue; // already adjacent
     // Find a reachable empty vertex adjacent to robber hex.
     for (const to of robberVerts) {
       if (state.board.vertices[to] || state.board.knights[to]) continue;
@@ -1369,14 +1380,14 @@ function chooseRepositionKnight(
           state.board,
           graph,
           pid,
-          fromVid as VertexId,
+          fromVid,
           to,
         )
       ) {
         return {
           type: "MOVE_KNIGHT",
           pid,
-          from: fromVid as VertexId,
+          from: fromVid,
           to,
         };
       }

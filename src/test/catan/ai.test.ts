@@ -9,6 +9,7 @@ import type {
   PlayerId,
   VertexId,
   EdgeId,
+  HexId,
   Resources,
 } from "../../lib/catan/types.js";
 import { emptyResources } from "../../lib/catan/types.js";
@@ -1058,5 +1059,59 @@ describe("chooseBotAction - trade response", () => {
     });
     const action = chooseBotAction(state, botPid);
     expect(action.type).toBe("TRADE_REJECT");
+  });
+});
+
+// ─── Activated-this-turn knight guard ─────────────────────────────────────────
+
+describe("chooseBotAction - activated-this-turn knight", () => {
+  it("returns END_TURN when the only eligible knight for CHASE_ROBBER was activated this turn", () => {
+    const base = buildActionState();
+    const pid = base.currentPlayerId;
+
+    // Pick the hex with the robber (or any non-desert hex) and one of its vertices.
+    const hexId = Object.keys(graph.verticesOfHex)[0] as HexId;
+    const knightVid = graph.verticesOfHex[hexId]![0] as VertexId;
+
+    const state: GameState = {
+      ...base,
+      phase: "ACTION",
+      barbarian: { position: 6, robberActive: true },
+      board: {
+        ...base.board,
+        hexes: {
+          ...base.board.hexes,
+          // Move robber to hexId so the knight is adjacent
+          ...Object.fromEntries(
+            Object.entries(base.board.hexes).map(([k, v]) => [
+              k,
+              { ...v, hasRobber: k === hexId },
+            ]),
+          ),
+        },
+        knights: {
+          ...base.board.knights,
+          [knightVid]: { playerId: pid, strength: 1, active: true },
+        },
+        // Remove opponent buildings to avoid other triggers
+        vertices: Object.fromEntries(
+          Object.entries(base.board.vertices).map(([k, v]) => [
+            k,
+            v?.playerId === pid ? v : null,
+          ]),
+        ),
+      },
+      knightsActivatedThisTurn: [knightVid],
+      players: {
+        ...base.players,
+        [pid]: {
+          ...base.players[pid]!,
+          resources: emptyResources(),
+        },
+      },
+    };
+
+    const action = chooseBotAction(state, pid);
+    expect(action.type).toBe("END_TURN");
   });
 });

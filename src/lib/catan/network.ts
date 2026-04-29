@@ -564,6 +564,15 @@ export class CatanNetwork {
     const BATCH_SIZE = 100;
     let guard = 0;
     let prevVersion = -1;
+    let noOpStreak = 0;
+    const shouldBreakAfterAction = (before: number): boolean => {
+      if (!this.state) return true;
+      if (this.state.version === before) {
+        return ++noOpStreak >= 2;
+      }
+      noOpStreak = 0;
+      return this.state.version === before + 1 && prevVersion === before;
+    };
 
     while (this.state.phase !== "GAME_OVER" && guard++ < BATCH_SIZE) {
       const queuedBotPid = this.findQueuedBotPid();
@@ -571,7 +580,7 @@ export class CatanNetwork {
         const before = this.state.version;
         const action = chooseBotAction(this.state, queuedBotPid);
         this.state = applyAction(this.state, action);
-        if (this.state.version === before + 1 && prevVersion === before) break;
+        if (shouldBreakAfterAction(before)) break;
         prevVersion = before;
         continue;
       }
@@ -583,7 +592,7 @@ export class CatanNetwork {
       const before = this.state.version;
       const action = chooseBotAction(this.state, this.state.currentPlayerId);
       this.state = applyAction(this.state, action);
-      if (this.state.version === before + 1 && prevVersion === before) break;
+      if (shouldBreakAfterAction(before)) break;
       prevVersion = before;
     }
 
