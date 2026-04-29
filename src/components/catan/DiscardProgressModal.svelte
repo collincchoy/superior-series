@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { GameState, PlayerId, ProgressCard } from "../../lib/catan/types.js";
-  import { TRACK_BADGE_COLOR } from "../../lib/catan/constants.js";
+  import { TRACK_BADGE_COLOR, PROGRESS_CARD_INFO } from "../../lib/catan/constants.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import Modal from "./Modal.svelte";
   import ProgressCardInfoView from "./ProgressCardInfoView.svelte";
@@ -97,7 +97,7 @@
           style="background:{TRACK_BADGE_COLOR[c.track]}"
           onclick={() => onCardPreview(handIdx)}
         >
-          {c.name}
+          {PROGRESS_CARD_INFO[c.name].title}
         </button>
       {/if}
     {/each}

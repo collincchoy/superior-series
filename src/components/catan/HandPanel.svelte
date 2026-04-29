@@ -113,7 +113,7 @@
             style="background:{TRACK_BADGE_COLOR[c.track as ImprovementTrack]}"
             onclick={() => onCardTap(c.name, c.isVP, c.track)}
             title={PROGRESS_CARD_INFO[c.name].short}
-          >{c.name}</button
+          >{PROGRESS_CARD_INFO[c.name].title}</button
           >
         {/each}
       </div>
@@ -190,12 +190,11 @@
   }
 
   .progress-cards {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, min-content);
     gap: 0.24rem;
     flex-shrink: 0;
-    justify-content: flex-end;
-    max-width: 45%;
+    margin-inline-start: auto;
   }
 
   .prog-card {
@@ -205,6 +204,8 @@
     font-size: 0.7rem;
     font-weight: 700;
     color: #0f1216;
+    text-align: center;
+    white-space: normal;
     opacity: 0.75;
     transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
   }

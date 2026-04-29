@@ -797,6 +797,13 @@
   .improve-tracks {
     display: flex;
     flex-direction: column;
+
+    .track-row:first-child {
+      padding-top: 0;
+    }
+    .track-row:last-child {
+      padding-bottom: 0;
+    }
   }
   .track-row {
     padding: 5px 0;
