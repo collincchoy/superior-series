@@ -32,18 +32,6 @@
   import CatanPopover from "./CatanPopover.svelte";
   import ResourceKeyTapRow from "./ResourceKeyTapRow.svelte";
 
-  const BUILD_ACTION_TYPES = new Set([
-    "build_road", "build_settlement", "build_city", "build_city_wall",
-  ]);
-  const KNIGHT_ACTION_TYPES = new Set([
-    "knight_deploy",
-    "activate_knight",
-    "advance_knight_from",
-    "advance_knight_to",
-    "chase_robber_from",
-    "chase_robber_hex",
-  ]);
-
   let {
     gameState,
     localPid,
@@ -350,7 +338,7 @@
     return owner ? (gameState.players[owner]?.improvements[track] ?? 0) : 0;
   }
 
-  let improveTabPlayable = $derived(
+  let improveRowPlayable = $derived(
     tracks.some((track) =>
       canImproveCity(
         board,
@@ -383,44 +371,6 @@
     }
   }
 
-  type ActiveActionTabId = "build" | "knights";
-
-  let isActionTabsSlice = $derived(
-    phase === "ACTION" &&
-      !tradeOfferForMe &&
-      gameState.currentPlayerId === pid,
-  );
-  let prevIsActionTabsSlice = $state(false);
-
-  let activeTab = $state<ActiveActionTabId>("build");
-
-  const TRACK_ABILITY_SHORT: Record<ImprovementTrack, string> = {
-    science: "Inventor",
-    trade: "Master Merchant",
-    politics: "Bishop of Catan",
-  };
-
-  $effect(() => {
-    const enteredActionTabs = isActionTabsSlice && !prevIsActionTabsSlice;
-    prevIsActionTabsSlice = isActionTabsSlice;
-
-    if (pendingAction) {
-      if (BUILD_ACTION_TYPES.has(pendingAction.type)) activeTab = "build";
-      else if (KNIGHT_ACTION_TYPES.has(pendingAction.type)) activeTab = "knights";
-      return;
-    }
-
-    if (!enteredActionTabs) return;
-
-    const tabPlayable =
-      activeTab === "build" ? buildTabPlayable : knightsTabPlayable;
-    const somePlayable = buildTabPlayable || knightsTabPlayable;
-    if (tabPlayable || !somePlayable) return;
-
-    if (buildTabPlayable) activeTab = "build";
-    else activeTab = "knights";
-  });
-
   function metroPipIndex(
     metroOwner: PlayerId | null,
     pid: PlayerId,
@@ -439,16 +389,6 @@
   function showKnightInfo() {
     store.openInfoModal({ kind: "knight-levels" });
   }
-
-  const ACTION_TAB_BAR: readonly {
-    id: ActiveActionTabId;
-    label: string;
-    infoAria?: string;
-    openInfo?: () => void;
-  }[] = [
-    { id: "build", label: "Build", infoAria: "Show build costs", openInfo: showBuildInfo },
-    { id: "knights", label: "Knights", infoAria: "Show knight levels", openInfo: showKnightInfo },
-  ];
 </script>
 
 <div class="action-panel">
@@ -534,7 +474,7 @@
     </div>
   {:else if phase === "ACTION"}
     {#snippet improveTracksSnippet()}
-      <div class="improve-tracks improve-tracks-aside">
+      <div class="improve-tracks improve-tracks-compact">
         {#each tracks as track}
           {@const level = me.improvements[track]}
           {@const color = trackLabel[track].color}
@@ -595,49 +535,24 @@
       </div>
     {/snippet}
 
-    <div class="action-phase-row">
-      <div class="action-phase-main-col">
-        <div class="tab-bar">
-          {#each ACTION_TAB_BAR as tab (tab.id)}
-            {@const playable = tab.id === "build" ? buildTabPlayable : knightsTabPlayable}
-            {@const hintAway =
-              playable && activeTab !== tab.id ? `${tab.label} — actions available on this tab` : undefined}
-            <button
-              type="button"
-              class="tab-btn"
-              class:tab-active={activeTab === tab.id}
-              title={hintAway}
-              onclick={() => (activeTab = tab.id)}
-            >
-              {#if playable && activeTab !== tab.id}
-                <span class="tab-playable-dot" aria-hidden="true"></span>
-              {/if}
-              {tab.label}
-              {#if tab.openInfo}
-                <span
-                  class="tab-info"
-                  onclick={(e) => {
-                    e.stopPropagation();
-                    tab.openInfo?.();
-                  }}
-                  onkeydown={(e) => {
-                    if (e.key === "Enter") {
-                      e.stopPropagation();
-                      tab.openInfo?.();
-                    }
-                  }}
-                  role="button"
-                  tabindex="0"
-                  aria-label={tab.infoAria}
-                >ⓘ</span>
-              {/if}
-            </button>
-          {/each}
+    <div class="action-compact-stack">
+      <div class="compact-block">
+        <div class="compact-block-head">
+          {#if buildTabPlayable}
+            <span class="playable-pip" title="A build action is available" aria-hidden="true"></span>
+          {/if}
+          <span class="compact-block-title">Build</span>
+          <button
+            type="button"
+            class="compact-infotip"
+            onclick={(e) => {
+              e.stopPropagation();
+              showBuildInfo();
+            }}
+            aria-label="Show build costs"
+          >ⓘ</button>
         </div>
-
-        <div class="tab-content tab-content-phase">
-          {#if activeTab === "build"}
-            <div class="group-btns group-piece-row">
+        <div class="group-btns group-piece-row">
               {#if pendingAction?.type === "build_road"}
                 <button type="button" class="action-btn action-piece active" onclick={() => pending(null)}>✕ Road</button>
               {:else}
@@ -702,8 +617,25 @@
                 ><span class="ap-emoji">🏰</span><span class="ap-lbl">Wall</span></button>
               {/if}
             </div>
-          {:else}
-            <div class="group-btns group-piece-row">
+      </div>
+
+      <div class="compact-block">
+        <div class="compact-block-head">
+          {#if knightsTabPlayable}
+            <span class="playable-pip" title="A knight action is available" aria-hidden="true"></span>
+          {/if}
+          <span class="compact-block-title">Knights</span>
+          <button
+            type="button"
+            class="compact-infotip"
+            onclick={(e) => {
+              e.stopPropagation();
+              showKnightInfo();
+            }}
+            aria-label="Knight levels"
+          >ⓘ</button>
+        </div>
+        <div class="group-btns group-piece-row">
               {#if pendingAction?.type === "knight_deploy"}
                 <button type="button" class="action-btn action-piece active" onclick={() => pending(null)}>✕ Knight</button>
               {:else}
@@ -749,16 +681,16 @@
                     hasKnightAdvanceTarget
                       ? pending({ type: "advance_knight_from" })
                       : advanceKnightUnavailable(e)}
-                ><span class="ap-emoji">🚶</span><span class="ap-lbl">Advance</span></button>
+                ><span class="ap-emoji">🚶</span><span class="ap-lbl">Adv.</span></button>
               {/if}
 
               {#if gameState.barbarian.robberActive}
                 {#if pendingAction?.type === "chase_robber_from" || pendingAction?.type === "chase_robber_hex"}
-                  <button type="button" class="action-btn action-piece wide active" onclick={() => pending(null)}>✕ Chase</button>
+                  <button type="button" class="action-btn action-piece chase-chip active" onclick={() => pending(null)}>✕ Chase</button>
                 {:else}
                   <button
                     type="button"
-                    class="action-btn action-piece wide"
+                    class="action-btn action-piece chase-chip"
                     class:disabled={!canChaseRobberNow}
                     aria-disabled={!canChaseRobberNow}
                     title="Move the robber with a knight beside it"
@@ -770,19 +702,17 @@
                 {/if}
               {/if}
             </div>
-          {/if}
-        </div>
       </div>
 
-      <aside class="action-phase-improve-col">
-        <div class="improve-aside-head">
-          {#if improveTabPlayable}
-            <span class="tab-playable-dot" aria-hidden="true"></span>
+      <div class="compact-block compact-block-improve">
+        <div class="compact-block-head">
+          {#if improveRowPlayable}
+            <span class="playable-pip" title="An improvement is available" aria-hidden="true"></span>
           {/if}
-          <span class="improve-aside-title">Improve</span>
+          <span class="compact-block-title">Improve</span>
         </div>
         {@render improveTracksSnippet()}
-      </aside>
+      </div>
     </div>
 
     <div class="group-btns bottom-bar">
@@ -832,143 +762,130 @@
 
 <style>
   .action-panel {
-    padding: 0.4rem;
+    padding: 0.35rem 0.4rem;
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
+    gap: 0.28rem;
   }
-  /* ── tabs ── */
-  .tab-bar {
+  /* Condensed ACTION: stacked sections (side panel width) */
+  .action-compact-stack {
     display: flex;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-direction: column;
+    gap: 0.32rem;
+    width: 100%;
   }
-  .tab-btn {
-    flex: 1;
-    padding: 6px 0;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    color: #7a9a7a;
-    font-size: 0.68rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    cursor: pointer;
-    font: inherit;
-    transition: color 0.15s, border-color 0.15s;
+  .compact-block {
+    width: 100%;
+  }
+  .compact-block + .compact-block {
+    padding-top: 0.28rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .compact-block-head {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 4px;
+    gap: 5px;
+    margin-bottom: 0.2rem;
   }
-  .tab-btn:hover {
-    color: #b0c8b0;
-  }
-  .tab-btn.tab-active {
-    color: #c8b47a;
+  .compact-block-title {
+    font-size: 0.6rem;
     font-weight: 700;
-    border-bottom-color: #c8b47a;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #93ab93;
   }
-  .tab-playable-dot {
+  .playable-pip {
     width: 6px;
     height: 6px;
     border-radius: 50%;
     background: #d4a853;
     flex-shrink: 0;
-    box-shadow: 0 0 5px rgba(212, 168, 83, 0.55);
+    box-shadow: 0 0 4px rgba(212, 168, 83, 0.5);
   }
-  .tab-info {
+  .compact-infotip {
+    margin-left: auto;
+    padding: 0;
+    border: none;
+    background: transparent;
     font-size: 11px;
     color: rgba(255, 255, 255, 0.35);
     cursor: pointer;
     line-height: 1;
   }
-  .tab-info:hover {
-    color: rgba(255, 255, 255, 0.7);
+  .compact-infotip:hover {
+    color: rgba(255, 255, 255, 0.75);
   }
-  .tab-content {
-    padding: 0.4rem 0.4rem 0.2rem;
-    min-height: 82px;
-  }
-  .tab-content-phase {
-    min-height: auto;
-    padding: 0.35rem 0.35rem 0.15rem;
-  }
-  .action-phase-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.42rem;
-    width: 100%;
-  }
-  .action-phase-main-col {
-    flex: 1;
-    min-width: 0;
-  }
-  .action-phase-improve-col {
-    flex: 0 0 auto;
-    min-width: 124px;
-    padding-left: 0.42rem;
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-    align-self: stretch;
-  }
-  .improve-aside-head {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    margin-bottom: 0.28rem;
-  }
-  .improve-aside-title {
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
-    color: #97b897;
-  }
-  .improve-tracks-aside .track-label {
-    width: 56px;
-    font-size: 10px;
-  }
-  .improve-tracks-aside .pip {
-    width: 14px;
-    height: 8px;
-  }
-  .improve-tracks-aside .improve-btn {
-    width: 24px;
-    height: 24px;
-    font-size: 14px;
+  .compact-block-improve .compact-block-head {
+    margin-bottom: 0.12rem;
   }
   .group-piece-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.28rem;
+    gap: 0.22rem;
   }
   .action-piece {
     display: inline-flex !important;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.04rem;
-    min-width: 2.82rem;
-    padding: 0.2rem 0.34rem !important;
-    font-size: 0.58rem !important;
+    gap: 0.03rem;
+    min-width: 2.52rem;
+    padding: 0.16rem 0.26rem !important;
+    font-size: 0.54rem !important;
     font-weight: 600;
-    line-height: 1.05;
+    line-height: 1;
   }
-  .action-piece.wide {
-    min-width: 4.6rem;
+  .action-piece.chase-chip {
+    min-width: 3.35rem;
     flex-direction: row;
-    gap: 0.3rem;
+    gap: 0.25rem;
   }
   .ap-emoji {
-    font-size: 1rem;
+    font-size: 0.92rem;
     line-height: 1;
   }
   .ap-lbl {
-    font-size: 0.53rem;
+    font-size: 0.49rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     opacity: 0.93;
     text-align: center;
+  }
+  .improve-tracks-compact .track-row {
+    padding: 2px 0;
+  }
+  .improve-tracks-compact .track-head {
+    gap: 4px;
+  }
+  .improve-tracks-compact .track-label {
+    width: 56px;
+    font-size: 10px;
+  }
+  .improve-tracks-compact .track-bar {
+    flex: 1;
+    min-width: 0;
+    gap: 1px;
+  }
+  .improve-tracks-compact .pip {
+    width: 13px;
+    height: 7px;
+    border-radius: 2px;
+  }
+  .improve-tracks-compact .pip.pip-ability {
+    height: 11px;
+  }
+  .improve-tracks-compact .pip.pip-metro {
+    height: 11px;
+  }
+  .improve-tracks-compact .lv-num {
+    font-size: 9px;
+    margin-left: 2px;
+  }
+  .improve-tracks-compact .improve-btn {
+    width: 22px;
+    height: 22px;
+    font-size: 13px;
+    border-radius: 5px;
   }
   /* ── improve tab ── */
   .improve-tracks {
@@ -1285,19 +1202,5 @@
     margin: 0;
     font-size: 0.85rem;
     color: #c8b47a;
-  }
-
-  @media (max-width: 540px) {
-    .action-phase-row {
-      flex-direction: column;
-    }
-    .action-phase-improve-col {
-      border-left: none;
-      padding-left: 0;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      padding-top: 0.4rem;
-      min-width: unset;
-      width: 100%;
-    }
   }
 </style>
