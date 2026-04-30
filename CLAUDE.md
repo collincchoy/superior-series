@@ -105,6 +105,11 @@ Full rules in `catan_base_rules.txt` and `catan_ck_rules.txt` (converted from PD
 - Icons: `public/catan-icons/` (SVG, 192×192 and 512×512)
 - Mobile-first layout; board takes full width, side panel below (desktop: side panel on right)
 
+## Investigation Discipline
+
+- Before exploring code for a bug, state a hypothesis in 1–2 sentences. If exploration exceeds ~5 file reads without narrowing the hypothesis, pause and summarize findings before continuing.
+- Prefer targeted Grep over broad file reads when chasing a known symptom.
+
 ## Dev Notes
 
 - `pnpm check` runs `lint` + `typecheck` + `test` — same gates as CI before `build`
