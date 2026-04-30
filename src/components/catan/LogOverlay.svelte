@@ -44,6 +44,13 @@
     return () => clearTimeout(pillTimer);
   });
 
+  export function collapsePreview() {
+    if (!isExpanded) {
+      isPill = true;
+      clearTimeout(pillTimer);
+    }
+  }
+
   function handleOverlayClick() {
     if (isPill) {
       isPill = false;

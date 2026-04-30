@@ -1,12 +1,11 @@
 <script lang="ts">
   import type { GameState, PlayerId, Resources } from "../../lib/catan/types.js";
-  import {
-    COMMODITY_KEYS,
-    RESOURCE_KEYS,
-  } from "../../lib/catan/types.js";
+  import { COMMODITY_KEYS, RESOURCE_KEYS } from "../../lib/catan/types.js";
   import { getBankRatio } from "../../lib/catan/rules.js";
+  import { bankRemaining } from "../../lib/catan/game.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import Modal from "./Modal.svelte";
+  import ResourceCard from "./ResourceCard.svelte";
   import ResourceKeyGrid from "./ResourceKeyGrid.svelte";
 
   let {
@@ -20,6 +19,7 @@
   } = $props();
 
   let me = $derived(gameState.players[localPid]!);
+  let bank = $derived(bankRemaining(gameState));
   let isTradeL3 = $derived(me.improvements.trade >= 3);
 
   let ratios = $derived.by(() => {
@@ -53,10 +53,11 @@
   let giveCommodity2Key = $state<keyof Resources | null>(null);
   let getKey = $state<keyof Resources | null>(null);
   let mode = $state<"standard" | "commodity2">("standard");
+  let canReceive = $derived(getKey !== null && bank[getKey] > 0);
   let canTrade = $derived(
     mode === "standard"
-      ? !!giveKey && !!getKey && giveKey !== getKey
-      : !!giveCommodity2Key && !!getKey && giveCommodity2Key !== getKey,
+      ? !!giveKey && canReceive && giveKey !== getKey
+      : !!giveCommodity2Key && canReceive && giveCommodity2Key !== getKey,
   );
 
   $effect(() => {
@@ -148,14 +149,19 @@
     </div>
   {/if}
 
-  <div class="section">
-    <span class="field-label" id="bank-receive">Receive</span>
-    <ResourceKeyGrid
-      labelledby="bank-receive"
-      keys={[...RESOURCE_KEYS]}
-      selected={getKey}
-      onSelect={(k) => (getKey = k)}
-    />
+  <div class="section bank-section">
+    <span class="field-label">Receive</span>
+    <div class="bank-cards">
+      {#each RESOURCE_KEYS as k (k)}
+        <ResourceCard
+          cardKey={k}
+          count={bank[k]}
+          disabled={bank[k] <= 0}
+          selected={getKey === k}
+          onclick={() => (getKey = k)}
+        />
+      {/each}
+    </div>
   </div>
   <div class="actions">
     <button class="btn-primary" onclick={confirm} disabled={!canTrade}>Trade</button>
@@ -221,6 +227,17 @@
   .btn-primary:disabled {
     opacity: 0.4;
     cursor: default;
+  }
+
+  .bank-section {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 0.6rem;
+  }
+
+  .bank-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
   }
 
 </style>

@@ -209,6 +209,19 @@ export function rollProductionDie(): number {
 
 export const PLAYER_COLORS = ["#e74c3c", "#3498db", "#f39c12", "#2ecc71"];
 
+// ─── Bank Totals (C&K starting supply) ───────────────────────────────────────
+
+export const BANK_TOTALS: Resources = {
+  brick: 19,
+  lumber: 19,
+  ore: 19,
+  grain: 19,
+  wool: 19,
+  cloth: 18,
+  coin: 18,
+  paper: 18,
+};
+
 // ─── Initial Supply ───────────────────────────────────────────────────────────
 
 export const INITIAL_SUPPLY = {

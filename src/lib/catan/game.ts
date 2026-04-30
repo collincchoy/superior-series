@@ -16,7 +16,7 @@ import type {
   ProgressCardName,
   PendingBarbarian,
 } from "./types.js";
-import { emptyResources } from "./types.js";
+import { emptyResources, RESOURCE_KEYS } from "./types.js";
 import {
   buildGraph,
   hexId,
@@ -38,6 +38,7 @@ import {
   rollEventDie,
   rollProductionDie,
   BUILD_COSTS,
+  BANK_TOTALS,
 } from "./constants.js";
 import {
   discardCount,
@@ -3213,4 +3214,16 @@ function transferCardsByPriority(
   }
 
   return { remaining, transferred };
+}
+
+// ─── Bank Remaining ────────────────────────────────────────────────────────────
+
+export function bankRemaining(gameState: GameState): Resources {
+  const result = { ...BANK_TOTALS };
+  for (const player of Object.values(gameState.players)) {
+    for (const key of RESOURCE_KEYS) {
+      result[key] -= player.resources[key];
+    }
+  }
+  return result;
 }

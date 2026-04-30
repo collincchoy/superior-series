@@ -130,6 +130,8 @@
     return `${minutes}m ago`;
   });
 
+  let logOverlay = $state<{ collapsePreview: () => void } | undefined>(undefined);
+
   let connectionLabel = $derived.by(() => {
     switch (store.connectionStatus) {
       case "connected":
@@ -175,14 +177,16 @@
     playerConnectionStatus={store.playerConnectionStatus}
   />
   <div class="board-and-panel">
-    <div class="board-wrapper">
+    <div class="board-wrapper" onclick={(e) => {
+      if (!(e.target as Element).closest('.log-overlay')) logOverlay?.collapsePreview();
+    }}>
       <BoardCanvas
         {gameState}
         {localPid}
         {pendingAction}
         activeHexGlows={activeHexGlows}
       />
-      <LogOverlay log={gameState.log} />
+      <LogOverlay log={gameState.log} bind:this={logOverlay} />
     </div>
     <SidePanel
       {gameState}
