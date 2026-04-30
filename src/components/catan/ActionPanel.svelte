@@ -1,11 +1,12 @@
 <script lang="ts">
-  import type {
-    GameState,
-    PlayerId,
-    GameAction,
-    ImprovementTrack,
-    VertexId,
-    Resources,
+  import {
+    BASIC_RESOURCE_KEYS,
+    type GameAction,
+    type GameState,
+    type ImprovementTrack,
+    type PlayerId,
+    type Resources,
+    type VertexId,
   } from "../../lib/catan/types.js";
   import type { PendingAction } from "../../lib/catan/validTargets.js";
   import { store } from "../../lib/catan/store.svelte.js";
@@ -28,6 +29,7 @@
   import { buildGraph } from "../../lib/catan/board.js";
   import { TRACK_COMMODITY, BUILD_COSTS } from "../../lib/catan/constants.js";
   import CatanPopover from "./CatanPopover.svelte";
+  import ResourceKeyTapRow from "./ResourceKeyTapRow.svelte";
 
   const BUILD_ACTION_TYPES = new Set([
     "build_road", "build_settlement", "build_city", "build_city_wall",
@@ -39,13 +41,6 @@
     "chase_robber_from", "chase_robber_hex",
   ]);
 
-  const scienceResources: (keyof Resources)[] = [
-    "brick",
-    "lumber",
-    "ore",
-    "grain",
-    "wool",
-  ];
   let {
     gameState,
     localPid,
@@ -59,6 +54,9 @@
     showTrade: boolean;
     showPlayerTrade: boolean;
   } = $props();
+
+  /** Single derived phase for the template ladder — avoids stale {:else if} arms vs PhaseBanner. */
+  let phase = $derived(gameState.phase);
 
   const graph = buildGraph();
 
@@ -372,27 +370,28 @@
 </script>
 
 <div class="action-panel">
-  {#if gameState.phase === "SETUP_R1_SETTLEMENT"}
+  {#key gameState.version}
+  {#if phase === "SETUP_R1_SETTLEMENT"}
     <p class="action-instruction">
       👆 Click a yellow dot on the board to place your settlement
     </p>
-  {:else if gameState.phase === "SETUP_R1_ROAD"}
+  {:else if phase === "SETUP_R1_ROAD"}
     <p class="action-instruction">
       👆 Click a yellow line on the board to place your road
     </p>
-  {:else if gameState.phase === "SETUP_R2_CITY"}
+  {:else if phase === "SETUP_R2_CITY"}
     <p class="action-instruction">
       👆 Click a yellow dot on the board to place your city
     </p>
-  {:else if gameState.phase === "SETUP_R2_ROAD"}
+  {:else if phase === "SETUP_R2_ROAD"}
     <p class="action-instruction">
       👆 Click a yellow line on the board to place your road
     </p>
-  {:else if gameState.phase === "DISCARD_PROGRESS" && (gameState.pendingProgressDiscard?.remaining[pid] ?? 0) > 0}
+  {:else if phase === "DISCARD_PROGRESS" && (gameState.pendingProgressDiscard?.remaining[pid] ?? 0) > 0}
     <p class="action-instruction">
       Preview a card, discard it, then repeat if you still owe discards.
     </p>
-  {:else if gameState.phase === "RESOLVE_PROGRESS_DRAW" && (gameState.pendingProgressDraw?.remaining ?? []).includes(pid)}
+  {:else if phase === "RESOLVE_PROGRESS_DRAW" && (gameState.pendingProgressDraw?.remaining ?? []).includes(pid)}
     <button
       class="action-btn"
       onclick={() =>
@@ -404,7 +403,7 @@
     >
       🃏 Draw Progress Card
     </button>
-  {:else if gameState.phase === "KNIGHT_DISPLACE_RESPONSE" && gameState.pendingDisplace?.displacedPlayerId === pid}
+  {:else if phase === "KNIGHT_DISPLACE_RESPONSE" && gameState.pendingDisplace?.displacedPlayerId === pid}
     <p class="action-instruction">
       👆 Click a yellow dot to move your displaced knight
     </p>
@@ -422,64 +421,67 @@
         Return Knight to Supply
       </button>
     {/if}
-  {:else if gameState.phase === "SCIENCE_SELECT_RESOURCE" && gameState.pendingScienceBonus?.pid === pid}
+  {:else if phase === "SCIENCE_SELECT_RESOURCE" && gameState.pendingScienceBonus?.pid === pid}
     <div class="science-bonus">
       <p class="action-instruction">🔬 Science level 3: take 1 free resource</p>
       <div class="science-picks">
-        {#each scienceResources as key}
-          <button
-            class="card-pick-btn"
-            onclick={() =>
-              send({ type: "SELECT_SCIENCE_RESOURCE", pid, resource: key })}
-          >
-            {CARD_EMOJI[key]}
-          </button>
-        {/each}
+        <ResourceKeyTapRow
+          keys={[...BASIC_RESOURCE_KEYS]}
+          onTap={(key) =>
+            send({ type: "SELECT_SCIENCE_RESOURCE", pid, resource: key })}
+        />
       </div>
     </div>
-  {:else if gameState.phase === "ROLL_DICE"}
+  {:else if phase === "ROLL_DICE"}
     <button
+      type="button"
       class="roll-dice-btn"
-      onclick={() => send({ type: "ROLL_DICE", pid })}>🎲 Roll Dice</button
+      onclick={() => send({ type: "ROLL_DICE", pid })}
     >
-  {:else if gameState.phase === "ROBBER_MOVE"}
-    <button class="action-btn active" disabled
-      >Click a hex to move robber…</button
-    >
-  {:else if gameState.phase === "ACTION" && tradeOfferForMe}
+      🎲 Roll Dice
+    </button>
+  {:else if phase === "ROBBER_MOVE"}
+    <button type="button" class="action-btn active" disabled>
+      Click a hex to move robber…
+    </button>
+  {:else if phase === "ACTION" && tradeOfferForMe}
     <div class="trade-hint-panel">
       <p class="trade-hint-msg">
         🤝 You have an incoming trade offer!
       </p>
     </div>
-  {:else if gameState.phase === "ACTION"}
+  {:else if phase === "ACTION"}
     <div class="tab-bar">
       <button
         class="tab-btn"
         class:tab-active={activeTab === "build"}
         onclick={() => (activeTab = "build")}
-      >Build <span
+      >
+        Build
+        <span
           class="tab-info"
           onclick={(e) => { e.stopPropagation(); showBuildInfo(); }}
           onkeydown={(e) => { if (e.key === "Enter") { e.stopPropagation(); showBuildInfo(); } }}
           role="button"
           tabindex="0"
           aria-label="Show build costs"
-        >ⓘ</span></button
-      >
+        >ⓘ</span>
+      </button>
       <button
         class="tab-btn"
         class:tab-active={activeTab === "knights"}
         onclick={() => (activeTab = "knights")}
-      >Knights <span
+      >
+        Knights
+        <span
           class="tab-info"
           onclick={(e) => { e.stopPropagation(); showKnightInfo(); }}
           onkeydown={(e) => { if (e.key === "Enter") { e.stopPropagation(); showKnightInfo(); } }}
           role="button"
           tabindex="0"
           aria-label="Show knight levels"
-        >ⓘ</span></button
-      >
+        >ⓘ</span>
+      </button>
       <button
         class="tab-btn"
         class:tab-active={activeTab === "improve"}
@@ -705,6 +707,7 @@
         onclick={() => send({ type: "END_TURN", pid })}>✓ End Turn</button>
     </div>
   {/if}
+  {/key}
 </div>
 
 <CatanPopover
@@ -1042,20 +1045,6 @@
     justify-content: center;
   }
 
-  .card-pick-btn {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
-    padding: 0.4rem 0.55rem;
-    font-size: 1.1rem;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-
-  .card-pick-btn:hover {
-    background: rgba(255, 255, 255, 0.18);
-    border-color: #2e9e4f;
-  }
   .unavailable-popover {
     min-width: 165px;
     max-width: 230px;
