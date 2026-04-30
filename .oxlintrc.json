@@ -9,8 +9,7 @@
     "node_modules",
     "coverage",
     ".astro",
-    "**/*.astro",
-    "**/*.svelte"
+    "**/*.astro"
   ],
   "env": {
     "builtin": true,

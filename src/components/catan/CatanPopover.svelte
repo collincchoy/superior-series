@@ -103,9 +103,9 @@
       return;
     }
     // Subscribe to these so reposition runs when a new trigger target is chosen while open.
-    x;
-    y;
-    anchor;
+    void x;
+    void y;
+    void anchor;
     void runPosition();
   });
 </script>

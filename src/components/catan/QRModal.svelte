@@ -4,7 +4,7 @@
   let { roomCode, open = $bindable() }: { roomCode: string; open: boolean } =
     $props();
 
-  let canvas: HTMLCanvasElement;
+  let canvas = $state<HTMLCanvasElement | undefined>(undefined);
 
   $effect(() => {
     if (!open || !canvas) return;

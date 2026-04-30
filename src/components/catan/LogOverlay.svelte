@@ -36,7 +36,7 @@
 
   $effect(() => {
     // Pop open preview on new events and restart collapse timer
-    log.length;
+    void log.length;
     if (!isExpanded) {
       isPill = false;
       startPillTimer();
@@ -55,7 +55,7 @@
   }
 
   $effect(() => {
-    allLines.length;
+    void allLines.length;
     if (isExpanded && scrollEl) {
       tick().then(() => { if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight; });
     }

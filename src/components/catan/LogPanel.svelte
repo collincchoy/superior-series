@@ -18,6 +18,9 @@
 
   let { log }: { log: string[] } = $props();
 
+  let isExpanded = $state(true);
+  let el = $state<HTMLDivElement | undefined>(undefined);
+
   function openCardInfo(name: ProgressCardName) {
     store.openInfoModal({
       kind: "card-info",
@@ -27,8 +30,8 @@
 
   $effect(() => {
     // access log so the effect re-runs when it changes
-    log.length;
-    isExpanded;
+    void log.length;
+    void isExpanded;
     tick().then(() => {
       if (isExpanded && el) el.scrollTop = el.scrollHeight;
     });

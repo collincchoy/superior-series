@@ -10,6 +10,7 @@ Astro 6.1 static site deployed to GitHub Pages (`https://collincchoy.github.io/s
 - **Language**: TypeScript strict
 - **Package manager**: pnpm
 - **Testing**: Vitest — `pnpm test` (run before committing)
+- **Lint**: Oxlint on TS/JS + `.svelte` `<script>`; ESLint on `src/**/*.svelte` for `no-undef` in templates (catches missing component imports). Run `pnpm lint` before committing — CI uses it in the Astro build step.
 - **Multiplayer**: PeerJS (WebRTC P2P, host-authoritative)
 - **Board rendering**: SVG via `BoardCanvas.svelte` + `svgHelpers.ts`
 - **QR code**: `qrcode` (generation) + `@zxing/browser` (scanning) for room-code join flow
@@ -25,7 +26,7 @@ Astro 6.1 static site deployed to GitHub Pages (`https://collincchoy.github.io/s
 
 Tests cover all pure logic in `src/lib/catan/`. Svelte components are not unit-tested — verify visually with `pnpm dev`.
 
-After any component change, always run `pnpm exec astro check` in addition to `pnpm test`. Astro check validates Svelte template references (undefined variables, type errors in templates) that `tsc` and Vitest do not catch.
+After any component change, run `pnpm lint`, `pnpm exec astro check`, and `pnpm test`. Astro check catches many template/type issues, but **not** missing Svelte component imports in markup — `pnpm lint` (ESLint on `.svelte`) does via `no-undef`.
 
 ## Adding Pages
 
@@ -106,6 +107,7 @@ Full rules in `catan_base_rules.txt` and `catan_ck_rules.txt` (converted from PD
 
 ## Dev Notes
 
+- `pnpm check` runs `lint` + `typecheck` + `test` — same gates as CI before `build`
 - `pnpm dev` may pick port 4322 if 4321 is occupied — HMR websocket will fail in that case; use hard-refresh (Cmd+Shift+R) or kill stale servers first
 - Errors from `applyAction` on the host are surfaced via toast and `console.error`; check browser console if actions appear to do nothing
 - Svelte components have no unit tests — verify visually with `pnpm dev`
