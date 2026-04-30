@@ -2583,6 +2583,110 @@ describe("TRADE_BANK validation guard", () => {
       state.players[pid]!.resources.ore + 1,
     );
   });
+
+  it("applies a trade-level-3 commodity 2:1 trade", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const withTradeL3: GameState = {
+      ...state,
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          improvements: { ...state.players[pid]!.improvements, trade: 3 },
+          resources: {
+            ...state.players[pid]!.resources,
+            cloth: 3,
+            ore: 0,
+          },
+        },
+      },
+    };
+
+    const after = applyAction(withTradeL3, {
+      type: "TRADE_BANK",
+      pid,
+      give: { cloth: 2 },
+      get: { ore: 1 },
+    });
+
+    expect(after.players[pid]!.resources.cloth).toBe(1);
+    expect(after.players[pid]!.resources.ore).toBe(1);
+  });
+
+  it("applies a 2:1 resource harbor trade when connected to a specific port", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const ownedVertex = Object.entries(state.board.vertices).find(
+      ([, b]) => b?.playerId === pid,
+    )?.[0];
+    if (!ownedVertex) return;
+
+    const withGrainHarbor: GameState = {
+      ...state,
+      board: {
+        ...state.board,
+        harbors: [
+          {
+            type: "grain",
+            vertices: [ownedVertex, ownedVertex],
+          },
+        ],
+      },
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          resources: {
+            ...state.players[pid]!.resources,
+            grain: 2,
+            ore: 0,
+          },
+        },
+      },
+    };
+
+    const after = applyAction(withGrainHarbor, {
+      type: "TRADE_BANK",
+      pid,
+      give: { grain: 2 },
+      get: { ore: 1 },
+    });
+
+    expect(after.players[pid]!.resources.grain).toBe(0);
+    expect(after.players[pid]!.resources.ore).toBe(1);
+  });
+
+  it("rejects trade-level-3 commodity trades that give fewer than 2", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+    const withTradeL3: GameState = {
+      ...state,
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          improvements: { ...state.players[pid]!.improvements, trade: 3 },
+          resources: {
+            ...state.players[pid]!.resources,
+            cloth: 3,
+            ore: 0,
+          },
+        },
+      },
+    };
+    const before = withTradeL3.players[pid]!.resources;
+
+    const after = applyAction(withTradeL3, {
+      type: "TRADE_BANK",
+      pid,
+      give: { cloth: 1 },
+      get: { ore: 1 },
+    });
+
+    expect(after.players[pid]!.resources.cloth).toBe(before.cloth);
+    expect(after.players[pid]!.resources.ore).toBe(before.ore);
+  });
 });
 
 // ─── Science level 3 — no-production bonus ────────────────────────────────────

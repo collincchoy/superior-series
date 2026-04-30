@@ -113,9 +113,9 @@
   }
 
   .close-btn {
-    background: rgba(255, 255, 255, 0.12);
+    background: transparent;
     color: #f0e8d0;
-    border: 1px solid rgba(255, 255, 255, 0.28);
+    border: 1px solid transparent;
     border-radius: 999px;
     width: 2rem;
     height: 2rem;
@@ -131,6 +131,13 @@
 
   .close-btn:hover {
     background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.28);
+  }
+
+  .close-btn:focus-visible {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.28);
+    outline: none;
   }
 
   @media (prefers-reduced-motion: reduce) {
