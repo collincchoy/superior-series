@@ -193,4 +193,14 @@
     margin-inline-start: auto;
   }
 
+  @media (max-width: 699px) {
+    .hand-panel {
+      padding: 0.26rem 0.5rem;
+    }
+
+    .hand-title {
+      margin-bottom: 0.12rem;
+    }
+  }
+
 </style>

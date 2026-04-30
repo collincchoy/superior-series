@@ -70,7 +70,7 @@
 <style>
   .side-panel {
     flex-shrink: 0;
-    max-height: 42vh;
+    max-height: min(54vh, 440px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
@@ -108,7 +108,6 @@
       max-height: unset;
       border-top: none;
       border-left: 2px solid #2c5f2e;
-      overflow-y: auto;
     }
   }
 
