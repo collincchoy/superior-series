@@ -52,6 +52,24 @@ export interface Resources {
   paper: number;
 }
 
+/** Five basic resources (no commodities). */
+export const BASIC_RESOURCE_KEYS = [
+  "brick",
+  "lumber",
+  "ore",
+  "grain",
+  "wool",
+] as const satisfies readonly ResourceType[];
+
+/** Science / trade / politics commodities only. */
+export const COMMODITY_KEYS = ["cloth", "coin", "paper"] as const satisfies readonly CommodityType[];
+
+/** Full hand row order: basics then commodities. */
+export const RESOURCE_KEYS = [
+  ...BASIC_RESOURCE_KEYS,
+  ...COMMODITY_KEYS,
+] as const satisfies readonly (keyof Resources)[];
+
 export function emptyResources(): Resources {
   return {
     brick: 0,
@@ -65,10 +83,13 @@ export function emptyResources(): Resources {
   };
 }
 
-export function totalCards(r: Resources): number {
-  return (
-    r.brick + r.lumber + r.ore + r.grain + r.wool + r.cloth + r.coin + r.paper
-  );
+/** Sum of all resource + commodity cards (works with partial bags). */
+export function totalCards(r: Partial<Resources>): number {
+  let n = 0;
+  for (const k of RESOURCE_KEYS) {
+    n += r[k] ?? 0;
+  }
+  return n;
 }
 
 export function totalResourceCards(r: Resources): number {
