@@ -585,7 +585,7 @@ describe("computeValidTargets", () => {
       expect(targets.validEdges.size).toBe(0);
     });
 
-    it("recruit_knight returns empty vertices connected to own road network", () => {
+    it("knight_deploy returns empty recruit vertices on own road network", () => {
       let state = createInitialState(makePlayers(2));
       const vids = Object.keys(graph.vertices) as VertexId[];
       state = applyAction(state, {
@@ -653,7 +653,7 @@ describe("computeValidTargets", () => {
       };
 
       const targets = computeValidTargets(actionState, "p1", {
-        type: "recruit_knight",
+        type: "knight_deploy",
       });
       expect(targets.validVertices.size).toBeGreaterThan(0);
       // Vertices already occupied by buildings or knights are not valid
@@ -661,7 +661,7 @@ describe("computeValidTargets", () => {
       expect(targets.validEdges.size).toBe(0);
     });
 
-    it("promote_knight returns only own promotable knight vertices", () => {
+    it("knight_deploy includes own promotable knight vertices", () => {
       let state = createInitialState(makePlayers(2));
       const vids = Object.keys(graph.vertices) as VertexId[];
       // Complete setup
@@ -751,7 +751,7 @@ describe("computeValidTargets", () => {
       };
 
       const targets = computeValidTargets(actionState, "p1", {
-        type: "promote_knight",
+        type: "knight_deploy",
       });
       expect(targets.validVertices.has(myKnightVid)).toBe(true); // own strength-1 → can promote
       expect(targets.validVertices.has(enemyKnightVid)).toBe(false); // opponent's knight
@@ -1182,8 +1182,8 @@ describe("computeValidTargets", () => {
       expect(targets.validHexes.has(hid1)).toBe(false);
     });
 
-    it("move_knight_from highlights own active knights", () => {
-      const activeKnight = vids[1]!;
+    it("advance_knight_from highlights own active knights with move or bump targets", () => {
+      const activeKnight = vids[0]!;
       const inactiveKnight = vids[2]!;
       const opponentKnight = vids[3]!;
 
@@ -1201,15 +1201,15 @@ describe("computeValidTargets", () => {
       };
 
       const targets = computeValidTargets(state, "p1", {
-        type: "move_knight_from",
+        type: "advance_knight_from",
       });
       expect(targets.validVertices.has(activeKnight)).toBe(true);
       expect(targets.validVertices.has(inactiveKnight)).toBe(false);
       expect(targets.validVertices.has(opponentKnight)).toBe(false);
     });
 
-    it("move_knight_from excludes knights activated this turn", () => {
-      const activeKnight = vids[1]!;
+    it("advance_knight_from excludes knights activated this turn", () => {
+      const activeKnight = vids[0]!;
 
       const state: GameState = {
         ...actionState,
@@ -1224,12 +1224,12 @@ describe("computeValidTargets", () => {
       };
 
       const targets = computeValidTargets(state, "p1", {
-        type: "move_knight_from",
+        type: "advance_knight_from",
       });
       expect(targets.validVertices.has(activeKnight)).toBe(false);
     });
 
-    it("move_knight_to highlights valid destinations for knight move", () => {
+    it("advance_knight_to highlights valid move destinations", () => {
       const knightFromVid = vids[0]!;
       const validDestVid = vids[1]!;
       const occupiedByBuildingVid = vids[25]!; // has p1 city
@@ -1246,7 +1246,7 @@ describe("computeValidTargets", () => {
       };
 
       const targets = computeValidTargets(state, "p1", {
-        type: "move_knight_to",
+        type: "advance_knight_to",
         from: knightFromVid,
       });
       expect(targets.validVertices.has(validDestVid)).toBe(true);
@@ -1254,7 +1254,7 @@ describe("computeValidTargets", () => {
       expect(targets.validVertices.has(knightFromVid)).toBe(false); // can't move to self
     });
 
-    it("displace_knight_from highlights own active knights that can displace an opponent", () => {
+    it("advance_knight_from highlights knights that can bump a weaker opponent", () => {
       const p1Edge = (graph.edgesOfVertex[vids[0]!] ?? [])[0]!;
       const [va, vb] = graph.verticesOfEdge[p1Edge]!;
       const targetVid = va === vids[0] ? vb! : va!;
@@ -1272,13 +1272,13 @@ describe("computeValidTargets", () => {
       };
 
       const targets = computeValidTargets(state, "p1", {
-        type: "displace_knight_from",
+        type: "advance_knight_from",
       });
       expect(targets.validVertices.has(vids[0]!)).toBe(true);
       expect(targets.validVertices.has(targetVid)).toBe(false); // opponent knight, not selectable
     });
 
-    it("displace_knight_from excludes inactive own knights", () => {
+    it("advance_knight_from excludes inactive knights that cannot bump", () => {
       const p1Edge = (graph.edgesOfVertex[vids[0]!] ?? [])[0]!;
       const [va, vb] = graph.verticesOfEdge[p1Edge]!;
       const targetVid = va === vids[0] ? vb! : va!;
@@ -1296,12 +1296,12 @@ describe("computeValidTargets", () => {
       };
 
       const targets = computeValidTargets(state, "p1", {
-        type: "displace_knight_from",
+        type: "advance_knight_from",
       });
       expect(targets.validVertices.has(vids[0]!)).toBe(false);
     });
 
-    it("displace_knight_from excludes knights activated this turn", () => {
+    it("advance_knight_from excludes knights activated this turn even if they could bump", () => {
       const p1Edge = (graph.edgesOfVertex[vids[0]!] ?? [])[0]!;
       const [va, vb] = graph.verticesOfEdge[p1Edge]!;
       const targetVid = va === vids[0] ? vb! : va!;
@@ -1320,12 +1320,12 @@ describe("computeValidTargets", () => {
       };
 
       const targets = computeValidTargets(state, "p1", {
-        type: "displace_knight_from",
+        type: "advance_knight_from",
       });
       expect(targets.validVertices.has(vids[0]!)).toBe(false);
     });
 
-    it("displace_knight_to highlights opponent knights reachable and weaker", () => {
+    it("advance_knight_to highlights bumpable weaker opponent knights", () => {
       const p1Edge = (graph.edgesOfVertex[vids[0]!] ?? [])[0]!;
       const [va, vb] = graph.verticesOfEdge[p1Edge]!;
       const weakOpponentVid = va === vids[0] ? vb! : va!;
@@ -1343,7 +1343,7 @@ describe("computeValidTargets", () => {
       };
 
       const targets = computeValidTargets(state, "p1", {
-        type: "displace_knight_to",
+        type: "advance_knight_to",
         from: vids[0]!,
       });
       expect(targets.validVertices.has(weakOpponentVid)).toBe(true);

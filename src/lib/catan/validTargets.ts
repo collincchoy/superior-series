@@ -40,8 +40,7 @@ export type PendingAction =
   | { type: "build_settlement" }
   | { type: "build_city" }
   | { type: "build_city_wall" }
-  | { type: "recruit_knight" }
-  | { type: "promote_knight" }
+  | { type: "knight_deploy" }
   | { type: "activate_knight" }
   // Progress card board selections
   | { type: "progress_select_vertex"; card: "Engineering" | "Medicine" }
@@ -49,12 +48,8 @@ export type PendingAction =
   | { type: "progress_select_hex"; card: "Merchant" | "Taxation" }
   | { type: "progress_select_edge"; card: "Diplomacy" }
   | { type: "progress_select_hex_pair"; card: "Invention"; picked: HexId[] }
-  // Knight move (two-step)
-  | { type: "move_knight_from" }
-  | { type: "move_knight_to"; from: VertexId }
-  // Knight displace (two-step)
-  | { type: "displace_knight_from" }
-  | { type: "displace_knight_to"; from: VertexId }
+  | { type: "advance_knight_from" }
+  | { type: "advance_knight_to"; from: VertexId }
   // Chase robber (two-step)
   | { type: "chase_robber_from" }
   | { type: "chase_robber_hex"; knight: VertexId };
@@ -155,19 +150,15 @@ export function computeValidTargets(
             validVertices.add(vid as VertexId);
         });
         break;
-      case "recruit_knight":
+      case "knight_deploy":
         Object.keys(graph.vertices).forEach((vid) => {
-          if (canRecruitKnight(board, graph, me, vid as VertexId))
-            validVertices.add(vid as VertexId);
-        });
-        break;
-      case "promote_knight":
-        Object.entries(board.knights).forEach(([vid, k]) => {
+          const v = vid as VertexId;
           if (
-            k?.playerId === pid &&
-            canPromoteKnight(board, me, vid as VertexId)
-          )
-            validVertices.add(vid as VertexId);
+            canRecruitKnight(board, graph, me, v) ||
+            (board.knights[v]?.playerId === pid && canPromoteKnight(board, me, v))
+          ) {
+            validVertices.add(v);
+          }
         });
         break;
       case "activate_knight":
@@ -263,38 +254,20 @@ export function computeValidTargets(
           });
         }
         break;
-      case "move_knight_from":
-        // Move knight: own active knights
+      case "advance_knight_from":
         Object.entries(board.knights).forEach(([vid, k]) => {
-          if (
-            k?.playerId === pid &&
-            k.active &&
-            !activatedThisTurn.has(vid as VertexId)
-          ) {
-            validVertices.add(vid as VertexId);
-          }
-        });
-        break;
-      case "move_knight_to":
-        // Move knight: valid destinations for this knight
-        Object.keys(graph.vertices).forEach((vid) => {
-          if (canMoveKnight(board, graph, pid, pending.from, vid as VertexId)) {
-            validVertices.add(vid as VertexId);
-          }
-        });
-        break;
-      case "displace_knight_from":
-        // Displace: own active knights that can reach and beat at least one opponent knight
-        Object.entries(board.knights).forEach(([fromVid, k]) => {
+          const fromVid = vid as VertexId;
           if (
             !k ||
             k.playerId !== pid ||
             !k.active ||
-            activatedThisTurn.has(fromVid as VertexId)
-          ) {
+            activatedThisTurn.has(fromVid)
+          )
             return;
-          }
-          const canDisplace = Object.entries(board.knights).some(
+          const hasMoveDest = Object.keys(graph.vertices).some((toVid) =>
+            canMoveKnight(board, graph, pid, fromVid, toVid as VertexId),
+          );
+          const hasDisplaceTarget = Object.entries(board.knights).some(
             ([toVid, t]) =>
               t !== null &&
               t.playerId !== pid &&
@@ -302,30 +275,30 @@ export function computeValidTargets(
                 board,
                 graph,
                 pid,
-                fromVid as VertexId,
+                fromVid,
                 toVid as VertexId,
               ),
           );
-          if (canDisplace) validVertices.add(fromVid as VertexId);
+          if (hasMoveDest || hasDisplaceTarget) validVertices.add(fromVid);
         });
         break;
-      case "displace_knight_to":
-        // Displace: reachable opponent knights weaker than our knight at `from`
+      case "advance_knight_to": {
+        const fromVid = pending.from;
+        Object.keys(graph.vertices).forEach((vid) => {
+          const v = vid as VertexId;
+          if (canMoveKnight(board, graph, pid, fromVid, v))
+            validVertices.add(v);
+        });
         Object.entries(board.knights).forEach(([toVid, t]) => {
-          if (t === null || t.playerId === pid) return;
           if (
-            canDisplaceKnight(
-              board,
-              graph,
-              pid,
-              pending.from,
-              toVid as VertexId,
-            )
-          ) {
+            t !== null &&
+            t.playerId !== pid &&
+            canDisplaceKnight(board, graph, pid, fromVid, toVid as VertexId)
+          )
             validVertices.add(toVid as VertexId);
-          }
         });
         break;
+      }
       case "chase_robber_from":
         // Chase robber: own active knights adjacent to the robber hex
         Object.entries(board.knights).forEach(([vid, k]) => {

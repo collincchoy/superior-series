@@ -484,8 +484,7 @@ export const BUILD_COST_HINTS: Array<{
   { label: "Settlement", cost: BUILD_COSTS.settlement },
   { label: "City", cost: BUILD_COSTS.city },
   { label: "City Wall", cost: BUILD_COSTS.cityWall },
-  { label: "Recruit Knight", cost: BUILD_COSTS.knightRecruit },
-  { label: "Promote Knight", cost: BUILD_COSTS.knightPromote },
+  { label: "Knight (hire or ore+wool upgrade)", cost: BUILD_COSTS.knightRecruit },
   { label: "Activate Knight", cost: BUILD_COSTS.knightActivate },
 ];
 
@@ -495,11 +494,11 @@ export const KNIGHT_LEVEL_HINTS: Record<
 > = {
   1: {
     name: "Basic Knight",
-    text: "Strength 1. Recruit with ore+wool. Can move/displace weaker active targets after activation.",
+    text: "Strength 1. Recruit with ore+wool on your network (Knight button). Activate with grain to move or bump weaker opponents (Advance).",
   },
   2: {
     name: "Strong Knight",
-    text: "Strength 2. Promote from basic using ore+wool.",
+    text: "Strength 2. Promote from basic with ore+wool (tap Knight, then your basic knight).",
   },
   3: {
     name: "Mighty Knight",

@@ -16,7 +16,13 @@
     computeValidTargets,
     computeAdminTargets,
   } from "../../lib/catan/validTargets.js";
-  import { bestKnightUpTo } from "../../lib/catan/rules.js";
+  import {
+    bestKnightUpTo,
+    canDisplaceKnight,
+    canMoveKnight,
+    canPromoteKnight,
+    canRecruitKnight,
+  } from "../../lib/catan/rules.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import { isPlayerActing } from "../../lib/catan/turnActors.js";
   import {
@@ -160,10 +166,17 @@
       s({ type: "BUILD_CITY", pid, vid });
     } else if (pendingAction?.type === "build_city_wall") {
       s({ type: "BUILD_CITY_WALL", pid, vid });
-    } else if (pendingAction?.type === "recruit_knight") {
-      s({ type: "RECRUIT_KNIGHT", pid, vid });
-    } else if (pendingAction?.type === "promote_knight") {
-      s({ type: "PROMOTE_KNIGHT", pid, vid });
+    } else if (pendingAction?.type === "knight_deploy") {
+      const pl = gameState.players[pid]!;
+      const k = gameState.board.knights[vid];
+      if (k?.playerId === pid && canPromoteKnight(gameState.board, pl, vid)) {
+        s({ type: "PROMOTE_KNIGHT", pid, vid });
+      } else if (
+        (!k || k.playerId !== pid) &&
+        canRecruitKnight(gameState.board, graph, pl, vid)
+      ) {
+        s({ type: "RECRUIT_KNIGHT", pid, vid });
+      }
     } else if (pendingAction?.type === "activate_knight") {
       s({ type: "ACTIVATE_KNIGHT", pid, vid });
     } else if (gameState.pendingKnightPromotions?.pid === pid) {
@@ -176,14 +189,21 @@
       s({ type: "PLAY_PROGRESS", pid, card: pendingAction.card, params: { vid } });
     } else if (pendingAction?.type === "progress_select_knight") {
       s({ type: "PLAY_PROGRESS", pid, card: pendingAction.card, params: { vid } });
-    } else if (pendingAction?.type === "move_knight_from") {
-      store.setPendingAction({ type: "move_knight_to", from: vid });
-    } else if (pendingAction?.type === "move_knight_to") {
-      s({ type: "MOVE_KNIGHT", pid, from: pendingAction.from, to: vid });
-    } else if (pendingAction?.type === "displace_knight_from") {
-      store.setPendingAction({ type: "displace_knight_to", from: vid });
-    } else if (pendingAction?.type === "displace_knight_to") {
-      s({ type: "DISPLACE_KNIGHT", pid, from: pendingAction.from, target: vid });
+    } else if (pendingAction?.type === "advance_knight_from") {
+      store.setPendingAction({ type: "advance_knight_to", from: vid });
+    } else if (pendingAction?.type === "advance_knight_to") {
+      const fromVid = pendingAction.from;
+      const board = gameState.board;
+      const occ = board.knights[vid];
+      if (
+        occ &&
+        occ.playerId !== pid &&
+        canDisplaceKnight(board, graph, pid, fromVid, vid)
+      ) {
+        s({ type: "DISPLACE_KNIGHT", pid, from: fromVid, target: vid });
+      } else if (canMoveKnight(board, graph, pid, fromVid, vid)) {
+        s({ type: "MOVE_KNIGHT", pid, from: fromVid, to: vid });
+      }
     } else if (pendingAction?.type === "chase_robber_from") {
       store.setPendingAction({ type: "chase_robber_hex", knight: vid });
     }
