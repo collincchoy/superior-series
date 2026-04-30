@@ -1,13 +1,8 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { GameState, PlayerId } from "../../lib/catan/types.js";
-  import type {
-    PendingAction,
-    PendingAdminAction,
-  } from "../../lib/catan/validTargets.js";
+  import type { PendingAction } from "../../lib/catan/validTargets.js";
   import { computeValidTargets } from "../../lib/catan/validTargets.js";
-  import { bestKnightUpTo } from "../../lib/catan/rules.js";
-  import { isPlayerActing } from "../../lib/catan/turnActors.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import BoardCanvas from "./BoardCanvas.svelte";
   import SidePanel from "./SidePanel.svelte";
@@ -26,6 +21,7 @@
   import DiceRollModal from "./DiceRollModal.svelte";
   import VPMilestoneOverlay from "./VPMilestoneOverlay.svelte";
   import { computeVP } from "../../lib/catan/game.js";
+  import { getBoardPendingUi } from "../../lib/catan/boardPendingUi.js";
 
   let {
     gameState,
@@ -39,7 +35,6 @@
     roomCode: string | null;
   } = $props();
 
-  let isMyTurn = $derived(isPlayerActing(gameState, localPid));
   let showTrade = $state(false);
   let showPlayerTrade = $state(false);
   let isHost = $derived(store.isHostPlayer);
@@ -94,17 +89,6 @@
   });
   let now = $state(Date.now());
 
-  let treasonPlacementMsg = $derived.by(() => {
-    const pt = gameState.pendingTreason;
-    if (!pt || pt.pid !== localPid) return "";
-    const best = bestKnightUpTo(gameState.players[localPid]!, pt.maxStrength);
-    if (!best) return "Treason: no knights available to place.";
-    const label = best < pt.maxStrength
-      ? `strength ${best} (highest you have ≤ ${pt.maxStrength})`
-      : `strength ${best}`;
-    return `Treason: click a valid spot to place a ${label} knight, or`;
-  });
-
   $effect(() => {
     if (gameState.pendingTreason?.pid !== localPid) return;
     if (computeValidTargets(gameState, localPid, null).validVertices.size === 0) {
@@ -112,31 +96,14 @@
     }
   });
 
-  function adminInstruction(pa: PendingAdminAction | null) {
-    if (!pa) return null;
-    switch (pa.type) {
-      case "admin_move_road_pick_from":
-        return "Move Road: select the road to move.";
-      case "admin_move_road_pick_to":
-        return "Move Road: select destination edge.";
-      case "admin_move_building_pick_from":
-        return "Move Building: select the building to move.";
-      case "admin_move_building_pick_to":
-        return "Move Building: select destination vertex.";
-      case "admin_move_knight_pick_from":
-        return "Move Knight: select the knight to move.";
-      case "admin_move_knight_pick_to":
-        return "Move Knight: select destination vertex.";
-      case "admin_swap_number_pick_a":
-        return "Swap Number Tokens: select first numbered hex.";
-      case "admin_swap_number_pick_b":
-        return "Swap Number Tokens: select second numbered hex.";
-      case "admin_swap_hex_pick_a":
-        return "Swap Hexes: select first hex.";
-      case "admin_swap_hex_pick_b":
-        return "Swap Hexes: select second hex.";
-    }
-  }
+  let boardPendingBanner = $derived(
+    getBoardPendingUi(
+      gameState,
+      localPid,
+      pendingAction,
+      store.pendingAdminAction,
+    ),
+  );
 
   $effect(() => {
     const id = setInterval(() => {
@@ -221,7 +188,7 @@
       {gameState}
       {localPid}
       {pendingAction}
-      {isMyTurn}
+      pendingBoardBanner={boardPendingBanner}
       bind:showTrade
       bind:showPlayerTrade
     />
@@ -238,37 +205,6 @@
 <PlayerTradeModal {gameState} {localPid} bind:openInitiate={showPlayerTrade} />
 <CommercialHarborModal {gameState} {localPid} />
 <VpCardModal {gameState} {localPid} />
-{#if gameState.pendingFreeRoads?.pid === localPid}
-  <div class="pending-overlay">
-    <span>Road Building: click a valid road edge to place it, or</span>
-    <button onclick={() => store.sendAction({ type: "PROGRESS_SKIP_FREE_ROADS", pid: localPid })}>Skip</button>
-  </div>
-{/if}
-{#if gameState.pendingKnightPromotions?.pid === localPid}
-  <div class="pending-overlay">
-    <span>Smithing: click a knight to promote it free, or</span>
-    <button onclick={() => store.sendAction({ type: "PROGRESS_SKIP_FREE_PROMOTIONS", pid: localPid })}>Skip</button>
-  </div>
-{/if}
-{#if gameState.pendingTreason?.pid === localPid}
-  <div class="pending-overlay">
-    <span>{treasonPlacementMsg}</span>
-    <button onclick={() => store.sendAction({ type: "PROGRESS_SKIP_TREASON", pid: localPid })}>Skip</button>
-  </div>
-{/if}
-{#if store.pendingAdminAction}
-  <div class="pending-overlay">
-    <span>{adminInstruction(store.pendingAdminAction)}</span>
-    <button
-      onclick={() => {
-        store.setPendingAdminAction(null);
-        store.setMasterControlOpen(true);
-      }}
-    >
-      Cancel
-    </button>
-  </div>
-{/if}
 <InfoModal />
 {#if isHost}
   <MasterControlModal
@@ -295,7 +231,10 @@
   {@const rollerPlayer = gameState.players[roll.playerId]}
   {#key roll.id}
     <DiceRollModal
-      roll={roll.dice}
+      animationKey={roll.id}
+      die1={roll.dice[0]}
+      die2={roll.dice[1]}
+      eventFace={roll.dice[2]}
       rollerName={rollerPlayer?.name ?? ""}
       isLocalPlayer={roll.playerId === localPid}
       onDone={() => {
@@ -462,34 +401,6 @@
     .sync-meta {
       font-size: 0.58rem;
     }
-  }
-
-  .pending-overlay {
-    position: fixed;
-    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-    left: 50%;
-    transform: translateX(-50%);
-    background: #2c5f2e;
-    border: 1px solid #6dbf6d;
-    border-radius: 10px;
-    padding: 0.55rem 1rem;
-    font-size: 0.82rem;
-    color: #f5c842;
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    z-index: 300;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.5);
-  }
-  .pending-overlay button {
-    background: #3a5e1e;
-    color: #f5c842;
-    border: 1px solid #6dbf6d;
-    border-radius: 6px;
-    padding: 0.25rem 0.6rem;
-    font-size: 0.78rem;
-    font-weight: 700;
-    cursor: pointer;
   }
 
   .confetti-overlay {

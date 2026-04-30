@@ -1,24 +1,26 @@
 <script lang="ts">
   import type { GameState, PlayerId } from "../../lib/catan/types.js";
   import type { PendingAction } from "../../lib/catan/validTargets.js";
+  import type { BoardPendingBannerModel } from "../../lib/catan/boardPendingUi.js";
   import { isPlayerActing } from "../../lib/catan/turnActors.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import PhaseBanner from "./PhaseBanner.svelte";
   import HandPanel from "./HandPanel.svelte";
   import ActionPanel from "./ActionPanel.svelte";
+  import BoardPendingBanner from "./BoardPendingBanner.svelte";
 
   let {
     gameState,
     localPid,
     pendingAction,
-    isMyTurn,
+    pendingBoardBanner = null,
     showTrade = $bindable(false),
     showPlayerTrade = $bindable(false),
   }: {
     gameState: GameState;
     localPid: PlayerId;
     pendingAction: PendingAction | null;
-    isMyTurn: boolean;
+    pendingBoardBanner?: BoardPendingBannerModel | null;
     showTrade: boolean;
     showPlayerTrade: boolean;
   } = $props();
@@ -38,6 +40,9 @@
       canAct && (gameState.phase === "ACTION" || gameState.phase === "ROLL_DICE")
     }
   />
+  {#if pendingBoardBanner}
+    <BoardPendingBanner model={pendingBoardBanner} {localPid} />
+  {/if}
   {#if canAct}
     <ActionPanel {gameState} {localPid} {pendingAction} bind:showTrade bind:showPlayerTrade />
   {:else if waitingForTradeResponse && pendingTrade}

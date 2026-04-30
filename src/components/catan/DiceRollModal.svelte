@@ -1,15 +1,23 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { EventDieFace } from "../../lib/catan/types.js";
   import { EVENT_COLORS, EVENT_LABELS, eventDieIcon, eventDieTextColor } from "../../lib/catan/constants.js";
   import Die from "./Die.svelte";
 
   let {
-    roll,
+    animationKey,
+    die1,
+    die2,
+    eventFace,
     rollerName,
     isLocalPlayer,
     onDone,
   }: {
-    roll: [number, number, EventDieFace];
+    /** Stable per physical roll — timers must not reset when host rebroadcasts the same `lastRoll` with new object refs. */
+    animationKey: number;
+    die1: number;
+    die2: number;
+    eventFace: EventDieFace;
     rollerName: string;
     isLocalPlayer: boolean;
     onDone: () => void;
@@ -25,6 +33,10 @@
   let displayD2 = $state(Math.ceil(Math.random() * 6));
 
   $effect(() => {
+    void animationKey;
+    const target1 = untrack(() => die1);
+    const target2 = untrack(() => die2);
+
     phase = "shaking";
 
     const interval = setInterval(() => {
@@ -34,8 +46,8 @@
 
     const revealTimer = setTimeout(() => {
       clearInterval(interval);
-      displayD1 = roll[0];
-      displayD2 = roll[1];
+      displayD1 = target1;
+      displayD2 = target2;
       phase = "reveal";
     }, ROLL_ANIMATION_MS);
 
@@ -57,7 +69,7 @@
     if (phase === "done") onDone();
   }
 
-  let total = $derived(roll[0] + roll[1]);
+  let total = $derived(die1 + die2);
   let rollLabel = $derived(
     phase === "shaking" ? "Rolling…"
     : phase === "reveal" ? "…"
@@ -86,10 +98,10 @@
       <div class="die-wrap" class:shaking={phase === "shaking"} class:popping={phase === "reveal"} style="--delay:0.1s">
         <div
           class="event-die-face"
-          style="background:{phase === 'shaking' ? '#444' : EVENT_COLORS[roll[2]]};color:{phase === 'shaking' ? '#999' : eventDieTextColor(roll[2])}"
-          aria-label={phase === "shaking" ? "Event die" : EVENT_LABELS[roll[2]]}
+          style="background:{phase === 'shaking' ? '#444' : EVENT_COLORS[eventFace]};color:{phase === 'shaking' ? '#999' : eventDieTextColor(eventFace)}"
+          aria-label={phase === "shaking" ? "Event die" : EVENT_LABELS[eventFace]}
         >
-          <span class="event-icon">{phase === "shaking" ? "?" : eventDieIcon(roll[2])}</span>
+          <span class="event-icon">{phase === "shaking" ? "?" : eventDieIcon(eventFace)}</span>
         </div>
       </div>
     </div>
@@ -97,7 +109,7 @@
     {#if phase === "done"}
       <div class="result" role="status" aria-live="polite">
         <div class="total" class:total-seven={total === 7}>{total}</div>
-        <div class="event-label" style="color:{EVENT_COLORS[roll[2]]}">{eventDieIcon(roll[2])} {EVENT_LABELS[roll[2]]}</div>
+        <div class="event-label" style="color:{EVENT_COLORS[eventFace]}">{eventDieIcon(eventFace)} {EVENT_LABELS[eventFace]}</div>
         <div class="tap-hint">TAP TO CONTINUE</div>
       </div>
     {/if}
