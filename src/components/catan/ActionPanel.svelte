@@ -167,6 +167,16 @@
         canChaseRobber(board, graph, pid, vid as VertexId),
       ),
   );
+
+  let buildTabPlayable = $derived(canRoad || canSettle || canCity || canWall);
+  let knightsTabPlayable = $derived(
+    canKnight ||
+      canPromote ||
+      canActivate ||
+      canMove ||
+      canDisplace ||
+      canChaseRobberNow,
+  );
   let canRelocateDisplaced = $derived.by(() =>
     Object.keys(graph.vertices).some((vid) =>
       canRelocateDisplacedTo(vid as VertexId),
@@ -315,6 +325,19 @@
     return owner ? (gameState.players[owner]?.improvements[track] ?? 0) : 0;
   }
 
+  let improveTabPlayable = $derived(
+    tracks.some((track) =>
+      canImproveCity(
+        board,
+        me,
+        track,
+        craneDiscount,
+        gameState.metropolisOwner,
+        metropolisOwnerLevel(track),
+      ),
+    ),
+  );
+
   function improveReason(track: ImprovementTrack): string | undefined {
     if (!hasCity) return "Requires at least one city on the board.";
     if (me.improvements[track] >= 5) return "Already at maximum level.";
@@ -335,7 +358,16 @@
     }
   }
 
-  let activeTab = $state<"build" | "knights" | "improve">("build");
+  type ActiveActionTabId = "build" | "knights" | "improve";
+
+  let isActionTabsSlice = $derived(
+    phase === "ACTION" &&
+      !tradeOfferForMe &&
+      gameState.currentPlayerId === pid,
+  );
+  let prevIsActionTabsSlice = $state(false);
+
+  let activeTab = $state<ActiveActionTabId>("build");
 
   const TRACK_ABILITY_SHORT: Record<ImprovementTrack, string> = {
     science: "Inventor",
@@ -344,9 +376,30 @@
   };
 
   $effect(() => {
-    if (!pendingAction) return;
-    if (BUILD_ACTION_TYPES.has(pendingAction.type)) activeTab = "build";
-    else if (KNIGHT_ACTION_TYPES.has(pendingAction.type)) activeTab = "knights";
+    const enteredActionTabs = isActionTabsSlice && !prevIsActionTabsSlice;
+    prevIsActionTabsSlice = isActionTabsSlice;
+
+    if (pendingAction) {
+      if (BUILD_ACTION_TYPES.has(pendingAction.type)) activeTab = "build";
+      else if (KNIGHT_ACTION_TYPES.has(pendingAction.type)) activeTab = "knights";
+      return;
+    }
+
+    if (!enteredActionTabs) return;
+
+    const tabPlayable =
+      activeTab === "build"
+        ? buildTabPlayable
+        : activeTab === "knights"
+          ? knightsTabPlayable
+          : improveTabPlayable;
+    const somePlayable =
+      buildTabPlayable || knightsTabPlayable || improveTabPlayable;
+    if (tabPlayable || !somePlayable) return;
+
+    if (buildTabPlayable) activeTab = "build";
+    else if (knightsTabPlayable) activeTab = "knights";
+    else activeTab = "improve";
   });
 
   function metroPipIndex(
@@ -367,6 +420,17 @@
   function showKnightInfo() {
     store.openInfoModal({ kind: "knight-levels" });
   }
+
+  const ACTION_TAB_BAR: readonly {
+    id: ActiveActionTabId;
+    label: string;
+    infoAria?: string;
+    openInfo?: () => void;
+  }[] = [
+    { id: "build", label: "Build", infoAria: "Show build costs", openInfo: showBuildInfo },
+    { id: "knights", label: "Knights", infoAria: "Show knight levels", openInfo: showKnightInfo },
+    { id: "improve", label: "Improve" },
+  ];
 </script>
 
 <div class="action-panel">
@@ -452,41 +516,46 @@
     </div>
   {:else if phase === "ACTION"}
     <div class="tab-bar">
-      <button
-        class="tab-btn"
-        class:tab-active={activeTab === "build"}
-        onclick={() => (activeTab = "build")}
-      >
-        Build
-        <span
-          class="tab-info"
-          onclick={(e) => { e.stopPropagation(); showBuildInfo(); }}
-          onkeydown={(e) => { if (e.key === "Enter") { e.stopPropagation(); showBuildInfo(); } }}
-          role="button"
-          tabindex="0"
-          aria-label="Show build costs"
-        >ⓘ</span>
-      </button>
-      <button
-        class="tab-btn"
-        class:tab-active={activeTab === "knights"}
-        onclick={() => (activeTab = "knights")}
-      >
-        Knights
-        <span
-          class="tab-info"
-          onclick={(e) => { e.stopPropagation(); showKnightInfo(); }}
-          onkeydown={(e) => { if (e.key === "Enter") { e.stopPropagation(); showKnightInfo(); } }}
-          role="button"
-          tabindex="0"
-          aria-label="Show knight levels"
-        >ⓘ</span>
-      </button>
-      <button
-        class="tab-btn"
-        class:tab-active={activeTab === "improve"}
-        onclick={() => (activeTab = "improve")}
-      >Improve</button>
+      {#each ACTION_TAB_BAR as tab (tab.id)}
+        {@const playable =
+          tab.id === "build"
+            ? buildTabPlayable
+            : tab.id === "knights"
+              ? knightsTabPlayable
+              : improveTabPlayable}
+        {@const hintAway =
+          playable && activeTab !== tab.id ? `${tab.label} — actions available on this tab` : undefined}
+        <button
+          type="button"
+          class="tab-btn"
+          class:tab-active={activeTab === tab.id}
+          title={hintAway}
+          onclick={() => (activeTab = tab.id)}
+        >
+          {#if playable && activeTab !== tab.id}
+            <span class="tab-playable-dot" aria-hidden="true"></span>
+          {/if}
+          {tab.label}
+          {#if tab.openInfo}
+            <span
+              class="tab-info"
+              onclick={(e) => {
+                e.stopPropagation();
+                tab.openInfo?.();
+              }}
+              onkeydown={(e) => {
+                if (e.key === "Enter") {
+                  e.stopPropagation();
+                  tab.openInfo?.();
+                }
+              }}
+              role="button"
+              tabindex="0"
+              aria-label={tab.infoAria}
+            >ⓘ</span>
+          {/if}
+        </button>
+      {/each}
     </div>
 
     <div class="tab-content">
@@ -782,6 +851,14 @@
     color: #c8b47a;
     font-weight: 700;
     border-bottom-color: #c8b47a;
+  }
+  .tab-playable-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #d4a853;
+    flex-shrink: 0;
+    box-shadow: 0 0 5px rgba(212, 168, 83, 0.55);
   }
   .tab-info {
     font-size: 11px;
