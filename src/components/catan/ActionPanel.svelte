@@ -899,7 +899,7 @@
     flex-direction: column;
     gap: 0.28rem;
   }
-  /* ACTION: side rail (viewport > --catan-compact-max) stacks vertically; compact widths use a 2-col grid */
+  /* ACTION: side rail (≥700px) stacks vertically; compact widths (≤699px) use a 2-col grid */
   .action-compact-grid {
     display: flex;
     flex-direction: column;
@@ -1030,7 +1030,7 @@
   .compact-block-improve .compact-block-head {
     margin-bottom: 0.12rem;
   }
-  @media (max-width: var(--catan-compact-max)) {
+  @media (max-width: 699px) {
     .action-compact-grid {
       display: grid;
       /* Actions yield first; Improve gets a slightly larger fraction above its 52% floor */

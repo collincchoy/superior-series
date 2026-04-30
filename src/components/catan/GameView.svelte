@@ -390,7 +390,7 @@
     flex-direction: column;
   }
 
-  @media (min-width: calc(var(--catan-compact-max) + 1px)) {
+  @media (min-width: 700px) {
     .board-and-panel {
       flex-direction: row;
     }
