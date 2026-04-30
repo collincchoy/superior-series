@@ -31,6 +31,7 @@
   import { TRACK_COMMODITY, BUILD_COSTS } from "../../lib/catan/constants.js";
   import CatanPopover from "./CatanPopover.svelte";
   import ResourceKeyTapRow from "./ResourceKeyTapRow.svelte";
+  import BoardPieceStack from "./BoardPieceStack.svelte";
 
   let {
     gameState,
@@ -165,6 +166,13 @@
       canActivate ||
       hasKnightAdvanceTarget ||
       canChaseRobberNow,
+  );
+
+  let knightSupplyTitle = $derived(
+    `Knights — basic ${me.supply.knights[1]}, strong ${me.supply.knights[2]}, mighty ${me.supply.knights[3]}`,
+  );
+  let knightSupplyAriaLabel = $derived(
+    `Place or upgrade a knight on the board. Supply: ${me.supply.knights[1]} basic, ${me.supply.knights[2]} strong, ${me.supply.knights[3]} mighty.`,
   );
   let canRelocateDisplaced = $derived.by(() =>
     Object.keys(graph.vertices).some((vid) =>
@@ -389,6 +397,58 @@
   function showKnightInfo() {
     store.openInfoModal({ kind: "knight-levels" });
   }
+
+  const BUILD_ACTION_TYPES = new Set<PendingAction["type"]>([
+    "build_road",
+    "build_settlement",
+    "build_city",
+    "build_city_wall",
+  ]);
+  const KNIGHT_ACTION_TYPES = new Set<PendingAction["type"]>([
+    "knight_deploy",
+    "activate_knight",
+    "advance_knight_from",
+    "advance_knight_to",
+    "chase_robber_from",
+    "chase_robber_hex",
+  ]);
+
+  type ActiveLeftTab = "build" | "knights";
+
+  const ACTION_LEFT_TAB_DEFS = [
+    { id: "build" as const, label: "Build", infoAria: "Show build costs" },
+    { id: "knights" as const, label: "Knights", infoAria: "Knight levels" },
+  ] as const;
+
+  let isActionTabsSlice = $derived(
+    phase === "ACTION" && !tradeOfferForMe && gameState.currentPlayerId === pid,
+  );
+  let prevIsActionTabsSlice = $state(false);
+
+  let activeLeftTab = $state<ActiveLeftTab>("build");
+
+  $effect(() => {
+    if (pendingAction) {
+      const t = pendingAction.type;
+      if (BUILD_ACTION_TYPES.has(t)) activeLeftTab = "build";
+      else if (KNIGHT_ACTION_TYPES.has(t)) activeLeftTab = "knights";
+      prevIsActionTabsSlice = isActionTabsSlice;
+      return;
+    }
+
+    const enteredSlice = isActionTabsSlice && !prevIsActionTabsSlice;
+    prevIsActionTabsSlice = isActionTabsSlice;
+
+    if (!enteredSlice) return;
+
+    const leftOk =
+      activeLeftTab === "build" ? buildTabPlayable : knightsTabPlayable;
+    const anyLeftPlayable = buildTabPlayable || knightsTabPlayable;
+    if (leftOk || !anyLeftPlayable) return;
+
+    if (buildTabPlayable) activeLeftTab = "build";
+    else activeLeftTab = "knights";
+  });
 </script>
 
 <div class="action-panel">
@@ -535,121 +595,210 @@
       </div>
     {/snippet}
 
-    <div class="action-compact-stack">
-      <div class="compact-block">
-        <div class="compact-block-head">
-          {#if buildTabPlayable}
-            <span class="playable-pip" title="A build action is available" aria-hidden="true"></span>
-          {/if}
-          <span class="compact-block-title">Build</span>
-          <button
-            type="button"
-            class="compact-infotip"
-            onclick={(e) => {
-              e.stopPropagation();
-              showBuildInfo();
-            }}
-            aria-label="Show build costs"
-          >ⓘ</button>
+    {#snippet knightDeployStacks()}
+      <div class="knight-deploy-piles">
+        {#each ([1, 2, 3] as const) as tier (tier)}
+          <BoardPieceStack
+            piece="knight"
+            count={me.supply.knights[tier]}
+            playerColor={me.color}
+            knightStrength={tier}
+            maxVisibleLayers={3}
+            compact
+          />
+        {/each}
+      </div>
+    {/snippet}
+
+    <div class="action-compact-grid">
+      <div class="action-col-actions">
+        <div class="tab-bar action-actions-tab-bar" role="tablist" aria-label="Build or knight actions">
+          {#each ACTION_LEFT_TAB_DEFS as tab (tab.id)}
+            {@const playable = tab.id === "build" ? buildTabPlayable : knightsTabPlayable}
+            {@const openInfo = tab.id === "build" ? showBuildInfo : showKnightInfo}
+            {@const hintAway =
+              playable && activeLeftTab !== tab.id ? `${tab.label} — actions available on this tab` : undefined}
+            <button
+              type="button"
+              class="tab-btn"
+              class:tab-active={activeLeftTab === tab.id}
+              role="tab"
+              aria-selected={activeLeftTab === tab.id}
+              title={hintAway}
+              onclick={() => (activeLeftTab = tab.id)}
+            >
+              {#if playable && activeLeftTab !== tab.id}
+                <span class="tab-playable-dot" aria-hidden="true"></span>
+              {/if}
+              {tab.label}
+              <span
+                class="tab-info"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  openInfo();
+                }}
+                onkeydown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    openInfo();
+                  }
+                }}
+                role="button"
+                tabindex="0"
+                aria-label={tab.infoAria}
+              >ⓘ</span>
+            </button>
+          {/each}
         </div>
-        <div class="group-btns group-piece-row">
+        <div class="tab-panels-slot action-actions-tab-panel" role="tabpanel">
+        <div
+          class="tab-pane tab-pane-stack"
+          class:tab-pane-active={activeLeftTab === "build"}
+          aria-hidden={activeLeftTab !== "build"}
+          inert={activeLeftTab !== "build"}
+        >
+        <div class="group-btns group-piece-row piece-grid-tight">
               {#if pendingAction?.type === "build_road"}
-                <button type="button" class="action-btn action-piece active" onclick={() => pending(null)}>✕ Road</button>
+                <button
+                  type="button"
+                  class="action-btn action-piece action-piece-with-stack active"
+                  aria-label="Cancel road placement"
+                  onclick={() => pending(null)}
+                >
+                  <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
+                  <BoardPieceStack piece="road" count={me.supply.roads} playerColor={me.color} />
+                </button>
               {:else}
                 <button
                   type="button"
-                  class="action-btn action-piece"
+                  class="action-btn action-piece action-piece-with-stack"
                   class:disabled={!canRoad}
                   aria-disabled={!canRoad}
-                  title="Road"
+                  aria-label={`Build road — ${me.supply.roads} remaining in supply`}
+                  title={`Road (${me.supply.roads} in supply)`}
                   onclick={(e) =>
                     canRoad
                       ? pending({ type: "build_road" })
                       : showUnavailablePopover(e, "🛣️ Build Road", BUILD_COSTS.road, roadReason())}
-                ><span class="ap-emoji">🛣️</span><span class="ap-lbl">Road</span></button>
+                >
+                  <BoardPieceStack piece="road" count={me.supply.roads} playerColor={me.color} />
+                </button>
               {/if}
 
               {#if pendingAction?.type === "build_settlement"}
-                <button type="button" class="action-btn action-piece active" onclick={() => pending(null)}>✕</button>
+                <button
+                  type="button"
+                  class="action-btn action-piece action-piece-with-stack active"
+                  aria-label="Cancel settlement placement"
+                  onclick={() => pending(null)}
+                >
+                  <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
+                  <BoardPieceStack piece="settlement" count={me.supply.settlements} playerColor={me.color} />
+                </button>
               {:else}
                 <button
                   type="button"
-                  class="action-btn action-piece"
+                  class="action-btn action-piece action-piece-with-stack"
                   class:disabled={!canSettle}
                   aria-disabled={!canSettle}
-                  title="Settlement"
+                  aria-label={`Build settlement — ${me.supply.settlements} remaining`}
+                  title={`Settlement (${me.supply.settlements} in supply)`}
                   onclick={(e) =>
                     canSettle
                       ? pending({ type: "build_settlement" })
                       : showUnavailablePopover(e, "🏠 Build Settlement", BUILD_COSTS.settlement, settlementReason())}
-                ><span class="ap-emoji">🏠</span><span class="ap-lbl">Settle</span></button>
+                >
+                  <BoardPieceStack piece="settlement" count={me.supply.settlements} playerColor={me.color} />
+                </button>
               {/if}
 
               {#if pendingAction?.type === "build_city"}
-                <button type="button" class="action-btn action-piece active" onclick={() => pending(null)}>✕</button>
+                <button
+                  type="button"
+                  class="action-btn action-piece action-piece-with-stack active"
+                  aria-label="Cancel city placement"
+                  onclick={() => pending(null)}
+                >
+                  <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
+                  <BoardPieceStack piece="city" count={me.supply.cities} playerColor={me.color} />
+                </button>
               {:else}
                 <button
                   type="button"
-                  class="action-btn action-piece"
+                  class="action-btn action-piece action-piece-with-stack"
                   class:disabled={!canCity}
                   aria-disabled={!canCity}
-                  title="City"
+                  aria-label={`Upgrade to city — ${me.supply.cities} cities left in supply`}
+                  title={`City (${me.supply.cities} in supply)`}
                   onclick={(e) =>
                     canCity
                       ? pending({ type: "build_city" })
                       : showUnavailablePopover(e, "🏙️ Build City", BUILD_COSTS.city, cityReason())}
-                ><span class="ap-emoji">🏙️</span><span class="ap-lbl">City</span></button>
+                >
+                  <BoardPieceStack piece="city" count={me.supply.cities} playerColor={me.color} />
+                </button>
               {/if}
 
               {#if pendingAction?.type === "build_city_wall"}
-                <button type="button" class="action-btn action-piece active" onclick={() => pending(null)}>✕ Wall</button>
+                <button
+                  type="button"
+                  class="action-btn action-piece action-piece-with-stack active"
+                  aria-label="Cancel city wall placement"
+                  onclick={() => pending(null)}
+                >
+                  <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
+                  <BoardPieceStack piece="cityWall" count={me.supply.cityWalls} playerColor={me.color} />
+                </button>
               {:else}
                 <button
                   type="button"
-                  class="action-btn action-piece"
+                  class="action-btn action-piece action-piece-with-stack"
                   class:disabled={!canWall}
                   aria-disabled={!canWall}
-                  title="City wall"
+                  aria-label={`Build city wall — ${me.supply.cityWalls} remaining`}
+                  title={`Wall (${me.supply.cityWalls} in supply)`}
                   onclick={(e) =>
                     canWall
                       ? pending({ type: "build_city_wall" })
                       : showUnavailablePopover(e, "🏰 Build City Wall", BUILD_COSTS.cityWall, wallReason())}
-                ><span class="ap-emoji">🏰</span><span class="ap-lbl">Wall</span></button>
+                >
+                  <BoardPieceStack piece="cityWall" count={me.supply.cityWalls} playerColor={me.color} />
+                </button>
               {/if}
             </div>
-      </div>
-
-      <div class="compact-block">
-        <div class="compact-block-head">
-          {#if knightsTabPlayable}
-            <span class="playable-pip" title="A knight action is available" aria-hidden="true"></span>
-          {/if}
-          <span class="compact-block-title">Knights</span>
-          <button
-            type="button"
-            class="compact-infotip"
-            onclick={(e) => {
-              e.stopPropagation();
-              showKnightInfo();
-            }}
-            aria-label="Knight levels"
-          >ⓘ</button>
         </div>
-        <div class="group-btns group-piece-row">
+        <div
+          class="tab-pane tab-pane-stack"
+          class:tab-pane-active={activeLeftTab === "knights"}
+          aria-hidden={activeLeftTab !== "knights"}
+          inert={activeLeftTab !== "knights"}
+        >
+        <div class="group-btns group-piece-row piece-grid-tight">
               {#if pendingAction?.type === "knight_deploy"}
-                <button type="button" class="action-btn action-piece active" onclick={() => pending(null)}>✕ Knight</button>
+                <button
+                  type="button"
+                  class="action-btn action-piece action-piece-with-stack action-piece-knight-deploy active"
+                  aria-label="Cancel knight placement"
+                  onclick={() => pending(null)}
+                >
+                  <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
+                  {@render knightDeployStacks()}
+                </button>
               {:else}
                 <button
                   type="button"
-                  class="action-btn action-piece"
+                  class="action-btn action-piece action-piece-with-stack action-piece-knight-deploy"
                   class:disabled={!canDeployKnight}
                   aria-disabled={!canDeployKnight}
-                  title="Place a basic knight or upgrade yours"
+                  aria-label={knightSupplyAriaLabel}
+                  title={knightSupplyTitle}
                   onclick={(e) =>
                     canDeployKnight
                       ? pending({ type: "knight_deploy" })
                       : knightDeployUnavailable(e)}
-                ><span class="ap-emoji">⚔️</span><span class="ap-lbl">Knight</span></button>
+                >
+                  {@render knightDeployStacks()}
+                </button>
               {/if}
 
               {#if pendingAction?.type === "activate_knight"}
@@ -702,9 +851,11 @@
                 {/if}
               {/if}
             </div>
+        </div>
+        </div>
       </div>
 
-      <div class="compact-block compact-block-improve">
+      <div class="action-col-improve compact-block compact-block-improve">
         <div class="compact-block-head">
           {#if improveRowPlayable}
             <span class="playable-pip" title="An improvement is available" aria-hidden="true"></span>
@@ -767,12 +918,92 @@
     flex-direction: column;
     gap: 0.28rem;
   }
-  /* Condensed ACTION: stacked sections (side panel width) */
-  .action-compact-stack {
+  /* ACTION: side rail (≥700px) stacks vertically; bottom sheet (<700px) uses 2 cols to save height */
+  .action-compact-grid {
     display: flex;
     flex-direction: column;
     gap: 0.32rem;
     width: 100%;
+  }
+  .action-col-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+    min-width: 0;
+  }
+  .action-col-improve {
+    min-width: 0;
+  }
+  /* Build / Knights tabs (left column); Improve stays separate */
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .action-actions-tab-bar .tab-btn {
+    padding: 5px 2px;
+    font-size: 0.58rem;
+    letter-spacing: 0.06em;
+    gap: 3px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 6px 0;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #7a9a7a;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    font: inherit;
+    transition: color 0.15s, border-color 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .tab-btn:hover {
+    color: #b0c8b0;
+  }
+  .tab-btn.tab-active {
+    color: #c8b47a;
+    font-weight: 700;
+    border-bottom-color: #c8b47a;
+  }
+  .tab-playable-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #d4a853;
+    flex-shrink: 0;
+    box-shadow: 0 0 5px rgba(212, 168, 83, 0.55);
+  }
+  .tab-info {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.35);
+    cursor: pointer;
+    line-height: 1;
+  }
+  .tab-info:hover {
+    color: rgba(255, 255, 255, 0.7);
+  }
+  .tab-panels-slot.action-actions-tab-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    padding-top: 0.12rem;
+    min-width: 0;
+  }
+  .tab-pane.tab-pane-stack {
+    grid-row: 1;
+    grid-column: 1;
+    min-width: 0;
+  }
+  .tab-pane.tab-pane-stack:not(.tab-pane-active) {
+    visibility: hidden;
+    pointer-events: none;
   }
   .compact-block {
     width: 100%;
@@ -818,6 +1049,62 @@
   .compact-block-improve .compact-block-head {
     margin-bottom: 0.12rem;
   }
+  @media (max-width: 699px) {
+    .action-compact-grid {
+      display: grid;
+      /* Actions yield first; Improve gets a slightly larger fraction above its 52% floor */
+      grid-template-columns: minmax(0, 0.9fr) minmax(52%, 1.1fr);
+      gap: 0.28rem 0.42rem;
+      align-items: start;
+    }
+    .action-col-improve {
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+      padding-left: 0.38rem;
+      /* Fallback only if intrinsic mins exceed column width after flex-grow */
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+    }
+    .action-col-improve .improve-tracks-compact {
+      width: 100%;
+      min-width: 0;
+    }
+    .action-col-improve .improve-tracks-compact .track-head {
+      min-width: 0;
+    }
+    .action-col-improve .improve-tracks-compact .track-bar {
+      flex: 1 1 0;
+      min-width: 0;
+      gap: 2px;
+    }
+    .action-col-improve .improve-tracks-compact .pip {
+      flex: 1 1 0;
+      min-width: 11px;
+      width: auto;
+      box-sizing: border-box;
+    }
+    .action-col-improve .improve-tracks-compact .pip.pip-ability,
+    .action-col-improve .improve-tracks-compact .pip.pip-metro {
+      min-width: 12px;
+    }
+    .action-col-improve .improve-tracks-compact .lv-num {
+      flex-shrink: 0;
+    }
+    .action-col-improve .improve-tracks-compact .track-label {
+      flex-shrink: 0;
+    }
+    .action-col-improve .improve-tracks-compact .improve-btn {
+      flex-shrink: 0;
+    }
+    .group-piece-row.piece-grid-tight {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.16rem;
+    }
+    .group-piece-row.piece-grid-tight .chase-chip {
+      grid-column: 1 / -1;
+    }
+  }
   .group-piece-row {
     display: flex;
     flex-wrap: wrap;
@@ -829,16 +1116,58 @@
     align-items: center;
     justify-content: center;
     gap: 0.03rem;
-    min-width: 2.52rem;
+    /* ~44px min touch target (width + height); can grow with grid cells */
+    min-width: max(44px, 2.75rem);
+    min-height: max(44px, 2.75rem);
+    box-sizing: border-box;
     padding: 0.16rem 0.26rem !important;
     font-size: 0.54rem !important;
     font-weight: 600;
     line-height: 1;
   }
   .action-piece.chase-chip {
-    min-width: 3.35rem;
+    min-width: max(44px, 3.35rem);
     flex-direction: row;
     gap: 0.25rem;
+  }
+  .action-piece-with-stack {
+    position: relative;
+    overflow: hidden;
+    padding-top: 0.22rem !important;
+    padding-bottom: 0.1rem !important;
+    gap: 0 !important;
+  }
+  .piece-stack-cancel-x {
+    position: absolute;
+    top: 2px;
+    right: 6px;
+    z-index: 60;
+    font-size: 1.05rem;
+    line-height: 1;
+    font-weight: 800;
+    color: #fdfaf0;
+    text-shadow: 0 0 4px rgba(0, 0, 0, 0.85), 0 1px 2px #000;
+    pointer-events: none;
+  }
+  .knight-deploy-piles {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+    flex: 1;
+    min-width: 0;
+    pointer-events: none;
+  }
+  .action-piece-knight-deploy {
+    min-width: max(44px, 100%);
+    grid-column: 1 / -1;
+  }
+  .knight-deploy-piles :global(.piece-stack-compact) {
+    flex: 1;
+    max-width: 3.1rem;
+    min-width: 0;
   }
   .ap-emoji {
     font-size: 0.92rem;
@@ -891,13 +1220,6 @@
   .improve-tracks {
     display: flex;
     flex-direction: column;
-
-    .track-row:first-child {
-      padding-top: 0;
-    }
-    .track-row:last-child {
-      padding-bottom: 0;
-    }
   }
   .track-row {
     padding: 5px 0;
