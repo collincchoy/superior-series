@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { GameState, PlayerId, ProgressCard } from "../../lib/catan/types.js";
-  import { TRACK_BADGE_COLOR, PROGRESS_CARD_INFO } from "../../lib/catan/constants.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import Modal from "./Modal.svelte";
   import ProgressCardInfoView from "./ProgressCardInfoView.svelte";
+  import ProgressCardButton from "./ProgressCardButton.svelte";
 
   let { gameState, localPid }: { gameState: GameState; localPid: PlayerId } =
     $props();
@@ -90,15 +90,13 @@
   <div class="card-grid">
     {#each me.progressCards as c, handIdx (handIdx)}
       {#if !c.isVP}
-        <button
-          type="button"
-          class="prog-card"
-          class:previewing={previewHandIdx === handIdx}
-          style="background:{TRACK_BADGE_COLOR[c.track]}"
+        <ProgressCardButton
+          name={c.name}
+          track={c.track}
+          comfortable
+          previewing={previewHandIdx === handIdx}
           onclick={() => onCardPreview(handIdx)}
-        >
-          {PROGRESS_CARD_INFO[c.name].title}
-        </button>
+        />
       {/if}
     {/each}
   </div>
@@ -130,6 +128,11 @@
 </Modal>
 
 <style>
+  .card-grid :global(.prog-card-btn.previewing) {
+    outline: 2px solid #6eb5d9;
+    box-shadow: 0 0 0 2px rgba(110, 181, 217, 0.45);
+  }
+
   .hint {
     margin: 0 0 0.65rem;
     font-size: 0.82rem;
@@ -141,21 +144,6 @@
     flex-wrap: wrap;
     gap: 0.45rem;
     margin-bottom: 0.75rem;
-  }
-
-  .prog-card {
-    border: 2px solid rgba(0, 0, 0, 0.35);
-    border-radius: 6px;
-    padding: 0.35rem 0.55rem;
-    font-size: 0.78rem;
-    cursor: pointer;
-    color: #1a1a12;
-    font-weight: 600;
-  }
-
-  .prog-card.previewing {
-    outline: 2px solid #6eb5d9;
-    box-shadow: 0 0 0 2px rgba(110, 181, 217, 0.45);
   }
 
   .preview-section {

@@ -10,7 +10,7 @@
   import { computeVP } from "../../lib/catan/game.js";
   import DeltaChip from "./DeltaChip.svelte";
   import Modal from "./Modal.svelte";
-  import { totalCards } from "./cardEmoji.js";
+  import { totalCards } from "../../lib/catan/types.js";
 
   let {
     gameState,

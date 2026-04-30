@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Resources } from "../../lib/catan/types.js";
-  import { RESOURCE_KEYS } from "./cardEmoji.js";
+  import { RESOURCE_KEYS } from "../../lib/catan/types.js";
   import ResourcePill from "./ResourcePill.svelte";
 
   let {

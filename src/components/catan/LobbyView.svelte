@@ -131,8 +131,10 @@
     <button
       class="btn-primary btn-large"
       onclick={() => store.startGame()}
-      disabled={!canStart}>Start Game</button
+      disabled={!canStart}
     >
+      Start Game
+    </button>
   {/if}
 </div>
 

@@ -97,8 +97,9 @@
             <button
               class="btn-primary"
               onclick={() => joinExistingGame()}
-              >Join Game</button
             >
+              Join Game
+            </button>
           </div>
         </div>
       {:else}
@@ -111,9 +112,15 @@
               maxlength="16"
               bind:value={hostNameInput}
             />
-            <button class="btn-primary" onclick={() => { savePlayerName(hostNameInput); store.hostGame(hostNameInput); }}
-              >Host Game</button
+            <button
+              class="btn-primary"
+              onclick={() => {
+                savePlayerName(hostNameInput);
+                store.hostGame(hostNameInput);
+              }}
             >
+              Host Game
+            </button>
           </div>
         </div>
         <div class="start-section">
@@ -134,8 +141,9 @@
             <button
               class="btn-primary"
               onclick={() => joinExistingGame()}
-              >Join</button
             >
+              Join
+            </button>
           </div>
           <button
             class="btn-scan-qr"

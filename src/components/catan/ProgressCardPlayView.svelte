@@ -1,19 +1,26 @@
 <script lang="ts">
   import { store } from "../../lib/catan/store.svelte.js";
-  import { CARD_EMOJI, RESOURCE_KEYS } from "./cardEmoji.js";
+  import ResourceKeyGrid from "./ResourceKeyGrid.svelte";
+  import ImprovementTrackGrid from "./ImprovementTrackGrid.svelte";
+  import PlayerChipBar from "./PlayerChipBar.svelte";
   import { PROGRESS_CARD_INFO } from "../../lib/catan/constants.js";
-  import PlayerSelector from "./PlayerSelector.svelte";
   import ResourceCard from "./ResourceCard.svelte";
   import Die from "./Die.svelte";
   import type {
     CommodityType,
     EdgeId,
     HexId,
+    ImprovementTrack,
     PlayerId,
     ProgressCard,
     ResourceType,
     Resources,
     VertexId,
+  } from "../../lib/catan/types.js";
+  import {
+    BASIC_RESOURCE_KEYS,
+    COMMODITY_KEYS,
+    RESOURCE_KEYS,
   } from "../../lib/catan/types.js";
   import { computeVP } from "../../lib/catan/game.js";
   import {
@@ -33,32 +40,10 @@
     onClose: () => void;
   } = $props();
 
-  const RESOURCE_OPTIONS: ResourceType[] = [
-    "brick",
-    "lumber",
-    "ore",
-    "grain",
-    "wool",
-  ];
-  const COMMODITY_OPTIONS: CommodityType[] = ["cloth", "coin", "paper"];
-  const CARD_TYPE_OPTIONS: Array<keyof typeof CARD_EMOJI> = [
-    "brick",
-    "lumber",
-    "ore",
-    "grain",
-    "wool",
-    "cloth",
-    "coin",
-    "paper",
-  ];
-  const CRANE_TRACK_OPTIONS = ["science", "trade", "politics"] as const;
-
   let selectedResource = $state<ResourceType>("grain");
   let selectedCommodity = $state<CommodityType>("cloth");
-  let selectedCardType = $state<keyof typeof CARD_EMOJI>("cloth");
-  let selectedCraneTrack = $state<(typeof CRANE_TRACK_OPTIONS)[number]>(
-    "science",
-  );
+  let selectedCardType = $state<keyof Resources>("cloth");
+  let selectedCraneTrack = $state<ImprovementTrack>("science");
   let die1 = $state(1);
   let die2 = $state(1);
 
@@ -87,6 +72,16 @@
 
   let opponents = $derived(
     gs && myPid ? (gs.playerOrder.filter((p) => p !== myPid) as PlayerId[]) : ([] as PlayerId[]),
+  );
+
+  let espionagePlayers = $derived(
+    gs && myPid
+      ? (opponents.filter(
+          (p) =>
+            (gs.players[p]?.progressCards ?? []).filter((c) => !c.isVP).length >
+            0,
+        ) as PlayerId[])
+      : ([] as PlayerId[]),
   );
 
   let opponentsGdEligible = $derived(
@@ -248,6 +243,17 @@
     gdSelectedIndices = [];
   });
 
+  $effect(() => {
+    if (card.name !== "Espionage" || !canPlayNow || !gs) return;
+    if (espionagePlayers.length === 0) return;
+    if (
+      selectedTargetPid === null ||
+      !espionagePlayers.includes(selectedTargetPid)
+    ) {
+      selectedTargetPid = espionagePlayers[0]!;
+    }
+  });
+
   function close() {
     onClose();
   }
@@ -399,21 +405,23 @@
 
 {#if canPlayNow && card.name === "ResourceMonopoly"}
   <div class="picker-row">
-    <label for="res-select">Resource</label>
-    <select id="res-select" bind:value={selectedResource}>
-      {#each RESOURCE_OPTIONS as option (option)}
-        <option value={option}>{CARD_EMOJI[option]} {option}</option>
-      {/each}
-    </select>
+    <span class="picker-label" id="res-mon-grid-label">Resource</span>
+    <ResourceKeyGrid
+      labelledby="res-mon-grid-label"
+      keys={[...BASIC_RESOURCE_KEYS]}
+      selected={selectedResource}
+      onSelect={(k) => (selectedResource = k as ResourceType)}
+    />
   </div>
 {:else if canPlayNow && card.name === "TradeMonopoly"}
   <div class="picker-row">
-    <label for="com-select">Commodity</label>
-    <select id="com-select" bind:value={selectedCommodity}>
-      {#each COMMODITY_OPTIONS as option (option)}
-        <option value={option}>{CARD_EMOJI[option]} {option}</option>
-      {/each}
-    </select>
+    <span class="picker-label" id="trade-mon-grid-label">Commodity</span>
+    <ResourceKeyGrid
+      labelledby="trade-mon-grid-label"
+      keys={[...COMMODITY_KEYS]}
+      selected={selectedCommodity}
+      onSelect={(k) => (selectedCommodity = k as CommodityType)}
+    />
   </div>
 {:else if canPlayNow && card.name === "Alchemy"}
   <div class="alchemy-picker">
@@ -455,21 +463,22 @@
   </div>
 {:else if canPlayNow && card.name === "MerchantFleet"}
   <div class="picker-row">
-    <label for="fleet-select">2:1 card type</label>
-    <select id="fleet-select" bind:value={selectedCardType}>
-      {#each CARD_TYPE_OPTIONS as option (option)}
-        <option value={option}>{CARD_EMOJI[option]} {option}</option>
-      {/each}
-    </select>
+    <span class="picker-label" id="fleet-grid-label">2:1 card type</span>
+    <ResourceKeyGrid
+      labelledby="fleet-grid-label"
+      keys={[...RESOURCE_KEYS]}
+      selected={selectedCardType}
+      onSelect={(k) => (selectedCardType = k)}
+    />
   </div>
 {:else if canPlayNow && card.name === "Crane"}
   <div class="picker-row">
-    <label for="crane-select">Discount track</label>
-    <select id="crane-select" bind:value={selectedCraneTrack}>
-      {#each CRANE_TRACK_OPTIONS as option (option)}
-        <option value={option}>{option}</option>
-      {/each}
-    </select>
+    <span class="picker-label" id="crane-grid-label">Discount track</span>
+    <ImprovementTrackGrid
+      labelledby="crane-grid-label"
+      selected={selectedCraneTrack}
+      onSelect={(t) => (selectedCraneTrack = t)}
+    />
   </div>
 {:else if canPlayNow && card.name === "Medicine"}
   <p class="helper">Click a settlement on the board to upgrade it.</p>
@@ -487,21 +496,25 @@
   {/if}
 {:else if canPlayNow && card.name === "CommercialHarbor"}
   <div class="picker-row">
-    <label for="ch-res">Offer resource</label>
-    <select id="ch-res" bind:value={selectedComHarborResource}>
-      {#each RESOURCE_OPTIONS as option (option)}
-        <option value={option}>{CARD_EMOJI[option]} {option}</option>
-      {/each}
-    </select>
+    <span class="picker-label" id="ch-res-grid-label">Offer resource</span>
+    <ResourceKeyGrid
+      labelledby="ch-res-grid-label"
+      keys={[...BASIC_RESOURCE_KEYS]}
+      selected={selectedComHarborResource}
+      onSelect={(k) => (selectedComHarborResource = k as ResourceType)}
+    />
   </div>
 {:else if canPlayNow && card.name === "Espionage"}
   <div class="picker-row">
-    <label for="esp-target">Target player</label>
-    <select id="esp-target" bind:value={selectedTargetPid}>
-      {#each opponents as p (p)}
-        <option value={p}>{gs?.players[p]?.name ?? p}</option>
-      {/each}
-    </select>
+    <span class="picker-label">Target player</span>
+    {#if gs}
+      <PlayerChipBar
+        mode="single"
+        playerIds={espionagePlayers}
+        gameState={gs}
+        bind:selectedSingle={selectedTargetPid}
+      />
+    {/if}
   </div>
   {#if selectedTargetPid && espTargetCards.length > 0}
     <div class="picker-row">
@@ -519,7 +532,12 @@
   {#if gdStep === 1}
     <p class="gd-step-label">TARGET PLAYER (&gt;= YOUR VP)</p>
     {#if gs}
-      <PlayerSelector players={opponentsGdEligible} gameState={gs} bind:selected={selectedTargetPid} />
+      <PlayerChipBar
+        mode="single"
+        playerIds={opponentsGdEligible}
+        gameState={gs}
+        bind:selectedSingle={selectedTargetPid}
+      />
     {/if}
   {:else if gdStep === 2 && gdLockedPid && gs}
     {@const lockedName = gs.players[gdLockedPid]?.name ?? gdLockedPid}
@@ -553,7 +571,7 @@
 {:else if canPlayNow && card.name === "Treason"}
   <p class="helper">Click an enemy knight to remove it.</p>
 {:else if canPlayNow && card.name === "Diplomacy"}
-  <p class="helper">Click an open enemy road to remove it.</p>
+  <p class="helper">Click an open road (yours or an opponent's) to remove it.</p>
 {/if}
 
 <div class="actions">
@@ -648,7 +666,8 @@
     gap: 0.3rem;
   }
 
-  .picker-row label {
+  .picker-row label,
+  .picker-label {
     font-size: 0.72rem;
     text-transform: uppercase;
     color: #c8b47a;

@@ -6,12 +6,15 @@
     title,
     closeOnBackdrop = true,
     closeable = true,
+    size = "default",
     children,
   }: {
     open: boolean;
     title: string;
     closeOnBackdrop?: boolean;
     closeable?: boolean;
+    /** default ~360px; wide for dense panels */
+    size?: "default" | "wide";
     children: Snippet;
   } = $props();
 
@@ -39,7 +42,7 @@
   }
 </script>
 
-<dialog bind:this={dialog} onclick={handleClick} onclose={syncOpenState} oncancel={handleCancel}>
+<dialog bind:this={dialog} class={size === "wide" ? "size-wide" : undefined} onclick={handleClick} onclose={syncOpenState} oncancel={handleCancel}>
   <div class="title-row">
     <h3>{title}</h3>
     {#if closeable}
@@ -67,6 +70,10 @@
     font-family: system-ui, sans-serif;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     animation: modal-in 250ms cubic-bezier(0.34, 1.3, 0.64, 1) forwards;
+  }
+
+  dialog.size-wide {
+    max-width: min(720px, 94vw);
   }
 
   dialog::backdrop {

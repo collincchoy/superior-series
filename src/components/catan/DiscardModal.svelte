@@ -71,8 +71,10 @@
     <button
       class="btn-primary"
       onclick={confirm}
-      disabled={selectedTotal !== needed}>Discard</button
+      disabled={selectedTotal !== needed}
     >
+      Discard
+    </button>
   </div>
 </Modal>
 

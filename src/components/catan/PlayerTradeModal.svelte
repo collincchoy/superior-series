@@ -1,10 +1,12 @@
 <script lang="ts">
   import type { GameState, PlayerId, Resources } from "../../lib/catan/types.js";
+  import { RESOURCE_KEYS, totalCards } from "../../lib/catan/types.js";
   import { store } from "../../lib/catan/store.svelte.js";
-  import { CARD_EMOJI, RESOURCE_KEYS } from "./cardEmoji.js";
   import Modal from "./Modal.svelte";
   import ResourceHandPicker from "./ResourceHandPicker.svelte";
   import ResourcePill from "./ResourcePill.svelte";
+  import PlayerChipBar from "./PlayerChipBar.svelte";
+  import ResourceKeyTapRow from "./ResourceKeyTapRow.svelte";
 
   let {
     gameState,
@@ -31,10 +33,6 @@
       .map((pid) => gameState.players[pid])
       .filter(Boolean),
   );
-
-  function totalCards(r: Partial<Resources>): number {
-    return Object.values(r).reduce((s, v) => s + (v ?? 0), 0);
-  }
 
   let giveTotal = $derived(totalCards(give));
   let wantTotal = $derived(totalCards(want));
@@ -85,13 +83,6 @@
     } else {
       want = { ...want, [k]: next };
     }
-  }
-
-  function toggleTarget(pid: PlayerId) {
-    const next = new Set(selectedTargetPids);
-    if (next.has(pid)) next.delete(pid);
-    else next.add(pid);
-    selectedTargetPids = next;
   }
 
   function sendOffer() {
@@ -181,19 +172,12 @@
     <!-- Player multi-select (default: all) -->
     <div class="section">
       <div class="field-label">Trade with:</div>
-      <div class="player-row">
-        {#each otherPlayers as player}
-          <button
-            class="player-btn"
-            class:selected={selectedTargetPids.has(player!.id)}
-            onclick={() => toggleTarget(player!.id)}
-            style="--pc:{player!.color}"
-          >
-            <span class="player-dot" style="background:{player!.color}"></span>
-            {player!.name}
-          </button>
-        {/each}
-      </div>
+      <PlayerChipBar
+        mode="multi"
+        playerIds={otherPlayers.map((p) => p!.id)}
+        {gameState}
+        bind:selectedMulti={selectedTargetPids}
+      />
     </div>
 
     <!-- 4-panel 2×2 grid -->
@@ -202,18 +186,10 @@
       <div class="grid-col">
         <div class="pane-box">
           <div class="pane-title">Ask for</div>
-          <div class="type-picker">
-            {#each RESOURCE_KEYS as k}
-              <button
-                class="type-btn"
-                onclick={() => adjustWant(k, 1)}
-                title="Want {k}"
-                aria-label="Add {k} to want"
-              >
-                {CARD_EMOJI[k]}
-              </button>
-            {/each}
-          </div>
+          <ResourceKeyTapRow
+            keys={[...RESOURCE_KEYS]}
+            onTap={(k) => adjustWant(k, 1)}
+          />
         </div>
         <div class="pane-box">
           <div class="pane-title">You want</div>
@@ -269,42 +245,6 @@
     margin-bottom: 0.35rem;
   }
 
-  /* ── Player picker ── */
-  .player-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-
-  .player-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    background: rgba(255, 255, 255, 0.08);
-    color: #f0e8d0;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 20px;
-    padding: 0.3rem 0.8rem;
-    font-size: 0.82rem;
-    cursor: pointer;
-    min-height: 40px;
-    transition: background 100ms ease;
-  }
-
-  .player-btn.selected {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: var(--pc, #6dbf6d);
-    box-shadow: 0 0 0 2px var(--pc, #6dbf6d);
-  }
-
-  .player-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  /* ── 4-panel grid ── */
   .trade-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -340,38 +280,6 @@
     letter-spacing: 0.03em;
   }
 
-  /* ── Resource type picker (Ask for) ── */
-  .type-picker {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-  }
-
-  .type-btn {
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 8px;
-    padding: 0.25rem 0.35rem;
-    font-size: 1.3rem;
-    line-height: 1;
-    cursor: pointer;
-    min-height: 42px;
-    min-width: 42px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 80ms ease, transform 80ms ease;
-  }
-
-  .type-btn:hover {
-    background: rgba(255, 255, 255, 0.14);
-  }
-
-  .type-btn:active {
-    transform: scale(0.93);
-  }
-
-  /* ── You want pane ── */
   .pill-grid {
     display: flex;
     flex-wrap: wrap;
@@ -531,12 +439,9 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .type-btn,
     .pill-btn {
       transition: none;
     }
-    .type-btn:hover,
-    .type-btn:active,
     .pill-btn:hover,
     .pill-btn:active {
       filter: none;

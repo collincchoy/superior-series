@@ -153,7 +153,7 @@
   }
 </script>
 
-<Modal bind:open title="Control Panel" closeOnBackdrop={true}>
+<Modal bind:open title="Control Panel" closeOnBackdrop={true} size="wide">
   {#snippet children()}
     <div class="control-panel-shell">
       <p class="panel-description">Host-only recovery and debug controls. Changes are logged and can be undone.</p>
