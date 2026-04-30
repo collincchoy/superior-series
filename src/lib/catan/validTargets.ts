@@ -229,23 +229,19 @@ export function computeValidTargets(
             }
           });
         } else if (pending.card === "Taxation") {
-          // Taxation: all non-desert hexes when robber active
+          // Taxation: non-desert hexes except current robber (same idea as robber move)
           if (state.barbarian.robberActive) {
             Object.values(board.hexes).forEach((h) => {
-              if (h.terrain !== "desert") validHexes.add(h.id);
+              if (h.terrain !== "desert" && !h.hasRobber) validHexes.add(h.id);
             });
           }
         }
         break;
       case "progress_select_edge":
         if (pending.card === "Diplomacy") {
-          // Diplomacy: open opponent roads (roads with a disconnected endpoint)
+          // Diplomacy: any open road (own or opponent), including your own dead-end branch
           Object.entries(board.edges).forEach(([eid, road]) => {
-            if (
-              road &&
-              road.playerId !== pid &&
-              isOpenRoad(board, graph, eid as EdgeId)
-            ) {
+            if (road && isOpenRoad(board, graph, eid as EdgeId)) {
               validEdges.add(eid as EdgeId);
             }
           });

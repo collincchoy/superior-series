@@ -7,6 +7,7 @@ import type {
   HexId,
   ProgressCard,
 } from "./types.js";
+import { RESOURCE_KEYS } from "./types.js";
 
 export type CardDeltaKind = keyof Resources | "progress";
 
@@ -19,17 +20,6 @@ export interface PlayerCardDeltaEvent {
   pid: PlayerId;
   tokens: CardDeltaToken[];
 }
-
-const RESOURCE_KEYS: (keyof Resources)[] = [
-  "brick",
-  "lumber",
-  "ore",
-  "grain",
-  "wool",
-  "cloth",
-  "coin",
-  "paper",
-];
 
 const graph = buildGraph();
 
