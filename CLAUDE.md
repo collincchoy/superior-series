@@ -48,6 +48,7 @@ Use `import.meta.env.BASE_URL` for internal links (see Navigation.astro).
 | `network.ts`       | PeerJS host/client wrapper                                     |
 | `store.svelte.ts`  | Reactive UI state (`$state`); singleton `store`; `net` must NOT be `$state` (PeerJS circular refs) |
 | `validTargets.ts`  | Compute valid click targets (vertices/edges/hexes) for current game state |
+| `pendingActionUi.ts` | Pure mapping `PendingAction` → compact ACTION tab (`build`/`knights`/none) for HUD |
 | `svgHelpers.ts`    | Pure SVG coordinate math (unit-tested in `svgHelpers.test.ts`) |
 | `turnActors.ts`    | Determine which player(s) can act in a given phase             |
 
@@ -115,4 +116,5 @@ Full rules in `catan_base_rules.txt` and `catan_ck_rules.txt` (converted from PD
 - `pnpm check` runs `lint` + `typecheck` + `test` — same gates as CI before `build`
 - `pnpm dev` may pick port 4322 if 4321 is occupied — HMR websocket will fail in that case; use hard-refresh (Cmd+Shift+R) or kill stale servers first
 - Errors from `applyAction` on the host are surfaced via toast and `console.error`; check browser console if actions appear to do nothing
+- `ActionPanel.svelte` does **not** wrap its phase ladder in `{#key gameState.version}` — `phase`, `pendingAction`, and derived props already update the tree; keyed remounts ran on every reducer bump and thrashed the HUD.
 - Svelte components have no unit tests — verify visually with `pnpm dev`

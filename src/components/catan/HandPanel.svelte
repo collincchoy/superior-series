@@ -40,16 +40,19 @@
   }
 
   $effect(() => {
-    void resourceCardCounts;
     const el = handCardsEl;
-    updateHandAffordance();
-
     if (!el || typeof ResizeObserver === "undefined") return;
 
     const resizeObserver = new ResizeObserver(updateHandAffordance);
     resizeObserver.observe(el);
 
     return () => resizeObserver.disconnect();
+  });
+
+  $effect(() => {
+    void resourceCardCounts;
+    void handCardsEl;
+    updateHandAffordance();
   });
 
   function canPlayNow(cardName: ProgressCardName, isVP: boolean): boolean {
@@ -193,7 +196,7 @@
     margin-inline-start: auto;
   }
 
-  @media (max-width: 699px) {
+  @media (max-width: var(--catan-compact-max)) {
     .hand-panel {
       padding: 0.26rem 0.5rem;
     }

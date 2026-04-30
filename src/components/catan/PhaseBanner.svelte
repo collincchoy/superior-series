@@ -129,7 +129,7 @@
     white-space: nowrap;
   }
 
-  @media (max-width: 699px) {
+  @media (max-width: var(--catan-compact-max)) {
     .phase-banner {
       padding: 0.22rem 0.5rem;
       gap: 0.38rem;

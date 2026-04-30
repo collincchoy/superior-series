@@ -933,7 +933,7 @@
     box-shadow: 0 5px 14px rgba(0, 0, 0, 0.35);
   }
 
-  @media (min-width: 700px) {
+  @media (min-width: calc(var(--catan-compact-max) + 1px)) {
     .board-area {
       flex: 1;
     }

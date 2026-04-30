@@ -102,7 +102,7 @@
     line-height: 1;
   }
 
-  @media (min-width: 700px) {
+  @media (min-width: calc(var(--catan-compact-max) + 1px)) {
     .side-panel {
       width: 260px;
       max-height: unset;

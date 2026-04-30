@@ -9,6 +9,7 @@
     type VertexId,
   } from "../../lib/catan/types.js";
   import type { PendingAction } from "../../lib/catan/validTargets.js";
+  import { compactActionLeftTab } from "../../lib/catan/pendingActionUi.js";
   import { store } from "../../lib/catan/store.svelte.js";
   import { CARD_EMOJI } from "./cardEmoji.js";
   import {
@@ -398,23 +399,6 @@
     store.openInfoModal({ kind: "knight-levels" });
   }
 
-  const BUILD_ACTION_TYPES = new Set<PendingAction["type"]>([
-    "build_road",
-    "build_settlement",
-    "build_city",
-    "build_city_wall",
-  ]);
-  const KNIGHT_ACTION_TYPES = new Set<PendingAction["type"]>([
-    "knight_deploy",
-    "activate_knight",
-    "advance_knight_from",
-    "advance_knight_to",
-    "chase_robber_from",
-    "chase_robber_hex",
-  ]);
-
-  type ActiveLeftTab = "build" | "knights";
-
   const ACTION_LEFT_TAB_DEFS = [
     { id: "build" as const, label: "Build", infoAria: "Show build costs" },
     { id: "knights" as const, label: "Knights", infoAria: "Knight levels" },
@@ -425,13 +409,12 @@
   );
   let prevIsActionTabsSlice = $state(false);
 
-  let activeLeftTab = $state<ActiveLeftTab>("build");
+  let activeLeftTab = $state<"build" | "knights">("build");
 
   $effect(() => {
     if (pendingAction) {
-      const t = pendingAction.type;
-      if (BUILD_ACTION_TYPES.has(t)) activeLeftTab = "build";
-      else if (KNIGHT_ACTION_TYPES.has(t)) activeLeftTab = "knights";
+      const tab = compactActionLeftTab(pendingAction);
+      if (tab) activeLeftTab = tab;
       prevIsActionTabsSlice = isActionTabsSlice;
       return;
     }
@@ -452,7 +435,6 @@
 </script>
 
 <div class="action-panel">
-  {#key gameState.version}
   {#if phase === "SETUP_R1_SETTLEMENT"}
     <p class="action-instruction">
       👆 Click a yellow dot on the board to place your settlement
@@ -874,7 +856,6 @@
         onclick={() => send({ type: "END_TURN", pid })}>✓ End Turn</button>
     </div>
   {/if}
-  {/key}
 </div>
 
 <CatanPopover
@@ -918,7 +899,7 @@
     flex-direction: column;
     gap: 0.28rem;
   }
-  /* ACTION: side rail (≥700px) stacks vertically; bottom sheet (<700px) uses 2 cols to save height */
+  /* ACTION: side rail (viewport > --catan-compact-max) stacks vertically; compact widths use a 2-col grid */
   .action-compact-grid {
     display: flex;
     flex-direction: column;
@@ -1049,7 +1030,7 @@
   .compact-block-improve .compact-block-head {
     margin-bottom: 0.12rem;
   }
-  @media (max-width: 699px) {
+  @media (max-width: var(--catan-compact-max)) {
     .action-compact-grid {
       display: grid;
       /* Actions yield first; Improve gets a slightly larger fraction above its 52% floor */
