@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createInitialState, applyAction } from "../../lib/catan/game.js";
 import { chooseBotAction } from "../../lib/catan/ai.js";
 import { getActingPlayerIds } from "../../lib/catan/turnActors.js";
@@ -65,6 +65,32 @@ function buildActionState(): GameState {
   }
 
   return state;
+}
+
+/** Ignores version/log/roll id so revisiting the same position trips the loop detector; RNG is seeded in that test to avoid flaky revisits. */
+function botTurnStateFingerprint(state: GameState): string {
+  const { version: _version, log: _log, lastRoll, ...rest } = state;
+  return JSON.stringify({
+    ...rest,
+    lastRoll: lastRoll
+      ? { playerId: lastRoll.playerId, dice: lastRoll.dice }
+      : null,
+  });
+}
+
+function withSeededMathRandom(seed: number, fn: () => void): void {
+  let mulberry = seed;
+  const spy = vi.spyOn(Math, "random").mockImplementation(() => {
+    let t = (mulberry += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  });
+  try {
+    fn();
+  } finally {
+    spy.mockRestore();
+  }
 }
 
 // ─── Basic validity ───────────────────────────────────────────────────────────
@@ -251,27 +277,39 @@ describe("chooseBotAction - displaced knight", () => {
   });
 });
 
-// ─── No infinite loops ────────────────────────────────────────────────────────
+// ─── No stuck loops ───────────────────────────────────────────────────────────
 
-describe("chooseBotAction - no infinite loops", () => {
-  it("bot completes its turn within 50 actions", () => {
-    let state = buildActionState();
-    state = { ...state, phase: "ROLL_DICE" as const };
-    const pid = state.currentPlayerId;
+describe("chooseBotAction - no stuck loops", () => {
+  it("bot does not get stuck in a loop", () => {
+    withSeededMathRandom(0x12345678, () => {
+      let state = buildActionState();
+      state = { ...state, phase: "ROLL_DICE" as const };
+      const pid = state.currentPlayerId;
 
-    let actions = 0;
-    const MAX_ACTIONS = 50;
+      const seen = new Set<string>();
+      const MAX_ITERATIONS = 3000;
+      let iterations = 0;
 
-    while (state.phase !== "ROLL_DICE" || state.currentPlayerId === pid) {
-      if (actions++ > MAX_ACTIONS) break;
-      const action = chooseBotAction(state, state.currentPlayerId);
-      state = applyAction(state, action);
-      if (state.phase === "GAME_OVER") break;
-      // If turn changed, stop
-      if (state.currentPlayerId !== pid && state.phase === "ROLL_DICE") break;
-    }
+      while (state.phase !== "ROLL_DICE" || state.currentPlayerId === pid) {
+        if (iterations++ >= MAX_ITERATIONS) {
+          expect.fail(
+            "Exceeded safety iteration limit without detecting a repeated state or completing the turn",
+          );
+        }
+        const fp = botTurnStateFingerprint(state);
+        if (seen.has(fp)) {
+          expect.fail(
+            "Bot appears stuck in a loop (revisited an identical game state)",
+          );
+        }
+        seen.add(fp);
 
-    expect(actions).toBeLessThanOrEqual(MAX_ACTIONS);
+        const action = chooseBotAction(state, state.currentPlayerId);
+        state = applyAction(state, action);
+        if (state.phase === "GAME_OVER") break;
+        if (state.currentPlayerId !== pid && state.phase === "ROLL_DICE") break;
+      }
+    });
   });
 });
 

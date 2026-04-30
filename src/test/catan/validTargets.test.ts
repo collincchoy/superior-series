@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { computeValidTargets } from "../../lib/catan/validTargets.js";
 import { createInitialState, applyAction } from "../../lib/catan/game.js";
 import { buildGraph } from "../../lib/catan/board.js";
+import { isOpenRoad } from "../../lib/catan/rules.js";
 import type {
   GameState,
   PlayerId,
@@ -1070,13 +1071,33 @@ describe("computeValidTargets", () => {
       }
     });
 
-    it("progress_select_hex for Taxation highlights all non-desert hexes when robber is active", () => {
-      const targets = computeValidTargets(actionState, "p1", {
+    it("progress_select_hex for Taxation highlights non-desert hexes except robber hex when robber is active", () => {
+      const landHex = Object.values(actionState.board.hexes).find(
+        (h) => h.terrain !== "desert",
+      );
+      if (!landHex) throw new Error("expected land hex");
+      const taxationState: GameState = {
+        ...actionState,
+        board: {
+          ...actionState.board,
+          hexes: {
+            ...actionState.board.hexes,
+            [landHex.id]: { ...landHex, hasRobber: true },
+          },
+        },
+      };
+
+      const targets = computeValidTargets(taxationState, "p1", {
         type: "progress_select_hex",
         card: "Taxation",
       });
-      for (const hex of Object.values(actionState.board.hexes)) {
+
+      expect(targets.validHexes.has(landHex.id)).toBe(false);
+
+      for (const hex of Object.values(taxationState.board.hexes)) {
         if (hex.terrain === "desert") {
+          expect(targets.validHexes.has(hex.id)).toBe(false);
+        } else if (hex.hasRobber) {
           expect(targets.validHexes.has(hex.id)).toBe(false);
         } else {
           expect(targets.validHexes.has(hex.id)).toBe(true);
@@ -1097,20 +1118,35 @@ describe("computeValidTargets", () => {
       expect(targets.validHexes.size).toBe(0);
     });
 
-    it("progress_select_edge for Diplomacy highlights only open roads", () => {
-      // During normal setup, all roads are connected to the player's buildings/network.
-      // An "open road" in Diplomacy terms is a road where one endpoint is not connected.
-      // In this test state, all roads are well-connected, so few/no roads are "open".
-      // We just verify that p1's roads are never valid targets and that the function doesn't crash.
-      const p1RoadEdge = (graph.edgesOfVertex[vids[0]!] ?? [])[0]!;
+    it("progress_select_edge for Diplomacy highlights any open road, including your own", () => {
+      const state = createInitialState(makePlayers(2));
+      const edgeId = Object.keys(graph.edges)[0] as EdgeId;
+      const [, vb] = graph.verticesOfEdge[edgeId]!;
+      const minimal: GameState = {
+        ...state,
+        phase: "ACTION",
+        currentPlayerId: "p1",
+        board: {
+          ...state.board,
+          vertices: {
+            ...state.board.vertices,
+            [vb]: { type: "settlement", playerId: "p1" },
+          },
+          edges: {
+            ...state.board.edges,
+            [edgeId]: { playerId: "p1" },
+          },
+        },
+      };
 
-      const targets = computeValidTargets(actionState, "p1", {
+      expect(isOpenRoad(minimal.board, graph, edgeId)).toBe(true);
+
+      const targets = computeValidTargets(minimal, "p1", {
         type: "progress_select_edge",
         card: "Diplomacy",
       });
 
-      // p1's own roads should never be valid for Diplomacy (can only target opponent roads)
-      expect(targets.validEdges.has(p1RoadEdge)).toBe(false);
+      expect(targets.validEdges.has(edgeId)).toBe(true);
     });
 
     it("progress_select_hex_pair for Invention highlights hexes with numbers not in [2,6,8,12]", () => {
