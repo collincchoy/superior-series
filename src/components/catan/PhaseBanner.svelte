@@ -1,17 +1,27 @@
 <script lang="ts">
   import type { GameState, PlayerId } from "../../lib/catan/types.js";
+  import type { BoardPendingBannerModel } from "../../lib/catan/boardPendingUi.js";
   import { isPlayerActing } from "../../lib/catan/turnActors.js";
+  import { store } from "../../lib/catan/store.svelte.js";
   import { phaseLabel } from "./phaseLabel.js";
   import CatanPopover from "./CatanPopover.svelte";
 
-  let { gameState, localPid }: { gameState: GameState; localPid: PlayerId } =
-    $props();
+  let {
+    gameState,
+    localPid,
+    boardPending = null,
+  }: {
+    gameState: GameState;
+    localPid: PlayerId;
+    boardPending?: BoardPendingBannerModel | null;
+  } = $props();
 
   const BARBARIAN_MAX = 7;
   const TRACK_STEPS = [1, 2, 3, 4, 5, 6, 7] as const;
 
   let isMyTurn = $derived(isPlayerActing(gameState, localPid));
   let label = $derived(phaseLabel(gameState, localPid));
+  let skipLabel = $derived(boardPending?.skip === "admin_cancel" ? "Cancel" : "Skip");
   let pulseState = $state<"advance" | "reset" | null>(null);
   let lastPos = $state<number | null>(null);
   let numericPopover = $state<{ x: number; y: number } | null>(null);
@@ -56,6 +66,26 @@
     numericPopover = { x, y };
   }
 
+  function onSkip() {
+    const s = boardPending?.skip;
+    if (!s) return;
+    switch (s) {
+      case "free_roads":
+        store.sendAction({ type: "PROGRESS_SKIP_FREE_ROADS", pid: localPid });
+        break;
+      case "promotions":
+        store.sendAction({ type: "PROGRESS_SKIP_FREE_PROMOTIONS", pid: localPid });
+        break;
+      case "treason":
+        store.sendAction({ type: "PROGRESS_SKIP_TREASON", pid: localPid });
+        break;
+      case "admin_cancel":
+        store.setPendingAdminAction(null);
+        store.setMasterControlOpen(true);
+        break;
+    }
+  }
+
   $effect(() => {
     const nextPos = gameState.barbarian.position;
     const prevPos = lastPos;
@@ -72,26 +102,37 @@
 </script>
 
 <div class="phase-banner{isMyTurn ? ' my-turn' : ''}">
-  <span class="phase-label">{label}</span>
-  <button
-    type="button"
-    class="barbarian-indicator {threatLevel(gameState.barbarian.position)} {isNearLanding(gameState.barbarian.position) ? 'near-landing' : ''} {pulseState ? `pulse-${pulseState}` : ''}"
-    aria-label={statusLabel(
-      gameState.barbarian.position,
-      gameState.barbarian.robberActive,
-    )}
-    title={statusLabel(gameState.barbarian.position, gameState.barbarian.robberActive)}
-    onclick={toggleNumericPopover}
-  >
-    <span class="barbarian-ship" aria-hidden="true">⛵</span>
-    <span class="barbarian-gauge" aria-hidden="true">
-      {#each TRACK_STEPS as step}
-        <span
-          class="barbarian-step step-{step} {gameState.barbarian.position >= step ? 'filled' : ''}"
-        ></span>
-      {/each}
-    </span>
-  </button>
+  <div class="phase-primary">
+    <span class="phase-label">{label}</span>
+    <button
+      type="button"
+      class="barbarian-indicator {threatLevel(gameState.barbarian.position)} {isNearLanding(gameState.barbarian.position) ? 'near-landing' : ''} {pulseState ? `pulse-${pulseState}` : ''}"
+      aria-label={statusLabel(
+        gameState.barbarian.position,
+        gameState.barbarian.robberActive,
+      )}
+      title={statusLabel(gameState.barbarian.position, gameState.barbarian.robberActive)}
+      onclick={toggleNumericPopover}
+    >
+      <span class="barbarian-ship" aria-hidden="true">⛵</span>
+      <span class="barbarian-gauge" aria-hidden="true">
+        {#each TRACK_STEPS as step}
+          <span
+            class="barbarian-step step-{step} {gameState.barbarian.position >= step ? 'filled' : ''}"
+          ></span>
+        {/each}
+      </span>
+    </button>
+  </div>
+
+  {#if boardPending}
+    <div class="phase-secondary">
+      <span class="pending-msg">{boardPending.message}</span>
+      {#if boardPending.skip}
+        <button type="button" class="skip-btn" onclick={onSkip}>{skipLabel}</button>
+      {/if}
+    </div>
+  {/if}
 
   <CatanPopover
     open={!!numericPopover}
@@ -109,19 +150,25 @@
 <style>
   .phase-banner {
     background: #2c3e2c;
-    padding: 0.32rem 0.65rem;
     font-size: 0.8rem;
     color: #c8b47a;
     border-bottom: 1px solid #2c5f2e;
     transition: background 300ms ease, color 300ms ease;
     font-family: var(--font-display, cursive);
     display: flex;
+    flex-direction: column;
+  }
+
+  .phase-primary {
+    display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
+    padding: 0.32rem 0.65rem;
   }
 
-  .phase-label {
+  .phase-label,
+  .pending-msg {
     min-width: 0;
     flex: 1 1 auto;
     overflow: hidden;
@@ -129,10 +176,46 @@
     white-space: nowrap;
   }
 
+  .phase-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.22rem 0.65rem 0.3rem;
+    border-top: 1px solid rgba(44, 95, 46, 0.5);
+    font-size: 0.74rem;
+    color: #a8a090;
+  }
+
+  .skip-btn {
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 5px;
+    padding: 0.18rem 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #f5c842;
+    cursor: pointer;
+  }
+
+  .skip-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  .skip-btn:focus-visible {
+    outline: 2px solid #f5c842;
+    outline-offset: 2px;
+  }
+
   @media (max-width: 699px) {
-    .phase-banner {
+    .phase-primary {
       padding: 0.22rem 0.5rem;
       gap: 0.38rem;
+    }
+
+    .phase-secondary {
+      padding: 0.18rem 0.5rem 0.24rem;
     }
   }
 

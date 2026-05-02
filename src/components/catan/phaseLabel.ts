@@ -40,6 +40,9 @@ export function phaseLabel(state: GameState, localPid: PlayerId): string {
     KNIGHT_DISPLACE_RESPONSE: isMe
       ? "Relocate your displaced knight! ⚔️"
       : "Waiting for knight relocation… ⏳",
+    SCIENCE_SELECT_RESOURCE: isMe
+      ? `${prefix} — Claim a free resource! 🎁`
+      : `${prefix} — Claiming a free resource…`,
     GAME_OVER: state.winner
       ? `👑 ${state.players[state.winner]?.name ?? "Unknown"} wins! All hail! 🎉`
       : "Game over!",

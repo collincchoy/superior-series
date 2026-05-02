@@ -7,7 +7,6 @@
   import PhaseBanner from "./PhaseBanner.svelte";
   import HandPanel from "./HandPanel.svelte";
   import ActionPanel from "./ActionPanel.svelte";
-  import BoardPendingBanner from "./BoardPendingBanner.svelte";
 
   let {
     gameState,
@@ -32,7 +31,7 @@
 </script>
 
 <div class="side-panel">
-  <PhaseBanner {gameState} {localPid} />
+  <PhaseBanner {gameState} {localPid} boardPending={pendingBoardBanner} />
   <HandPanel
     {me}
     phase={gameState.phase}
@@ -40,9 +39,6 @@
       canAct && (gameState.phase === "ACTION" || gameState.phase === "ROLL_DICE")
     }
   />
-  {#if pendingBoardBanner}
-    <BoardPendingBanner model={pendingBoardBanner} {localPid} />
-  {/if}
   {#if canAct}
     <ActionPanel {gameState} {localPid} {pendingAction} bind:showTrade bind:showPlayerTrade />
   {:else if waitingForTradeResponse && pendingTrade}
