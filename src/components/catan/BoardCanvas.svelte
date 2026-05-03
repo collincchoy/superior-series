@@ -38,6 +38,7 @@
     CATAN_HEX_COORDS,
     hexId,
   } from "../../lib/catan/svgHelpers.js";
+  import { EVENT_COLORS } from "../../lib/catan/constants.js";
   import { buildGraph } from "../../lib/catan/board.js";
   import CatanPopover from "./CatanPopover.svelte";
 
@@ -66,7 +67,6 @@
   });
   let isMyTurn = $derived(isPlayerActing(gameState, localPid));
 
-  const KNIGHT_EMOJI = "⚔️";
   const NUMBER_DOT_RADIUS = 3.8;
   const NUMBER_DOT_SPACING = 7;
   const NUMBER_DOT_Y_OFFSET = 19;
@@ -75,6 +75,23 @@
   const HARBOR_MARKER_FONT_SIZE = 15;
 
   const ROAD_STROKE = 10;
+
+  function knightFig(cx: number, cy: number, w: number, h: number): string {
+    const hR = w * 0.30;
+    const headCy = cy - h * 0.30;
+    const k = hR * 0.552;
+    return [
+      `M ${cx - hR} ${headCy}`,
+      `C ${cx - hR} ${headCy - k}  ${cx - k} ${headCy - hR}  ${cx} ${headCy - hR}`,
+      `C ${cx + k} ${headCy - hR}  ${cx + hR} ${headCy - k}  ${cx + hR} ${headCy}`,
+      `L ${cx + w * 0.16} ${cy - h * 0.06}`,
+      `Q ${cx + w * 0.52} ${cy + h * 0.15}  ${cx + w * 0.46} ${cy + h * 0.42}`,
+      `L ${cx - w * 0.46} ${cy + h * 0.42}`,
+      `Q ${cx - w * 0.52} ${cy + h * 0.15}  ${cx - w * 0.16} ${cy - h * 0.06}`,
+      `Z`,
+    ].join(' ');
+  }
+
 
   const TARGET_EDGE_CAPTURE_STROKE = 40;
   const TARGET_EDGE_VISIBLE_STROKE = 14;
@@ -454,6 +471,26 @@
           <stop offset="100%" stop-color={c2} />
         </radialGradient>
       {/each}
+      <!-- Per-player piece shading gradients -->
+      {#each Object.values(gameState.players) as player}
+        <linearGradient id={`piece-shade-${player.color.replace('#', '')}`} x1="0%" y1="0%" x2="50%" y2="100%">
+          <stop offset="0%"   stop-color="white" stop-opacity="0.35" />
+          <stop offset="100%" stop-color="black"  stop-opacity="0.25" />
+        </linearGradient>
+      {/each}
+      <!-- Static metropolis track gradients -->
+      <linearGradient id="piece-shade-2e9e4f" x1="0%" y1="0%" x2="50%" y2="100%">
+        <stop offset="0%"   stop-color="white" stop-opacity="0.35" />
+        <stop offset="100%" stop-color="black"  stop-opacity="0.25" />
+      </linearGradient>
+      <linearGradient id="piece-shade-f1c232" x1="0%" y1="0%" x2="50%" y2="100%">
+        <stop offset="0%"   stop-color="white" stop-opacity="0.35" />
+        <stop offset="100%" stop-color="black"  stop-opacity="0.25" />
+      </linearGradient>
+      <linearGradient id="piece-shade-2f6fe4" x1="0%" y1="0%" x2="50%" y2="100%">
+        <stop offset="0%"   stop-color="white" stop-opacity="0.35" />
+        <stop offset="100%" stop-color="black"  stop-opacity="0.25" />
+      </linearGradient>
     </defs>
 
     <!-- ── Hexes ── -->
@@ -646,7 +683,7 @@
               y2={pts[1].y}
               stroke={color}
               stroke-width={ROAD_STROKE}
-              stroke-linecap="round"
+              stroke-linecap="square"
             />
           {/if}
         {/if}
@@ -663,57 +700,60 @@
               gameState.players[building.playerId]?.color ?? "#999"}
             <g filter="url(#drop-shadow)">
               {#if building.type === "settlement"}
-                <!-- Settlement: square base + triangle roof -->
-                <rect
-                  x={p.x - 10}
-                  y={p.y - 5}
-                  width="20"
-                  height="14"
-                  fill={color}
-                  stroke="#fff"
-                  stroke-width="2"
-                />
-                <polygon
-                  points={`${p.x},${p.y - 20} ${p.x + 12},${p.y - 5} ${p.x - 12},${p.y - 5}`}
-                  fill={color}
-                  stroke="#fff"
-                  stroke-width="2"
-                />
+                <!-- Base -->
+                <rect x={p.x - 11} y={p.y - 5} width="22" height="15" rx="1" fill={color} stroke="#fff" stroke-width="2" />
+                <rect x={p.x - 11} y={p.y - 5} width="22" height="15" rx="1" fill={`url(#piece-shade-${color.replace('#','')})`} />
+                <!-- Roof -->
+                <polygon points={`${p.x},${p.y - 21} ${p.x + 13},${p.y - 5} ${p.x - 13},${p.y - 5}`} fill={color} stroke="#fff" stroke-width="2" />
+                <polygon points={`${p.x},${p.y - 21} ${p.x + 13},${p.y - 5} ${p.x - 13},${p.y - 5}`} fill={`url(#piece-shade-${color.replace('#','')})`} />
+                <!-- Ridge shadow -->
+                <line x1={p.x - 11} y1={p.y - 5} x2={p.x + 11} y2={p.y - 5} stroke="rgba(0,0,0,0.18)" stroke-width="1.2" />
               {:else if building.type === "city"}
-                <!-- City: wide base + tower -->
-                <rect
-                  x={p.x - 14}
-                  y={p.y - 9}
-                  width="28"
-                  height="18"
-                  fill={color}
-                  stroke="#fff"
-                  stroke-width="2"
-                />
-                <rect
-                  x={p.x - 7}
-                  y={p.y - 21}
-                  width="14"
-                  height="12"
-                  fill={color}
-                  stroke="#fff"
-                  stroke-width="2"
-                />
+                <!-- Shared base -->
+                <rect x={p.x - 15} y={p.y - 5} width="30" height="13" rx="1" fill={color} stroke="#fff" stroke-width="2" />
+                <rect x={p.x - 15} y={p.y - 5} width="30" height="13" rx="1" fill={`url(#piece-shade-${color.replace('#','')})`} />
+                <!-- Left house wall -->
+                <rect x={p.x - 15} y={p.y - 15} width="13" height="10" fill={color} stroke="#fff" stroke-width="2" />
+                <rect x={p.x - 15} y={p.y - 15} width="13" height="10" fill={`url(#piece-shade-${color.replace('#','')})`} />
+                <!-- Left house roof -->
+                <polygon points={`${p.x - 8},${p.y - 24} ${p.x - 2},${p.y - 15} ${p.x - 15},${p.y - 15}`} fill={color} stroke="#fff" stroke-width="2" stroke-linejoin="round" />
+                <polygon points={`${p.x - 8},${p.y - 24} ${p.x - 2},${p.y - 15} ${p.x - 15},${p.y - 15}`} fill={`url(#piece-shade-${color.replace('#','')})`} />
+                <!-- Eave shadow -->
+                <line x1={p.x - 15} y1={p.y - 15} x2={p.x - 2} y2={p.y - 15} stroke="rgba(0,0,0,0.18)" stroke-width="1.2" />
+                <!-- Right tower body -->
+                <rect x={p.x - 2} y={p.y - 21} width="17" height="16" fill={color} stroke="#fff" stroke-width="2" />
+                <rect x={p.x - 2} y={p.y - 21} width="17" height="16" fill={`url(#piece-shade-${color.replace('#','')})`} />
+                <!-- Right tower crenellations (2 merlons) -->
+                <rect x={p.x - 2} y={p.y - 27} width="5" height="6" fill={color} stroke="#fff" stroke-width="1" />
+                <rect x={p.x + 7} y={p.y - 27} width="5" height="6" fill={color} stroke="#fff" stroke-width="1" />
                 {#if building.hasWall}
-                  <rect
-                    x={p.x - 18}
-                    y={p.y + 9}
-                    width="36"
-                    height="6"
-                    fill="#8b6914"
-                    stroke="#fff"
-                    stroke-width="1"
-                  />
+                  <!-- City wall: U-shape in player color -->
+                  <rect x={p.x - 17} y={p.y + 8}  width="10" height="11" rx="2" fill={color} stroke="#fff" stroke-width="1.5" />
+                  <rect x={p.x + 7}  y={p.y + 8}  width="10" height="11" rx="2" fill={color} stroke="#fff" stroke-width="1.5" />
+                  <rect x={p.x - 17} y={p.y + 14} width="34" height="5"  rx="2" fill={color} stroke="#fff" stroke-width="1.5" />
+                  <rect x={p.x - 17} y={p.y + 8}  width="10" height="11" rx="2" fill={`url(#piece-shade-${color.replace('#','')})`} />
+                  <rect x={p.x + 7}  y={p.y + 8}  width="10" height="11" rx="2" fill={`url(#piece-shade-${color.replace('#','')})`} />
+                  <rect x={p.x - 17} y={p.y + 14} width="34" height="5"  rx="2" fill={`url(#piece-shade-${color.replace('#','')})`} />
                 {/if}
                 {#if building.metropolis !== null}
-                  <text x={p.x} y={p.y - 24} text-anchor="middle" font-size="14"
-                    >👑</text
-                  >
+                  <!-- Metropolis H-gate sits on top of the right tower, aligned to tower footprint -->
+                  {@const mc = EVENT_COLORS[building.metropolis]}
+                  {@const mx = p.x - 2}
+                  {@const my = p.y - 27}
+                  <!-- H-gate left tower -->
+                  <rect x={mx}      y={my - 10} width="5" height="10" fill={mc} stroke="rgba(0,0,0,0.35)" stroke-width="0.75" />
+                  <!-- H-gate right tower -->
+                  <rect x={mx + 12} y={my - 10} width="5" height="10" fill={mc} stroke="rgba(0,0,0,0.35)" stroke-width="0.75" />
+                  <!-- H-gate crossbar -->
+                  <rect x={mx + 5}  y={my - 5}  width="7" height="5"  fill={mc} stroke="rgba(0,0,0,0.35)" stroke-width="0.75" />
+                  <!-- H-gate left crenellations -->
+                  <rect x={mx}      y={my - 13} width="2" height="3" fill={mc} />
+                  <rect x={mx + 3}  y={my - 13} width="2" height="3" fill={mc} />
+                  <!-- H-gate right crenellations -->
+                  <rect x={mx + 12} y={my - 13} width="2" height="3" fill={mc} />
+                  <rect x={mx + 15} y={my - 13} width="2" height="3" fill={mc} />
+                  <!-- Gradient overlay -->
+                  <rect x={mx} y={my - 13} width="17" height="13" fill={`url(#piece-shade-${mc.replace('#','')})`} />
                 {/if}
               {/if}
             </g>
@@ -729,55 +769,35 @@
           {@const p = getVertexPixel(vid as VertexId)}
           {#if p}
             {@const color = gameState.players[knight.playerId]?.color ?? "#999"}
-            {@const r = knight.strength === 1 ? 15 : knight.strength === 2 ? 19 : 23}
-            {@const fill = knight.active ? color : "#aaa"}
-            {@const stroke = knight.active ? "#fff" : "#4f4f4f"}
-            {@const ringStroke = knight.active ? "#ffffff" : "#3a3a3a"}
-            {@const fontSize = knight.strength === 1 ? 13 : knight.strength === 2 ? 16 : 19}
+            {@const fill = knight.active ? color : "#f0ede8"}
+            {@const stroke = knight.active ? "#fff" : color}
             <g filter="url(#drop-shadow)">
               <title>
                 {`${gameState.players[knight.playerId]?.name ?? knight.playerId} level ${knight.strength} knight (${knight.active ? "active" : "inactive"})`}
               </title>
-              <circle
-                cx={p.x}
-                cy={p.y}
-                {r}
-                {fill}
-                {stroke}
-                stroke-width="3"
-              />
-              {#if knight.strength >= 2}
-                <circle
-                  cx={p.x}
-                  cy={p.y}
-                  r={r - 4}
-                  fill="none"
-                  stroke={ringStroke}
-                  stroke-width="1.6"
-                  opacity="0.9"
-                />
+              {#if knight.strength === 1}
+                <!-- lv1: single figure -->
+                <path d={knightFig(p.x, p.y - 5, 15, 30)} {fill} {stroke} stroke-width="2" />
+                {#if knight.active}
+                  <path d={knightFig(p.x, p.y - 5, 15, 30)} fill={`url(#piece-shade-${color.replace('#','')})`} />
+                {/if}
+              {:else if knight.strength === 2}
+                <!-- lv2: 2 figures -->
+                {#each [p.x - 7, p.x + 7] as cx}
+                  <path d={knightFig(cx, p.y - 5, 15, 30)} {fill} {stroke} stroke-width="2" />
+                  {#if knight.active}
+                    <path d={knightFig(cx, p.y - 5, 15, 30)} fill={`url(#piece-shade-${color.replace('#','')})`} />
+                  {/if}
+                {/each}
+              {:else}
+                <!-- lv3: 3 figures -->
+                {#each [p.x - 13, p.x, p.x + 13] as cx}
+                  <path d={knightFig(cx, p.y - 5, 15, 30)} {fill} {stroke} stroke-width="2" />
+                  {#if knight.active}
+                    <path d={knightFig(cx, p.y - 5, 15, 30)} fill={`url(#piece-shade-${color.replace('#','')})`} />
+                  {/if}
+                {/each}
               {/if}
-              {#if knight.strength === 3}
-                <circle
-                  cx={p.x}
-                  cy={p.y}
-                  r={r - 7}
-                  fill="none"
-                  stroke={ringStroke}
-                  stroke-width="1.4"
-                  stroke-dasharray="2.5 2"
-                  opacity="0.95"
-                />
-              {/if}
-              <text
-                x={p.x}
-                y={p.y + 2}
-                text-anchor="middle"
-                dominant-baseline="middle"
-                font-size={fontSize}
-              >
-                {KNIGHT_EMOJI}
-              </text>
             </g>
           {/if}
         {/if}
