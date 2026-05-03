@@ -112,6 +112,7 @@
   let cityRingsDrawn = $state(0);
   let knightRingsDrawn = $state(0);
   type Floater = { id: number; x: number; y: number; label: string };
+  let cityFloaters = $state<Floater[]>([]);
   let knightFloaters = $state<Floater[]>([]);
 
   // Fires to draw during barbarians_win outcome, one per pillaged city
@@ -164,6 +165,7 @@
     knightsCounted = 0;
     cityRingsDrawn = 0;
     knightRingsDrawn = 0;
+    cityFloaters = [];
     knightFloaters = [];
 
     const p = pending;
@@ -181,6 +183,12 @@
       schedule(t, () => {
         cityRingsDrawn = i + 1;
         citiesCounted = i + 1;
+        const id = Date.now() + i;
+        const c = cityRefs[i]!;
+        cityFloaters = [...cityFloaters, { id, x: c.screen.x, y: c.screen.y, label: "+1" }];
+        schedule(1200, () => {
+          cityFloaters = cityFloaters.filter((f) => f.id !== id);
+        });
       });
     }
     // Pause, then knights one-by-one
@@ -261,6 +269,8 @@
       knightsCounted = p.totalDefense;
       cityRingsDrawn = cityRefs.length;
       knightRingsDrawn = knightRefs.length;
+      cityFloaters = [];
+      knightFloaters = [];
     }
     playOutcome();
   }
@@ -414,7 +424,9 @@
         <div class="chip amber" title="Cities (barbarian strength)">
           <span class="chip-icon">🏛️</span>
           <span class="chip-label">Cities</span>
-          <span class="chip-count">{citiesCounted}</span>
+          {#key citiesCounted}
+            <span class="chip-count count-bump">{citiesCounted}</span>
+          {/key}
         </div>
         <div class="versus {step === 'reveal' || step === 'outcome' ? 'big' : ''}">
           {vsGlyph}
@@ -422,7 +434,9 @@
         <div class="chip sky" title="Knights (total defense)">
           <span class="chip-icon">⚔️</span>
           <span class="chip-label">Knights</span>
-          <span class="chip-count">{knightsCounted}</span>
+          {#key knightsCounted}
+            <span class="chip-count count-bump">{knightsCounted}</span>
+          {/key}
         </div>
       </div>
     {/if}
@@ -462,12 +476,16 @@
       </svg>
     {/if}
 
+    <!-- City strength floaters -->
+    {#each cityFloaters as f (f.id)}
+      <div class="floater floater-amber" style="left:{f.x}px;top:{f.y - 26}px">
+        {f.label}
+      </div>
+    {/each}
+
     <!-- Knight strength floaters -->
     {#each knightFloaters as f (f.id)}
-      <div
-        class="floater"
-        style="left:{f.x}px;top:{f.y - 26}px"
-      >
+      <div class="floater" style="left:{f.x}px;top:{f.y - 26}px">
         {f.label}
       </div>
     {/each}
@@ -741,6 +759,19 @@
     z-index: 471;
     pointer-events: none;
   }
+  .floater-amber {
+    color: #ffe08a;
+    text-shadow: 0 0 8px rgba(0, 0, 0, 0.9), 0 0 4px #f5c842;
+  }
+  @keyframes count-bump {
+    from { transform: scale(1.5); opacity: 0.6; }
+    to   { transform: scale(1);   opacity: 1; }
+  }
+  .count-bump {
+    display: inline-block;
+    animation: count-bump 220ms ease-out;
+  }
+
   @keyframes floater-up {
     0% {
       opacity: 0;
