@@ -812,7 +812,7 @@
                     hasKnightAdvanceTarget
                       ? pending({ type: "advance_knight_from" })
                       : advanceKnightUnavailable(e)}
-                ><span class="ap-emoji">🚶</span><span class="ap-lbl">Adv.</span></button>
+                ><span class="ap-emoji">🚶</span><span class="ap-lbl">Move</span></button>
               {/if}
 
               {#if gameState.barbarian.robberActive}
