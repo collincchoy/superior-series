@@ -3,6 +3,7 @@ import {
   hexPoints,
   getVertexPixel,
   getEdgePoints,
+  metropolisOverlayLayout,
   HEX_SIZE,
   CATAN_HEX_COORDS,
   hexId,
@@ -115,5 +116,29 @@ describe("getEdgePoints", () => {
 
   it("returns null for an unknown edge id", () => {
     expect(getEdgePoints("bogus:edge" as EdgeId)).toBeNull();
+  });
+});
+
+describe("metropolisOverlayLayout", () => {
+  const p = { x: 100, y: 200 };
+
+  it("inner gap between pillar inner faces matches city left wing width (13px)", () => {
+    const L = metropolisOverlayLayout(p);
+    const innerLeft = L.leftShaft.x + L.leftShaft.width;
+    const innerRight = L.rightShaft.x;
+    expect(innerRight - innerLeft).toBeCloseTo(13, 5);
+  });
+
+  it("crossbar center sits two-thirds up from the shaft foot toward the shaft top", () => {
+    const L = metropolisOverlayLayout(p);
+    const shaftSpan = L.shaftFootY - L.shaftTopY;
+    const distFootUpToCrossbar = L.shaftFootY - L.crossbarCenterY;
+    expect(distFootUpToCrossbar / shaftSpan).toBeCloseTo(2 / 3, 5);
+  });
+
+  it("crossbar spans outer pillar faces", () => {
+    const L = metropolisOverlayLayout(p);
+    expect(L.crossbar.x).toBe(L.leftShaft.x);
+    expect(L.crossbar.x + L.crossbar.width).toBe(L.rightShaft.x + L.rightShaft.width);
   });
 });

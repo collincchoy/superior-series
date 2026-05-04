@@ -104,3 +104,70 @@ export function getEdgePoints(
 }
 
 export { CATAN_HEX_COORDS, hexId };
+
+/** Board + HUD: settlement draws smaller than city (upgrade visual hierarchy). */
+export const SETTLEMENT_BOARD_SCALE = 0.88;
+
+export type MetropolisOverlayLayout = {
+  leftShaft: { x: number; y: number; width: number; height: number };
+  rightShaft: { x: number; y: number; width: number; height: number };
+  crossbar: { x: number; y: number; width: number; height: number };
+  /** Polygon points for left pillar gable */
+  leftRoofPoints: string;
+  /** Polygon points for right pillar gable */
+  rightRoofPoints: string;
+  shadeRect: { x: number; y: number; width: number; height: number };
+  crossbarCenterY: number;
+  shaftFootY: number;
+  shaftTopY: number;
+};
+
+/**
+ * SVG layout for the metropolis H-piece over the city's left wing.
+ * Pillars straddle x ∈ [p.x−15, p.x−2] (13px gap); feet near base y = p.y+8 so the piece
+ * straddles the lower-left house; crossbar at 2/3 height from foot toward top.
+ */
+export function metropolisOverlayLayout(p: {
+  x: number;
+  y: number;
+}): MetropolisOverlayLayout {
+  const ox = p.x;
+  const oy = p.y;
+  /** Pillar feet sit just above the city base (shared horizontal at p.y+8). */
+  const shaftFootY = oy + 7;
+  /** Top of rectangular pillar shaft (below gable peak). */
+  const shaftTopY = oy - 27;
+  const peakY = oy - 30;
+  const shaftSpan = shaftFootY - shaftTopY;
+  const crossbarCenterY = shaftFootY - (2 / 3) * shaftSpan;
+
+  const leftW = 5;
+  const rightW = 5;
+  const leftX = ox - 20;
+  const rightX = ox - 2;
+  const shaftH = shaftFootY - shaftTopY;
+
+  const crossbarH = 6;
+  const crossbarY = crossbarCenterY - crossbarH / 2;
+  const crossbarW = rightX + rightW - leftX;
+
+  const leftRoofPoints = `${leftX},${shaftTopY} ${leftX + leftW},${shaftTopY} ${ox - 17.5},${peakY}`;
+  const rightRoofPoints = `${rightX},${shaftTopY} ${rightX + rightW},${shaftTopY} ${ox + 0.5},${peakY}`;
+
+  return {
+    leftShaft: { x: leftX, y: shaftTopY, width: leftW, height: shaftH },
+    rightShaft: { x: rightX, y: shaftTopY, width: rightW, height: shaftH },
+    crossbar: { x: leftX, y: crossbarY, width: crossbarW, height: crossbarH },
+    leftRoofPoints,
+    rightRoofPoints,
+    shadeRect: {
+      x: leftX,
+      y: peakY,
+      width: crossbarW,
+      height: shaftFootY - peakY,
+    },
+    crossbarCenterY,
+    shaftFootY,
+    shaftTopY,
+  };
+}

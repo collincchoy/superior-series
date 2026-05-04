@@ -35,6 +35,8 @@
     hexCenter,
     getVertexPixel,
     getEdgePoints,
+    metropolisOverlayLayout,
+    SETTLEMENT_BOARD_SCALE,
     CATAN_HEX_COORDS,
     hexId,
   } from "../../lib/catan/svgHelpers.js";
@@ -700,60 +702,84 @@
               gameState.players[building.playerId]?.color ?? "#999"}
             <g filter="url(#drop-shadow)">
               {#if building.type === "settlement"}
-                <!-- Base -->
-                <rect x={p.x - 11} y={p.y - 5} width="22" height="15" rx="1" fill={color} stroke="#fff" stroke-width="2" />
-                <rect x={p.x - 11} y={p.y - 5} width="22" height="15" rx="1" fill={`url(#piece-shade-${color.replace('#','')})`} />
-                <!-- Roof -->
-                <polygon points={`${p.x},${p.y - 21} ${p.x + 13},${p.y - 5} ${p.x - 13},${p.y - 5}`} fill={color} stroke="#fff" stroke-width="2" />
-                <polygon points={`${p.x},${p.y - 21} ${p.x + 13},${p.y - 5} ${p.x - 13},${p.y - 5}`} fill={`url(#piece-shade-${color.replace('#','')})`} />
-                <!-- Ridge shadow -->
-                <line x1={p.x - 11} y1={p.y - 5} x2={p.x + 11} y2={p.y - 5} stroke="rgba(0,0,0,0.18)" stroke-width="1.2" />
+                <g transform={`translate(${p.x} ${p.y}) scale(${SETTLEMENT_BOARD_SCALE}) translate(${-p.x} ${-p.y})`}>
+                  <!-- Base -->
+                  <rect x={p.x - 11} y={p.y - 5} width="22" height="15" rx="1" fill={color} stroke="#fff" stroke-width="2" />
+                  <rect x={p.x - 11} y={p.y - 5} width="22" height="15" rx="1" fill={`url(#piece-shade-${color.replace('#','')})`} />
+                  <!-- Roof -->
+                  <polygon points={`${p.x},${p.y - 21} ${p.x + 13},${p.y - 5} ${p.x - 13},${p.y - 5}`} fill={color} stroke="#fff" stroke-width="2" />
+                  <polygon points={`${p.x},${p.y - 21} ${p.x + 13},${p.y - 5} ${p.x - 13},${p.y - 5}`} fill={`url(#piece-shade-${color.replace('#','')})`} />
+                  <!-- Ridge shadow -->
+                  <line x1={p.x - 11} y1={p.y - 5} x2={p.x + 11} y2={p.y - 5} stroke="rgba(0,0,0,0.18)" stroke-width="1.2" />
+                </g>
               {:else if building.type === "city"}
-                <!-- Shared base -->
-                <rect x={p.x - 15} y={p.y - 5} width="30" height="13" rx="1" fill={color} stroke="#fff" stroke-width="2" />
-                <rect x={p.x - 15} y={p.y - 5} width="30" height="13" rx="1" fill={`url(#piece-shade-${color.replace('#','')})`} />
-                <!-- Left house wall -->
-                <rect x={p.x - 15} y={p.y - 15} width="13" height="10" fill={color} stroke="#fff" stroke-width="2" />
-                <rect x={p.x - 15} y={p.y - 15} width="13" height="10" fill={`url(#piece-shade-${color.replace('#','')})`} />
-                <!-- Left house roof -->
-                <polygon points={`${p.x - 8},${p.y - 24} ${p.x - 2},${p.y - 15} ${p.x - 15},${p.y - 15}`} fill={color} stroke="#fff" stroke-width="2" stroke-linejoin="round" />
-                <polygon points={`${p.x - 8},${p.y - 24} ${p.x - 2},${p.y - 15} ${p.x - 15},${p.y - 15}`} fill={`url(#piece-shade-${color.replace('#','')})`} />
-                <!-- Eave shadow -->
-                <line x1={p.x - 15} y1={p.y - 15} x2={p.x - 2} y2={p.y - 15} stroke="rgba(0,0,0,0.18)" stroke-width="1.2" />
-                <!-- Right tower body -->
-                <rect x={p.x - 2} y={p.y - 21} width="17" height="16" fill={color} stroke="#fff" stroke-width="2" />
-                <rect x={p.x - 2} y={p.y - 21} width="17" height="16" fill={`url(#piece-shade-${color.replace('#','')})`} />
-                <!-- Right tower crenellations (2 merlons) -->
-                <rect x={p.x - 2} y={p.y - 27} width="5" height="6" fill={color} stroke="#fff" stroke-width="1" />
-                <rect x={p.x + 7} y={p.y - 27} width="5" height="6" fill={color} stroke="#fff" stroke-width="1" />
+                <!-- City body: single stepped path (base + left house + tower), no internal seams -->
+                <path d={`M ${p.x-15},${p.y+8} L ${p.x+15},${p.y+8} L ${p.x+15},${p.y-21} L ${p.x-2},${p.y-21} L ${p.x-2},${p.y-10} L ${p.x-15},${p.y-10} Z`} fill={color} stroke="#fff" stroke-width="2" stroke-linejoin="round" />
+                <path d={`M ${p.x-15},${p.y+8} L ${p.x+15},${p.y+8} L ${p.x+15},${p.y-21} L ${p.x-2},${p.y-21} L ${p.x-2},${p.y-10} L ${p.x-15},${p.y-10} Z`} fill={`url(#piece-shade-${color.replace('#','')})`} />
+                <!-- Right tower roof -->
+                <polygon points={`${p.x + 6},${p.y - 30} ${p.x + 15},${p.y - 21} ${p.x - 2},${p.y - 21}`} fill={color} stroke="#fff" stroke-width="2" stroke-linejoin="round" />
+                <polygon points={`${p.x + 6},${p.y - 30} ${p.x + 15},${p.y - 21} ${p.x - 2},${p.y - 21}`} fill={`url(#piece-shade-${color.replace('#','')})`} />
+                <line x1={p.x - 2} y1={p.y - 21} x2={p.x + 15} y2={p.y - 21} stroke="rgba(0,0,0,0.18)" stroke-width="1.2" />
                 {#if building.hasWall}
-                  <!-- City wall: U-shape in player color -->
-                  <rect x={p.x - 17} y={p.y + 8}  width="10" height="11" rx="2" fill={color} stroke="#fff" stroke-width="1.5" />
-                  <rect x={p.x + 7}  y={p.y + 8}  width="10" height="11" rx="2" fill={color} stroke="#fff" stroke-width="1.5" />
-                  <rect x={p.x - 17} y={p.y + 14} width="34" height="5"  rx="2" fill={color} stroke="#fff" stroke-width="1.5" />
-                  <rect x={p.x - 17} y={p.y + 8}  width="10" height="11" rx="2" fill={`url(#piece-shade-${color.replace('#','')})`} />
-                  <rect x={p.x + 7}  y={p.y + 8}  width="10" height="11" rx="2" fill={`url(#piece-shade-${color.replace('#','')})`} />
-                  <rect x={p.x - 17} y={p.y + 14} width="34" height="5"  rx="2" fill={`url(#piece-shade-${color.replace('#','')})`} />
+                  <!-- City wall: flat platform below the city, city sits on top -->
+                  <rect x={p.x - 18} y={p.y + 8} width="36" height="7" rx="2" fill={color} stroke="#fff" stroke-width="1.5" />
+                  <rect x={p.x - 18} y={p.y + 8} width="36" height="7" rx="2" fill={`url(#piece-shade-${color.replace('#','')})`} />
                 {/if}
                 {#if building.metropolis !== null}
-                  <!-- Metropolis H-gate sits on top of the right tower, aligned to tower footprint -->
+                  <!-- Metropolis H-gate: straddles left wing; bridge at 2/3 pillar height -->
                   {@const mc = EVENT_COLORS[building.metropolis]}
-                  {@const mx = p.x - 2}
-                  {@const my = p.y - 27}
-                  <!-- H-gate left tower -->
-                  <rect x={mx}      y={my - 10} width="5" height="10" fill={mc} stroke="rgba(0,0,0,0.35)" stroke-width="0.75" />
-                  <!-- H-gate right tower -->
-                  <rect x={mx + 12} y={my - 10} width="5" height="10" fill={mc} stroke="rgba(0,0,0,0.35)" stroke-width="0.75" />
-                  <!-- H-gate crossbar -->
-                  <rect x={mx + 5}  y={my - 5}  width="7" height="5"  fill={mc} stroke="rgba(0,0,0,0.35)" stroke-width="0.75" />
-                  <!-- H-gate left crenellations -->
-                  <rect x={mx}      y={my - 13} width="2" height="3" fill={mc} />
-                  <rect x={mx + 3}  y={my - 13} width="2" height="3" fill={mc} />
-                  <!-- H-gate right crenellations -->
-                  <rect x={mx + 12} y={my - 13} width="2" height="3" fill={mc} />
-                  <rect x={mx + 15} y={my - 13} width="2" height="3" fill={mc} />
-                  <!-- Gradient overlay -->
-                  <rect x={mx} y={my - 13} width="17" height="13" fill={`url(#piece-shade-${mc.replace('#','')})`} />
+                  {@const metro = metropolisOverlayLayout(p)}
+                  <g>
+                  <title>Metropolis</title>
+                  <rect
+                    x={metro.leftShaft.x}
+                    y={metro.leftShaft.y}
+                    width={metro.leftShaft.width}
+                    height={metro.leftShaft.height}
+                    fill={mc}
+                    stroke="rgba(0,0,0,0.5)"
+                    stroke-width="1.65"
+                  />
+                  <rect
+                    x={metro.rightShaft.x}
+                    y={metro.rightShaft.y}
+                    width={metro.rightShaft.width}
+                    height={metro.rightShaft.height}
+                    fill={mc}
+                    stroke="rgba(0,0,0,0.5)"
+                    stroke-width="1.65"
+                  />
+                  <polygon
+                    points={metro.leftRoofPoints}
+                    fill={mc}
+                    stroke="rgba(0,0,0,0.5)"
+                    stroke-width="1.65"
+                    stroke-linejoin="round"
+                  />
+                  <polygon
+                    points={metro.rightRoofPoints}
+                    fill={mc}
+                    stroke="rgba(0,0,0,0.5)"
+                    stroke-width="1.65"
+                    stroke-linejoin="round"
+                  />
+                  <rect
+                    x={metro.crossbar.x}
+                    y={metro.crossbar.y}
+                    width={metro.crossbar.width}
+                    height={metro.crossbar.height}
+                    fill={mc}
+                    stroke="rgba(0,0,0,0.5)"
+                    stroke-width="1.65"
+                  />
+                  <rect
+                    x={metro.shadeRect.x}
+                    y={metro.shadeRect.y}
+                    width={metro.shadeRect.width}
+                    height={metro.shadeRect.height}
+                    fill={`url(#piece-shade-${mc.replace('#','')})`}
+                  />
+                  </g>
                 {/if}
               {/if}
             </g>
