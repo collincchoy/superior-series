@@ -101,16 +101,11 @@
     <!-- Eave shadow at tower/roof junction -->
     <line x1="21" y1="16" x2="42" y2="16" stroke="rgba(0,0,0,0.18)" stroke-width="1" />
   {:else if piece === "cityWall"}
-    <!-- Wall platform with battlements to distinguish from city base -->
-    <rect x="6" y="40" width="36" height="7" rx="2" fill={fillMain} stroke={strokeOuter} stroke-width="1.75" />
-    <rect x="8"  y="36" width="5" height="4" rx="1" fill={fillMain} stroke={strokeOuter} stroke-width="1.5" />
-    <rect x="18" y="36" width="5" height="4" rx="1" fill={fillMain} stroke={strokeOuter} stroke-width="1.5" />
-    <rect x="30" y="36" width="5" height="4" rx="1" fill={fillMain} stroke={strokeOuter} stroke-width="1.5" />
+    <!-- Top-down view: thick perimeter wall with open courtyard -->
+    <rect x="7" y="10" width="34" height="32" rx="2" fill={fillMain} stroke={strokeOuter} stroke-width="1.75" />
+    <rect x="14" y="17" width="20" height="18" rx="1" fill="rgba(0,0,0,0.30)" />
     {#if !ghost}
-      <rect x="6" y="40" width="36" height="7" rx="2" fill="url(#piece-shade)" />
-      <rect x="8"  y="36" width="5" height="4" rx="1" fill="url(#piece-shade)" />
-      <rect x="18" y="36" width="5" height="4" rx="1" fill="url(#piece-shade)" />
-      <rect x="30" y="36" width="5" height="4" rx="1" fill="url(#piece-shade)" />
+      <rect x="7" y="10" width="34" height="32" rx="2" fill="url(#piece-shade)" />
     {/if}
   {:else if piece === "knight"}
     {#if knightStrength === 1}
