@@ -160,14 +160,9 @@
       ),
   );
 
-  let buildTabPlayable = $derived(canRoad || canSettle || canCity || canWall);
   let canDeployKnight = $derived(canKnight || canPromote);
-  let knightsTabPlayable = $derived(
-    canDeployKnight ||
-      canActivate ||
-      hasKnightAdvanceTarget ||
-      canChaseRobberNow,
-  );
+  let buildTabPlayable = $derived(canRoad || canSettle || canCity || canWall || canDeployKnight);
+  let knightsTabPlayable = $derived(canActivate || hasKnightAdvanceTarget || canChaseRobberNow);
 
   let knightSupplyTitle = $derived(
     `Knights — basic ${me.supply.knights[1]}, strong ${me.supply.knights[2]}, mighty ${me.supply.knights[3]}`,
@@ -586,7 +581,7 @@
             playerColor={me.color}
             knightStrength={tier}
             maxVisibleLayers={3}
-            compact
+            icon
           />
         {/each}
       </div>
@@ -639,115 +634,142 @@
           aria-hidden={activeLeftTab !== "build"}
           inert={activeLeftTab !== "build"}
         >
-        <div class="group-btns group-piece-row piece-grid-tight">
-              {#if pendingAction?.type === "build_road"}
-                <button
-                  type="button"
-                  class="action-btn action-piece action-piece-with-stack active"
-                  aria-label="Cancel road placement"
-                  onclick={() => pending(null)}
-                >
-                  <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
-                  <BoardPieceStack piece="road" count={me.supply.roads} playerColor={me.color} />
-                </button>
-              {:else}
-                <button
-                  type="button"
-                  class="action-btn action-piece action-piece-with-stack"
-                  class:disabled={!canRoad}
-                  aria-disabled={!canRoad}
-                  aria-label={`Build road — ${me.supply.roads} remaining in supply`}
-                  title={`Road (${me.supply.roads} in supply)`}
-                  onclick={(e) =>
-                    canRoad
-                      ? pending({ type: "build_road" })
-                      : showUnavailablePopover(e, "🛣️ Build Road", BUILD_COSTS.road, roadReason())}
-                >
-                  <BoardPieceStack piece="road" count={me.supply.roads} playerColor={me.color} />
-                </button>
-              {/if}
+        <div class="action-piece-grid" role="group" aria-label="Build and knight actions">
+          {#if pendingAction?.type === "build_road"}
+            <button
+              type="button"
+              class="action-btn action-piece action-piece-with-stack active"
+              aria-label="Cancel road placement"
+              onclick={() => pending(null)}
+            >
+              <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
+              <BoardPieceStack piece="road" count={me.supply.roads} playerColor={me.color} icon />
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="action-btn action-piece action-piece-with-stack"
+              class:disabled={!canRoad}
+              aria-disabled={!canRoad}
+              aria-label={`Build road — ${me.supply.roads} remaining in supply`}
+              title={`Road (${me.supply.roads} in supply)`}
+              onclick={(e) =>
+                canRoad
+                  ? pending({ type: "build_road" })
+                  : showUnavailablePopover(e, "🛣️ Build Road", BUILD_COSTS.road, roadReason())}
+            >
+              <BoardPieceStack piece="road" count={me.supply.roads} playerColor={me.color} icon />
+            </button>
+          {/if}
 
-              {#if pendingAction?.type === "build_settlement"}
-                <button
-                  type="button"
-                  class="action-btn action-piece action-piece-with-stack active"
-                  aria-label="Cancel settlement placement"
-                  onclick={() => pending(null)}
-                >
-                  <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
-                  <BoardPieceStack piece="settlement" count={me.supply.settlements} playerColor={me.color} />
-                </button>
-              {:else}
-                <button
-                  type="button"
-                  class="action-btn action-piece action-piece-with-stack"
-                  class:disabled={!canSettle}
-                  aria-disabled={!canSettle}
-                  aria-label={`Build settlement — ${me.supply.settlements} remaining`}
-                  title={`Settlement (${me.supply.settlements} in supply)`}
-                  onclick={(e) =>
-                    canSettle
-                      ? pending({ type: "build_settlement" })
-                      : showUnavailablePopover(e, "🏠 Build Settlement", BUILD_COSTS.settlement, settlementReason())}
-                >
-                  <BoardPieceStack piece="settlement" count={me.supply.settlements} playerColor={me.color} />
-                </button>
-              {/if}
+          {#if pendingAction?.type === "build_settlement"}
+            <button
+              type="button"
+              class="action-btn action-piece action-piece-with-stack active"
+              aria-label="Cancel settlement placement"
+              onclick={() => pending(null)}
+            >
+              <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
+              <BoardPieceStack piece="settlement" count={me.supply.settlements} playerColor={me.color} icon />
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="action-btn action-piece action-piece-with-stack"
+              class:disabled={!canSettle}
+              aria-disabled={!canSettle}
+              aria-label={`Build settlement — ${me.supply.settlements} remaining`}
+              title={`Settlement (${me.supply.settlements} in supply)`}
+              onclick={(e) =>
+                canSettle
+                  ? pending({ type: "build_settlement" })
+                  : showUnavailablePopover(e, "🏠 Build Settlement", BUILD_COSTS.settlement, settlementReason())}
+            >
+              <BoardPieceStack piece="settlement" count={me.supply.settlements} playerColor={me.color} icon />
+            </button>
+          {/if}
 
-              {#if pendingAction?.type === "build_city"}
-                <button
-                  type="button"
-                  class="action-btn action-piece action-piece-with-stack active"
-                  aria-label="Cancel city placement"
-                  onclick={() => pending(null)}
-                >
-                  <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
-                  <BoardPieceStack piece="city" count={me.supply.cities} playerColor={me.color} />
-                </button>
-              {:else}
-                <button
-                  type="button"
-                  class="action-btn action-piece action-piece-with-stack"
-                  class:disabled={!canCity}
-                  aria-disabled={!canCity}
-                  aria-label={`Upgrade to city — ${me.supply.cities} cities left in supply`}
-                  title={`City (${me.supply.cities} in supply)`}
-                  onclick={(e) =>
-                    canCity
-                      ? pending({ type: "build_city" })
-                      : showUnavailablePopover(e, "🏙️ Build City", BUILD_COSTS.city, cityReason())}
-                >
-                  <BoardPieceStack piece="city" count={me.supply.cities} playerColor={me.color} />
-                </button>
-              {/if}
+          {#if pendingAction?.type === "build_city"}
+            <button
+              type="button"
+              class="action-btn action-piece action-piece-with-stack active"
+              aria-label="Cancel city placement"
+              onclick={() => pending(null)}
+            >
+              <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
+              <BoardPieceStack piece="city" count={me.supply.cities} playerColor={me.color} icon />
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="action-btn action-piece action-piece-with-stack"
+              class:disabled={!canCity}
+              aria-disabled={!canCity}
+              aria-label={`Upgrade to city — ${me.supply.cities} cities left in supply`}
+              title={`City (${me.supply.cities} in supply)`}
+              onclick={(e) =>
+                canCity
+                  ? pending({ type: "build_city" })
+                  : showUnavailablePopover(e, "🏙️ Build City", BUILD_COSTS.city, cityReason())}
+            >
+              <BoardPieceStack piece="city" count={me.supply.cities} playerColor={me.color} icon />
+            </button>
+          {/if}
 
-              {#if pendingAction?.type === "build_city_wall"}
-                <button
-                  type="button"
-                  class="action-btn action-piece action-piece-with-stack active"
-                  aria-label="Cancel city wall placement"
-                  onclick={() => pending(null)}
-                >
-                  <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
-                  <BoardPieceStack piece="cityWall" count={me.supply.cityWalls} playerColor={me.color} />
-                </button>
-              {:else}
-                <button
-                  type="button"
-                  class="action-btn action-piece action-piece-with-stack"
-                  class:disabled={!canWall}
-                  aria-disabled={!canWall}
-                  aria-label={`Build city wall — ${me.supply.cityWalls} remaining`}
-                  title={`Wall (${me.supply.cityWalls} in supply)`}
-                  onclick={(e) =>
-                    canWall
-                      ? pending({ type: "build_city_wall" })
-                      : showUnavailablePopover(e, "🏰 Build City Wall", BUILD_COSTS.cityWall, wallReason())}
-                >
-                  <BoardPieceStack piece="cityWall" count={me.supply.cityWalls} playerColor={me.color} />
-                </button>
-              {/if}
-            </div>
+          {#if pendingAction?.type === "build_city_wall"}
+            <button
+              type="button"
+              class="action-btn action-piece action-piece-with-stack active"
+              aria-label="Cancel city wall placement"
+              onclick={() => pending(null)}
+            >
+              <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
+              <BoardPieceStack piece="cityWall" count={me.supply.cityWalls} playerColor={me.color} icon />
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="action-btn action-piece action-piece-with-stack"
+              class:disabled={!canWall}
+              aria-disabled={!canWall}
+              aria-label={`Build city wall — ${me.supply.cityWalls} remaining`}
+              title={`Wall (${me.supply.cityWalls} in supply)`}
+              onclick={(e) =>
+                canWall
+                  ? pending({ type: "build_city_wall" })
+                  : showUnavailablePopover(e, "🏰 Build City Wall", BUILD_COSTS.cityWall, wallReason())}
+            >
+              <BoardPieceStack piece="cityWall" count={me.supply.cityWalls} playerColor={me.color} icon />
+            </button>
+          {/if}
+
+          {#if pendingAction?.type === "knight_deploy"}
+            <button
+              type="button"
+              class="action-btn action-piece action-piece-with-stack action-piece-knight-deploy active"
+              aria-label="Cancel knight placement"
+              onclick={() => pending(null)}
+            >
+              <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
+              {@render knightDeployStacks()}
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="action-btn action-piece action-piece-with-stack action-piece-knight-deploy"
+              class:disabled={!canDeployKnight}
+              aria-disabled={!canDeployKnight}
+              aria-label={knightSupplyAriaLabel}
+              title={knightSupplyTitle}
+              onclick={(e) =>
+                canDeployKnight
+                  ? pending({ type: "knight_deploy" })
+                  : knightDeployUnavailable(e)}
+            >
+              {@render knightDeployStacks()}
+            </button>
+          {/if}
+        </div>
         </div>
         <div
           class="tab-pane tab-pane-stack"
@@ -755,84 +777,63 @@
           aria-hidden={activeLeftTab !== "knights"}
           inert={activeLeftTab !== "knights"}
         >
-        <div class="group-btns group-piece-row piece-grid-tight">
-              {#if pendingAction?.type === "knight_deploy"}
-                <button
-                  type="button"
-                  class="action-btn action-piece action-piece-with-stack action-piece-knight-deploy active"
-                  aria-label="Cancel knight placement"
-                  onclick={() => pending(null)}
-                >
-                  <span class="piece-stack-cancel-x" aria-hidden="true">×</span>
-                  {@render knightDeployStacks()}
-                </button>
-              {:else}
-                <button
-                  type="button"
-                  class="action-btn action-piece action-piece-with-stack action-piece-knight-deploy"
-                  class:disabled={!canDeployKnight}
-                  aria-disabled={!canDeployKnight}
-                  aria-label={knightSupplyAriaLabel}
-                  title={knightSupplyTitle}
-                  onclick={(e) =>
-                    canDeployKnight
-                      ? pending({ type: "knight_deploy" })
-                      : knightDeployUnavailable(e)}
-                >
-                  {@render knightDeployStacks()}
-                </button>
-              {/if}
+        <div class="action-piece-grid" role="group" aria-label="Knight actions">
+          {#if pendingAction?.type === "activate_knight"}
+            <button type="button" class="action-btn action-piece active" onclick={() => pending(null)}>
+              <span class="ap-emoji">✕</span><span class="ap-lbl">Activ.</span>
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="action-btn action-piece"
+              class:disabled={!canActivate}
+              aria-disabled={!canActivate}
+              title="Activate knight"
+              onclick={(e) =>
+                canActivate
+                  ? pending({ type: "activate_knight" })
+                  : showUnavailablePopover(e, "🛡️ Activate Knight", BUILD_COSTS.knightActivate, activateKnightReason())}
+            ><span class="ap-emoji">🛡️</span><span class="ap-lbl">Activ.</span></button>
+          {/if}
 
-              {#if pendingAction?.type === "activate_knight"}
-                <button type="button" class="action-btn action-piece active" onclick={() => pending(null)}>✕ Activ.</button>
-              {:else}
-                <button
-                  type="button"
-                  class="action-btn action-piece"
-                  class:disabled={!canActivate}
-                  aria-disabled={!canActivate}
-                  title="Activate knight"
-                  onclick={(e) =>
-                    canActivate
-                      ? pending({ type: "activate_knight" })
-                      : showUnavailablePopover(e, "🛡️ Activate Knight", BUILD_COSTS.knightActivate, activateKnightReason())}
-                ><span class="ap-emoji">🛡️</span><span class="ap-lbl">Activ.</span></button>
-              {/if}
+          {#if pendingAction?.type === "advance_knight_from" || pendingAction?.type === "advance_knight_to"}
+            <button type="button" class="action-btn action-piece active" onclick={() => pending(null)}>
+              <span class="ap-emoji">✕</span><span class="ap-lbl">Move</span>
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="action-btn action-piece"
+              class:disabled={!hasKnightAdvanceTarget}
+              aria-disabled={!hasKnightAdvanceTarget}
+              title="Move to an empty junction or bump a weaker knight"
+              onclick={(e) =>
+                hasKnightAdvanceTarget
+                  ? pending({ type: "advance_knight_from" })
+                  : advanceKnightUnavailable(e)}
+            ><span class="ap-emoji">🚶</span><span class="ap-lbl">Move</span></button>
+          {/if}
 
-              {#if pendingAction?.type === "advance_knight_from" || pendingAction?.type === "advance_knight_to"}
-                <button type="button" class="action-btn action-piece active" onclick={() => pending(null)}>✕ Move</button>
-              {:else}
-                <button
-                  type="button"
-                  class="action-btn action-piece"
-                  class:disabled={!hasKnightAdvanceTarget}
-                  aria-disabled={!hasKnightAdvanceTarget}
-                  title="Move to an empty junction or bump a weaker knight"
-                  onclick={(e) =>
-                    hasKnightAdvanceTarget
-                      ? pending({ type: "advance_knight_from" })
-                      : advanceKnightUnavailable(e)}
-                ><span class="ap-emoji">🚶</span><span class="ap-lbl">Move</span></button>
-              {/if}
-
-              {#if gameState.barbarian.robberActive}
-                {#if pendingAction?.type === "chase_robber_from" || pendingAction?.type === "chase_robber_hex"}
-                  <button type="button" class="action-btn action-piece chase-chip active" onclick={() => pending(null)}>✕ Chase</button>
-                {:else}
-                  <button
-                    type="button"
-                    class="action-btn action-piece chase-chip"
-                    class:disabled={!canChaseRobberNow}
-                    aria-disabled={!canChaseRobberNow}
-                    title="Move the robber with a knight beside it"
-                    onclick={(e) =>
-                      canChaseRobberNow
-                        ? pending({ type: "chase_robber_from" })
-                        : showUnavailablePopover(e, "🏃 Chase Robber", {}, chaseRobberReason())}
-                  ><span class="ap-emoji">🏃</span><span class="ap-lbl">Chase</span></button>
-                {/if}
-              {/if}
-            </div>
+          {#if gameState.barbarian.robberActive}
+            {#if pendingAction?.type === "chase_robber_from" || pendingAction?.type === "chase_robber_hex"}
+              <button type="button" class="action-btn action-piece chase-chip active" onclick={() => pending(null)}>
+                <span class="ap-emoji">✕</span><span class="ap-lbl">Chase</span>
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="action-btn action-piece chase-chip"
+                class:disabled={!canChaseRobberNow}
+                aria-disabled={!canChaseRobberNow}
+                title="Move the robber with a knight beside it"
+                onclick={(e) =>
+                  canChaseRobberNow
+                    ? pending({ type: "chase_robber_from" })
+                    : showUnavailablePopover(e, "🏃 Chase Robber", {}, chaseRobberReason())}
+              ><span class="ap-emoji">🏃</span><span class="ap-lbl">Chase</span></button>
+            {/if}
+          {/if}
+        </div>
         </div>
         </div>
       </div>
@@ -921,6 +922,9 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
   .action-actions-tab-bar .tab-btn {
+    /** overtake the action panel's top padding */
+    margin-top: -5px;
+
     padding: 5px 2px;
     font-size: 0.58rem;
     letter-spacing: 0.06em;
@@ -1077,53 +1081,61 @@
     .action-col-improve .improve-tracks-compact .improve-btn {
       flex-shrink: 0;
     }
-    .group-piece-row.piece-grid-tight {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.16rem;
-    }
-    .group-piece-row.piece-grid-tight .chase-chip {
-      grid-column: 1 / -1;
-    }
   }
-  .group-piece-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.22rem;
+  .action-piece-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(36px, 1fr));
+    gap: 0.5rem 0.35rem;
+    overflow-x: auto;
   }
-  .action-piece {
-    display: inline-flex !important;
+  .action-piece-grid .action-piece-knight-deploy {
+    grid-column: span 2;
+  }
+  .action-piece-grid .chase-chip {
+    grid-column: 1 / -1;
+  }
+  .action-piece-grid .action-piece {
+    display: inline-flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.03rem;
-    /* ~44px min touch target (width + height); can grow with grid cells */
-    min-width: max(44px, 2.75rem);
-    min-height: max(44px, 2.75rem);
+    gap: 2px;
+    min-width: 36px;
+    min-height: 36px;
     box-sizing: border-box;
-    padding: 0.16rem 0.26rem !important;
-    font-size: 0.54rem !important;
+    padding: 0.16rem 0.26rem;
+    font-size: 0.54rem;
     font-weight: 600;
     line-height: 1;
   }
-  .action-piece.chase-chip {
-    min-width: max(44px, 3.35rem);
-    flex-direction: row;
-    gap: 0.25rem;
+  .action-piece-grid .action-piece:hover:not(.disabled):not(:disabled) {
+    opacity: 0.85;
+    background: rgba(255, 255, 255, 0.04);
   }
-  .action-piece-with-stack {
+  .action-piece-grid .action-piece:active:not(.disabled):not(:disabled) {
+    transform: scale(0.94);
+  }
+  .action-piece-grid .action-piece.disabled {
+    opacity: 0.35;
+  }
+  .action-piece-grid .action-piece.active {
+    background: rgba(245, 200, 66, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(245, 200, 66, 0.55);
+    color: #f5c842;
+  }
+  .action-piece-grid .action-piece-with-stack {
     position: relative;
     overflow: hidden;
-    padding-top: 0.22rem !important;
-    padding-bottom: 0.1rem !important;
-    gap: 0 !important;
+    padding-top: 0.22rem;
+    padding-bottom: 0.1rem;
+    gap: 0;
   }
   .piece-stack-cancel-x {
     position: absolute;
     top: 2px;
-    right: 6px;
+    right: 4px;
     z-index: 60;
-    font-size: 1.05rem;
+    font-size: 0.95rem;
     line-height: 1;
     font-weight: 800;
     color: #fdfaf0;
@@ -1133,7 +1145,7 @@
   .knight-deploy-piles {
     display: flex;
     flex-direction: row;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
     gap: 2px;
     width: 100%;
@@ -1143,15 +1155,14 @@
   }
   .action-piece-knight-deploy {
     min-width: max(44px, 100%);
-    grid-column: 1 / -1;
   }
-  .knight-deploy-piles :global(.piece-stack-compact) {
+  .knight-deploy-piles :global(.piece-stack-icon) {
     flex: 1;
-    max-width: 3.1rem;
+    max-width: 2.4rem;
     min-width: 0;
   }
   .ap-emoji {
-    font-size: 0.92rem;
+    font-size: 1.05rem;
     line-height: 1;
   }
   .ap-lbl {
@@ -1162,7 +1173,7 @@
     text-align: center;
   }
   .improve-tracks-compact .track-row {
-    padding: 2px 0;
+    padding: 5px 0;
   }
   .improve-tracks-compact .track-head {
     gap: 4px;
@@ -1289,8 +1300,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
     padding: 0;
     background: transparent;
     border: 1.5px solid rgba(255, 255, 255, 0.15);

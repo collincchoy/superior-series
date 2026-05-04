@@ -11,7 +11,7 @@ const CASES: { pa: PendingAction; expected: "build" | "knights" | null }[] = [
   { pa: { type: "build_settlement" }, expected: "build" },
   { pa: { type: "build_city" }, expected: "build" },
   { pa: { type: "build_city_wall" }, expected: "build" },
-  { pa: { type: "knight_deploy" }, expected: "knights" },
+  { pa: { type: "knight_deploy" }, expected: "build" },
   { pa: { type: "activate_knight" }, expected: "knights" },
   { pa: { type: "advance_knight_from" }, expected: "knights" },
   { pa: { type: "advance_knight_to", from: v }, expected: "knights" },
@@ -29,6 +29,10 @@ const CASES: { pa: PendingAction; expected: "build" | "knights" | null }[] = [
 ];
 
 describe("compactActionLeftTab", () => {
+  it("returns null for null (no pending action)", () => {
+    expect(compactActionLeftTab(null)).toBeNull();
+  });
+
   it.each(CASES)("maps $pa.type → $expected", ({ pa, expected }) => {
     expect(compactActionLeftTab(pa)).toBe(expected);
   });

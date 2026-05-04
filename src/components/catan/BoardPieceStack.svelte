@@ -9,6 +9,7 @@
     maxVisibleLayers = 5,
     knightStrength = 1 as 1 | 2 | 3,
     compact = false,
+    icon = false,
   }: {
     piece: BoardPieceGlyphKind;
     count: number;
@@ -16,6 +17,8 @@
     maxVisibleLayers?: number;
     knightStrength?: 1 | 2 | 3;
     compact?: boolean;
+    /** Extra-compact mode sized to fit inside a ~44px touchable icon cell. */
+    icon?: boolean;
   } = $props();
 
   let ghost = $derived(count <= 0);
@@ -24,13 +27,20 @@
 
   let layerIndexes = $derived(Array.from({ length: layersShown }, (_, i) => i));
 
-  const dx = compact ? 1.2 : 1.75;
-  const dyDefault = compact ? -2.85 : -3.85;
-  const dyRoad = compact ? -2.35 : -3.05;
+  let glyphSize: "md" | "sm" | "xs" = $derived(
+    icon ? "xs" : compact ? "sm" : "md",
+  );
+
+  let dx = $derived(icon ? 0.95 : compact ? 1.2 : 1.75);
+  let dyDefault = $derived(icon ? -2.35 : compact ? -2.85 : -3.85);
+  let dyRoad = $derived(icon ? -1.95 : compact ? -2.35 : -3.05);
   let dyStep = $derived(piece === "road" ? dyRoad : dyDefault);
 </script>
 
-<div class={["piece-stack", compact && "piece-stack-compact"]} aria-hidden="true">
+<div
+  class={["piece-stack", compact && "piece-stack-compact", icon && "piece-stack-icon"]}
+  aria-hidden="true"
+>
   {#each layerIndexes as i (`${piece}-s${knightStrength}-l${i}`)}
     <div
       class="piece-stack-layer"
@@ -41,7 +51,7 @@
         {playerColor}
         {ghost}
         {knightStrength}
-        size={compact ? "sm" : "md"}
+        size={glyphSize}
       />
     </div>
   {/each}
@@ -69,6 +79,16 @@
   .piece-stack-compact {
     min-height: 2.55rem;
     max-height: 3.35rem;
+  }
+
+  .piece-stack-icon {
+    padding-top: 2px;
+    min-height: 1.95rem;
+    max-height: 2.3rem;
+  }
+
+  .piece-stack-icon .piece-stack-layer {
+    bottom: 2px;
   }
 
   .piece-stack-layer {
