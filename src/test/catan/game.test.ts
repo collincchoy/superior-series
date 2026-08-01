@@ -518,6 +518,231 @@ describe("progress draw thresholds", () => {
   });
 });
 
+describe("Treason progress card", () => {
+  function buildTreasonState() {
+    const base = buildActionState();
+    const allVids = Object.keys(graph.vertices) as VertexId[];
+    const p1KnightVid = allVids[0]!;
+    const p2KnightVid = allVids[50]!;
+    return {
+      ...base,
+      phase: "ACTION" as const,
+      currentPlayerId: "p1" as const,
+      players: {
+        ...base.players,
+        p1: {
+          ...base.players["p1"]!,
+          progressCards: [{ name: "Treason" as const, track: "politics" as const, isVP: false }],
+          supply: {
+            ...base.players["p1"]!.supply,
+            knights: { 1: 2, 2: 0, 3: 0 },
+          },
+        },
+        p2: {
+          ...base.players["p2"]!,
+          supply: {
+            ...base.players["p2"]!.supply,
+            knights: { 1: 0, 2: 0, 3: 0 },
+          },
+        },
+      },
+      board: {
+        ...base.board,
+        knights: {
+          ...base.board.knights,
+          [p1KnightVid]: { playerId: "p1" as const, strength: 1 as const, active: false },
+          [p2KnightVid]: { playerId: "p2" as const, strength: 2 as const, active: true },
+        },
+      },
+      p1KnightVid,
+      p2KnightVid,
+    };
+  }
+
+  it("PLAY_PROGRESS Treason sets pendingTreasonOpponentRemoveKnight", () => {
+    const { p2KnightVid: _vid, p1KnightVid: _p1vid, ...state } = buildTreasonState();
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid: "p1",
+      card: "Treason",
+      params: { targetPid: "p2" },
+    });
+    expect(next.pendingTreasonOpponentRemoveKnight).not.toBeNull();
+    expect(next.pendingTreasonOpponentRemoveKnight?.initiatorPid).toBe("p1");
+    expect(next.pendingTreasonOpponentRemoveKnight?.opponentPid).toBe("p2");
+    expect(next.pendingTreason).toBeNull();
+  });
+
+  it("PLAY_PROGRESS Treason rejects target player with no knights", () => {
+    const { p2KnightVid, p1KnightVid: _p1vid, ...state } = buildTreasonState();
+    const noKnightsState = {
+      ...state,
+      board: {
+        ...state.board,
+        knights: { ...state.board.knights, [p2KnightVid]: null },
+      },
+    };
+    const next = applyAction(noKnightsState, {
+      type: "PLAY_PROGRESS",
+      pid: "p1",
+      card: "Treason",
+      params: { targetPid: "p2" },
+    });
+    expect(next.pendingTreasonOpponentRemoveKnight).toBeNull();
+  });
+
+  it("PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT removes knight and sets pendingTreason when initiator has qualifying piece", () => {
+    const { p2KnightVid, p1KnightVid: _p1vid, ...base } = buildTreasonState();
+    const state = {
+      ...base,
+      pendingTreasonOpponentRemoveKnight: {
+        initiatorPid: "p1" as const,
+        opponentPid: "p2" as const,
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT",
+      pid: "p2",
+      vid: p2KnightVid,
+    });
+
+    expect(next.board.knights[p2KnightVid]).toBeNull();
+    expect(next.pendingTreasonOpponentRemoveKnight).toBeNull();
+    // p1 has strength-1 knights in supply and removed knight was strength 2,
+    // so pendingTreason should be set for p1
+    expect(next.pendingTreason).not.toBeNull();
+    expect(next.pendingTreason?.pid).toBe("p1");
+    expect(next.pendingTreason?.maxStrength).toBe(2);
+    expect(next.pendingTreason?.active).toBe(true);
+    // p2 gets their knight piece back in supply
+    expect(next.players["p2"]!.supply.knights[2]).toBe(1);
+  });
+
+  it("PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT leaves pendingTreason null when initiator has no qualifying piece", () => {
+    const { p2KnightVid, p1KnightVid: _p1vid, ...base } = buildTreasonState();
+    const state = {
+      ...base,
+      players: {
+        ...base.players,
+        p1: {
+          ...base.players["p1"]!,
+          supply: {
+            ...base.players["p1"]!.supply,
+            knights: { 1: 0, 2: 0, 3: 0 },
+          },
+        },
+      },
+      pendingTreasonOpponentRemoveKnight: {
+        initiatorPid: "p1" as const,
+        opponentPid: "p2" as const,
+      },
+    };
+
+    const next = applyAction(state, {
+      type: "PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT",
+      pid: "p2",
+      vid: p2KnightVid,
+    });
+
+    expect(next.board.knights[p2KnightVid]).toBeNull();
+    expect(next.pendingTreasonOpponentRemoveKnight).toBeNull();
+    expect(next.pendingTreason).toBeNull();
+  });
+
+  it("PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT rejects a knight that belongs to someone else", () => {
+    const { p1KnightVid, p2KnightVid: _p2vid, ...base } = buildTreasonState();
+    const state = {
+      ...base,
+      pendingTreasonOpponentRemoveKnight: {
+        initiatorPid: "p1" as const,
+        opponentPid: "p2" as const,
+      },
+    };
+
+    // p2 tries to remove p1's knight (which they don't own)
+    const next = applyAction(state, {
+      type: "PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT",
+      pid: "p2",
+      vid: p1KnightVid,
+    });
+
+    // State should be unchanged
+    expect(next.board.knights[p1KnightVid]).not.toBeNull();
+    expect(next.pendingTreasonOpponentRemoveKnight).not.toBeNull();
+  });
+
+  it("PLAY_PROGRESS Treason rejects targeting yourself", () => {
+    const { p2KnightVid: _vid, p1KnightVid: _p1vid, ...state } = buildTreasonState();
+    const next = applyAction(state, {
+      type: "PLAY_PROGRESS",
+      pid: "p1",
+      card: "Treason",
+      params: { targetPid: "p1" },
+    });
+    expect(next.pendingTreasonOpponentRemoveKnight).toBeNull();
+  });
+
+  it("initiator can place their knight after the opponent removes one (full flow)", () => {
+    const { p1KnightVid, p2KnightVid, ...base } = buildTreasonState();
+    // Step 1: play the card
+    let state = applyAction(base, {
+      type: "PLAY_PROGRESS",
+      pid: "p1",
+      card: "Treason",
+      params: { targetPid: "p2" },
+    });
+    expect(state.pendingTreasonOpponentRemoveKnight).not.toBeNull();
+
+    // Step 2: opponent removes their knight
+    state = applyAction(state, {
+      type: "PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT",
+      pid: "p2",
+      vid: p2KnightVid,
+    });
+    expect(state.pendingTreason).not.toBeNull();
+    expect(state.pendingTreason?.pid).toBe("p1");
+
+    // Step 3: initiator places their own knight (strength 1 ≤ maxStrength 2)
+    const freeVid = Object.keys(state.board.vertices).find(
+      (v) => !state.board.vertices[v as VertexId] && !state.board.knights[v as VertexId],
+    ) as VertexId;
+    // Need to pick a vertex on p1's network — use an adjacent vertex to p1KnightVid if possible
+    const adjacentToP1 = (graph.adjacentVertices[p1KnightVid] ?? []).find(
+      (v) => !state.board.vertices[v] && !state.board.knights[v],
+    ) ?? freeVid;
+
+    state = applyAction(state, {
+      type: "PROGRESS_PLACE_TREASON_KNIGHT",
+      pid: "p1",
+      vid: adjacentToP1 as VertexId,
+      strength: 1,
+    });
+    expect(state.pendingTreason).toBeNull();
+    expect(state.board.knights[adjacentToP1 as VertexId]?.playerId).toBe("p1");
+    expect(state.board.knights[adjacentToP1 as VertexId]?.active).toBe(true); // inherited from removed knight
+  });
+
+  it("initiator can skip placement when they choose not to place", () => {
+    const { p2KnightVid, p1KnightVid: _p1vid, ...base } = buildTreasonState();
+    let state = applyAction(base, {
+      type: "PLAY_PROGRESS",
+      pid: "p1",
+      card: "Treason",
+      params: { targetPid: "p2" },
+    });
+    state = applyAction(state, {
+      type: "PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT",
+      pid: "p2",
+      vid: p2KnightVid,
+    });
+    expect(state.pendingTreason).not.toBeNull();
+
+    state = applyAction(state, { type: "PROGRESS_SKIP_TREASON", pid: "p1" });
+    expect(state.pendingTreason).toBeNull();
+  });
+});
+
 describe("progress card effects", () => {
   it("Encouragement activates all of the current player's knights", () => {
     let state = buildActionState();

@@ -84,6 +84,14 @@
       : ([] as PlayerId[]),
   );
 
+  let opponentsWithKnights = $derived(
+    gs && myPid
+      ? (opponents.filter((p) =>
+          Object.values(gs.board.knights).some((k) => k && k.playerId === p),
+        ) as PlayerId[])
+      : ([] as PlayerId[]),
+  );
+
   let opponentsGdEligible = $derived(
     gs && myPid
       ? opponents.filter((p) => computeVP(gs, p) >= computeVP(gs, myPid))
@@ -167,9 +175,9 @@
           ? { enabled: true, reason: "" }
           : { enabled: false, reason: "No valid enemy knight on your network." };
       case "Treason":
-        return targetCount({ type: "progress_select_knight", card: "Treason" }) > 0
+        return opponentsWithKnights.length > 0
           ? { enabled: true, reason: "" }
-          : { enabled: false, reason: "No enemy knight to remove." };
+          : { enabled: false, reason: "No opponent has a knight to remove." };
       case "CommercialHarbor":
         return (me.resources[selectedComHarborResource] ?? 0) > 0
           ? { enabled: true, reason: "" }
@@ -244,6 +252,14 @@
   });
 
   $effect(() => {
+    if (card.name !== "Treason" || !canPlayNow || !gs) return;
+    if (opponentsWithKnights.length === 0) return;
+    if (selectedTargetPid === null || !opponentsWithKnights.includes(selectedTargetPid)) {
+      selectedTargetPid = opponentsWithKnights[0]!;
+    }
+  });
+
+  $effect(() => {
     if (card.name !== "Espionage" || !canPlayNow || !gs) return;
     if (espionagePlayers.length === 0) return;
     if (
@@ -272,8 +288,6 @@
         return { type: "progress_select_hex", card: "Taxation" };
       case "Intrigue":
         return { type: "progress_select_knight", card: "Intrigue" };
-      case "Treason":
-        return { type: "progress_select_knight", card: "Treason" };
       case "Diplomacy":
         return { type: "progress_select_edge", card: "Diplomacy" };
       default:
@@ -349,6 +363,13 @@
 
     if (card.name === "CommercialHarbor") {
       store.sendAction({ type: "PLAY_PROGRESS", pid, card: "CommercialHarbor", params: { resource: selectedComHarborResource } });
+      close();
+      return;
+    }
+
+    if (card.name === "Treason") {
+      if (!selectedTargetPid) return;
+      store.sendAction({ type: "PLAY_PROGRESS", pid, card: "Treason", params: { targetPid: selectedTargetPid } });
       close();
       return;
     }
@@ -569,7 +590,17 @@
 {:else if canPlayNow && card.name === "Intrigue"}
   <p class="helper">Click an enemy knight on your network to displace it.</p>
 {:else if canPlayNow && card.name === "Treason"}
-  <p class="helper">Click an enemy knight to remove it.</p>
+  <div class="picker-row">
+    <span class="picker-label">Target player</span>
+    {#if gs}
+      <PlayerChipBar
+        mode="single"
+        playerIds={opponentsWithKnights}
+        gameState={gs}
+        bind:selectedSingle={selectedTargetPid}
+      />
+    {/if}
+  </div>
 {:else if canPlayNow && card.name === "Diplomacy"}
   <p class="helper">Click an open road (yours or an opponent's) to remove it.</p>
 {/if}
@@ -612,7 +643,7 @@
         card.name === "CommercialHarbor" ||
         (card.name === "Espionage" && !!selectedTargetPid && espTargetCards.length > 0) ||
         card.name === "Intrigue" ||
-        card.name === "Treason" ||
+        (card.name === "Treason" && !!selectedTargetPid) ||
         card.name === "Diplomacy"))}
     {#if card.name === "Alchemy" && alchemyLateMessage && !canPlayNow}
       <p id="alchemy-late-message" class="inline-status" role="status" aria-live="polite">

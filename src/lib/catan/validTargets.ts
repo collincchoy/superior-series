@@ -44,7 +44,7 @@ export type PendingAction =
   | { type: "activate_knight" }
   // Progress card board selections
   | { type: "progress_select_vertex"; card: "Engineering" | "Medicine" }
-  | { type: "progress_select_knight"; card: "Intrigue" | "Treason" }
+  | { type: "progress_select_knight"; card: "Intrigue" }
   | { type: "progress_select_hex"; card: "Merchant" | "Taxation" }
   | { type: "progress_select_edge"; card: "Diplomacy" }
   | { type: "progress_select_hex_pair"; card: "Invention"; picked: HexId[] }
@@ -194,13 +194,6 @@ export function computeValidTargets(
               k.playerId !== pid &&
               isOnPlayerNetwork(board, graph, pid, vid as VertexId)
             ) {
-              validVertices.add(vid as VertexId);
-            }
-          });
-        } else if (pending.card === "Treason") {
-          // Treason: any opponent knight
-          Object.entries(board.knights).forEach(([vid, k]) => {
-            if (k && k.playerId !== pid) {
               validVertices.add(vid as VertexId);
             }
           });
@@ -364,6 +357,15 @@ export function computeValidTargets(
         canPromoteFreeKnight(board, me, vid as VertexId)
       )
         validVertices.add(vid as VertexId);
+    });
+  }
+
+  // Treason: opponent must choose one of their own knights to remove
+  if (state.pendingTreasonOpponentRemoveKnight?.opponentPid === localPid) {
+    Object.entries(board.knights).forEach(([vid, k]) => {
+      if (k && k.playerId === localPid) {
+        validVertices.add(vid as VertexId);
+      }
     });
   }
 

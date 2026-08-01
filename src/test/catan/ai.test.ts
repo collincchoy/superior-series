@@ -565,6 +565,42 @@ describe("chooseBotAction - pending free roads", () => {
   });
 });
 
+// ─── Treason ───────────────────────────────────────────────────────────────────
+
+describe("chooseBotAction - Treason", () => {
+  it("removes its weakest knight when it is the designated opponent", () => {
+    const base = buildActionState();
+    const vids = Object.keys(graph.vertices) as VertexId[];
+    const opponentPid = base.playerOrder[1]! as PlayerId;
+    const weakVid = vids[5]!;
+    const strongVid = vids[10]!;
+
+    const state: GameState = {
+      ...base,
+      phase: "ACTION" as const,
+      pendingTreasonOpponentRemoveKnight: {
+        initiatorPid: base.playerOrder[0]! as PlayerId,
+        opponentPid,
+      },
+      board: {
+        ...base.board,
+        knights: {
+          ...base.board.knights,
+          [weakVid]: { playerId: opponentPid, strength: 1, active: false },
+          [strongVid]: { playerId: opponentPid, strength: 2, active: true },
+        },
+      },
+    };
+
+    const action = chooseBotAction(state, opponentPid);
+    expect(action.type).toBe("PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT");
+    if (action.type === "PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT") {
+      // Bot should remove the weakest knight (strength 1), not the strong one
+      expect(action.vid).toBe(weakVid);
+    }
+  });
+});
+
 // ─── Phase 2: progress cards ───────────────────────────────────────────────────
 
 describe("chooseBotAction - progress cards", () => {

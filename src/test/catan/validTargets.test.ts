@@ -1014,31 +1014,37 @@ describe("computeValidTargets", () => {
       // (Intrigue filters by isOnPlayerNetwork, which is tested elsewhere)
     });
 
-    it("progress_select_knight for Treason highlights any opponent knight", () => {
-      const opponentKnightVid = vids[50]!;
-      const ownKnightVid = vids[1]!;
-      const emptyKnightVid = vids[2]!;
+    it("pendingTreasonOpponentRemoveKnight shows the opponent's own knights as valid targets", () => {
+      const ownKnightVid = vids[50]!;
+      const opponentKnightVid = vids[1]!;
+      const emptyVid = vids[2]!;
 
       const state: GameState = {
         ...actionState,
+        currentPlayerId: "p1",
+        pendingTreasonOpponentRemoveKnight: {
+          initiatorPid: "p1",
+          opponentPid: "p2",
+        },
         board: {
           ...actionState.board,
           knights: {
             ...actionState.board.knights,
-            [opponentKnightVid]: { playerId: "p2", strength: 1, active: false },
             [ownKnightVid]: { playerId: "p1", strength: 1, active: true },
+            [opponentKnightVid]: { playerId: "p2", strength: 1, active: false },
           },
         },
       };
 
-      const targets = computeValidTargets(state, "p1", {
-        type: "progress_select_knight",
-        card: "Treason",
-      });
-      expect(targets.validVertices.has(opponentKnightVid)).toBe(true);
-      expect(targets.validVertices.has(ownKnightVid)).toBe(false);
-      expect(state.board.knights[emptyKnightVid]).toBeNull();
-      expect(targets.validVertices.has(emptyKnightVid)).toBe(false);
+      // When the local player IS the opponent, they see their own knights
+      const targetsAsOpponent = computeValidTargets(state, "p2", null);
+      expect(targetsAsOpponent.validVertices.has(opponentKnightVid)).toBe(true);
+      expect(targetsAsOpponent.validVertices.has(ownKnightVid)).toBe(false);
+      expect(targetsAsOpponent.validVertices.has(emptyVid)).toBe(false);
+
+      // The initiating player sees no valid targets on the board during this step
+      const targetsAsInitiator = computeValidTargets(state, "p1", null);
+      expect(targetsAsInitiator.validVertices.size).toBe(0);
     });
 
     it("progress_select_hex for Merchant highlights hexes adjacent to own buildings", () => {

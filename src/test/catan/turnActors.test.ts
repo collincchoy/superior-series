@@ -28,4 +28,19 @@ describe("turn actor resolution", () => {
 
     expect(getActingPlayerIds(state)).toEqual(["p1"]);
   });
+
+  it("redirects acting player to opponent during pendingTreasonOpponentRemoveKnight", () => {
+    const initial = createInitialState(makePlayers(3));
+    const state = {
+      ...initial,
+      phase: "ACTION" as const,
+      currentPlayerId: "p1",
+      pendingTreasonOpponentRemoveKnight: {
+        initiatorPid: "p1",
+        opponentPid: "p2",
+      },
+    };
+
+    expect(getActingPlayerIds(state)).toEqual(["p2"]);
+  });
 });

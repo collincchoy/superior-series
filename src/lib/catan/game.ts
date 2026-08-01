@@ -454,6 +454,7 @@ export function createInitialState(
     pendingKnightPromotions: null,
     pendingCommercialHarbor: null,
     pendingTreason: null,
+    pendingTreasonOpponentRemoveKnight: null,
     pendingVpCardAnnouncement: null,
     pendingScienceBonus: null,
     pendingTradeOffer: null,
@@ -1430,6 +1431,38 @@ function applyActionReducer(state: GameState, action: GameAction): GameState {
       const { pid } = action;
       if (s.pendingTreason?.pid !== pid) return s;
       return { ...s, pendingTreason: null };
+    }
+
+    case "PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT": {
+      const { pid, vid } = action;
+      const pending = s.pendingTreasonOpponentRemoveKnight;
+      if (!pending || pending.opponentPid !== pid) return s;
+      const trsKnight = s.board.knights[vid];
+      if (!trsKnight || trsKnight.playerId !== pid) return s;
+      const opponent = s.players[pid]!;
+      const initiatorPid = pending.initiatorPid;
+      const trsHasKnight = hasKnightUpTo(s.players[initiatorPid]!, trsKnight.strength);
+      return {
+        ...s,
+        players: {
+          ...s.players,
+          [pid]: {
+            ...opponent,
+            supply: {
+              ...opponent.supply,
+              knights: {
+                ...opponent.supply.knights,
+                [trsKnight.strength]: opponent.supply.knights[trsKnight.strength] + 1,
+              },
+            },
+          },
+        },
+        board: { ...s.board, knights: { ...s.board.knights, [vid]: null } },
+        pendingTreasonOpponentRemoveKnight: null,
+        pendingTreason: trsHasKnight
+          ? { pid: initiatorPid, maxStrength: trsKnight.strength, active: trsKnight.active }
+          : null,
+      };
     }
 
     case "ACKNOWLEDGE_VP_CARD": {
@@ -3042,32 +3075,15 @@ function applyProgressCard(
       break;
     }
     case "Treason": {
-      const trsVid = getParam<VertexId>("vid");
-      if (!trsVid) return s;
-      const trsKnight = s.board.knights[trsVid];
-      if (!trsKnight || trsKnight.playerId === pid) break;
-      const trsPid = trsKnight.playerId;
-      const trsTarget = s.players[trsPid]!;
-      const trsMaxStr = trsKnight.strength;
-      const trsHasKnight = hasKnightUpTo(s.players[pid]!, trsMaxStr);
+      const targetPid = getParam<PlayerId>("targetPid");
+      if (!targetPid || targetPid === pid) break;
+      const hasOpponentKnight = Object.values(s.board.knights).some(
+        (k) => k && k.playerId === targetPid,
+      );
+      if (!hasOpponentKnight) break;
       s = {
         ...s,
-        players: {
-          ...s.players,
-          [trsPid]: {
-            ...trsTarget,
-            supply: {
-              ...trsTarget.supply,
-              knights: {
-                ...trsTarget.supply.knights,
-                [trsKnight.strength]:
-                  trsTarget.supply.knights[trsKnight.strength] + 1,
-              },
-            },
-          },
-        },
-        board: { ...s.board, knights: { ...s.board.knights, [trsVid]: null } },
-        pendingTreason: trsHasKnight ? { pid, maxStrength: trsMaxStr, active: trsKnight.active } : null,
+        pendingTreasonOpponentRemoveKnight: { initiatorPid: pid, opponentPid: targetPid },
       };
       break;
     }

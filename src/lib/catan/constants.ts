@@ -409,9 +409,9 @@ export const PROGRESS_CARD_INFO: Record<ProgressCardName, ProgressCardInfo> = {
   },
   Treason: {
     title: "Treason",
-    short: "Replace an opponent knight with your own.",
+    short: "Force an opponent to remove a knight; optionally replace it with your own.",
     effect:
-      "Choose an opponent knight to remove, then optionally place one of your own equal-or-lower strength knights there.",
+      "Choose an opponent. They must remove one of their knights from the board. You may then place one of your own knights of equal or lower strength, inheriting its active/inactive status. You may place a mighty knight this way even without the level-3 city improvement.",
     requiresTarget: true,
   },
   Wedding: {

@@ -55,9 +55,7 @@ function progressMessage(pa: PendingAction): string | null {
     case "progress_select_edge":
       return "Diplomacy: click an open road segment to remove it.";
     case "progress_select_knight":
-      return pa.card === "Intrigue"
-        ? "Intrigue: click an enemy knight on your road network to displace."
-        : "Treason: click an enemy knight to remove.";
+      return "Intrigue: click an enemy knight on your road network to displace.";
     case "progress_select_hex_pair": {
       const step = pa.picked.length === 0 ? 1 : 2;
       return step === 1
@@ -108,6 +106,12 @@ export function getBoardPendingUi(
     return {
       message: "Smithing: click a knight to promote it free, or",
       skip: "promotions",
+    };
+  }
+
+  if (gs.pendingTreasonOpponentRemoveKnight?.opponentPid === localPid) {
+    return {
+      message: "Treason: choose one of your knights to remove from the board.",
     };
   }
 

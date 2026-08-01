@@ -30,6 +30,9 @@ export function getActingPlayerIds(state: GameState): PlayerId[] {
       if (state.phase === "ACTION" && state.pendingTradeOffer) {
         return state.pendingTradeOffer.targetPids;
       }
+      if (state.pendingTreasonOpponentRemoveKnight) {
+        return [state.pendingTreasonOpponentRemoveKnight.opponentPid];
+      }
       return [state.currentPlayerId];
   }
 }

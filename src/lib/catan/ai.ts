@@ -13,6 +13,7 @@ import type {
   ProgressCardName,
   CommodityType,
   ResourceType,
+  KnightStrength,
 } from "./types.js";
 import { buildGraph, type CatanGraph } from "./board.js";
 import {
@@ -100,6 +101,8 @@ export function chooseBotAction(state: GameState, pid: PlayerId): GameAction {
       }
       if (state.pendingCommercialHarbor?.remainingPids.includes(pid))
         return chooseBotCommercialHarborResponse(state, pid);
+      if (state.pendingTreasonOpponentRemoveKnight?.opponentPid === pid)
+        return chooseBotTreasonOpponentRemoval(state, pid);
       if (state.pendingTreason?.pid === pid)
         return chooseBotTreasonPlacement(state, pid, graph);
       return chooseAction(state, pid, graph);
@@ -705,6 +708,24 @@ function chooseBotCommercialHarborResponse(
     return { type: "PROGRESS_RESPOND_COMMERCIAL_HARBOR", pid, commodity: best };
   }
   return { type: "PROGRESS_RESPOND_COMMERCIAL_HARBOR", pid, commodity: undefined };
+}
+
+function chooseBotTreasonOpponentRemoval(
+  state: GameState,
+  pid: PlayerId,
+): GameAction {
+  // Remove the weakest knight to minimise loss
+  let weakestVid: VertexId | null = null;
+  let weakestStrength = 4 as KnightStrength;
+  for (const [vid, k] of Object.entries(state.board.knights)) {
+    if (!k || k.playerId !== pid) continue;
+    if (k.strength < weakestStrength) {
+      weakestStrength = k.strength as KnightStrength;
+      weakestVid = vid as VertexId;
+    }
+  }
+  // Should always find one — validated before we reach this path
+  return { type: "PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT", pid, vid: weakestVid! };
 }
 
 function chooseBotTreasonPlacement(
@@ -1868,9 +1889,9 @@ function resolveProgressCard(
       return { type: "PLAY_PROGRESS", pid, card: "Intrigue", params: { vid } };
     }
     case "Treason": {
-      const vid = pickIntrigueTargetKnight(state, pid, graph);
-      if (!vid) return null;
-      return { type: "PLAY_PROGRESS", pid, card: "Treason", params: { vid } };
+      const targetPid = pickTreasonTarget(state, pid);
+      if (!targetPid) return null;
+      return { type: "PLAY_PROGRESS", pid, card: "Treason", params: { targetPid } };
     }
     case "Espionage": {
       const targetPid = pickEspionageTarget(state, pid);
@@ -2121,6 +2142,23 @@ function pickDiplomacyTargetEdge(
     return eid as EdgeId;
   }
   return null;
+}
+
+function pickTreasonTarget(
+  state: GameState,
+  pid: PlayerId,
+): PlayerId | null {
+  // Target the opponent with the strongest knight on the board
+  let bestTargetPid: PlayerId | null = null;
+  let bestStrength = 0;
+  for (const [, k] of Object.entries(state.board.knights)) {
+    if (!k || k.playerId === pid) continue;
+    if (k.strength > bestStrength) {
+      bestStrength = k.strength;
+      bestTargetPid = k.playerId;
+    }
+  }
+  return bestTargetPid;
 }
 
 function pickIntrigueTargetKnight(

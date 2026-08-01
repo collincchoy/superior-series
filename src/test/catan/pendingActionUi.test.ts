@@ -20,7 +20,6 @@ const CASES: { pa: PendingAction; expected: "build" | "knights" | null }[] = [
   { pa: { type: "progress_select_vertex", card: "Engineering" }, expected: null },
   { pa: { type: "progress_select_vertex", card: "Medicine" }, expected: null },
   { pa: { type: "progress_select_knight", card: "Intrigue" }, expected: null },
-  { pa: { type: "progress_select_knight", card: "Treason" }, expected: null },
   { pa: { type: "progress_select_hex", card: "Merchant" }, expected: null },
   { pa: { type: "progress_select_hex", card: "Taxation" }, expected: null },
   { pa: { type: "progress_select_edge", card: "Diplomacy" }, expected: null },

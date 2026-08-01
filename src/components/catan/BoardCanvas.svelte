@@ -198,6 +198,8 @@
       }
     } else if (pendingAction?.type === "activate_knight") {
       s({ type: "ACTIVATE_KNIGHT", pid, vid });
+    } else if (gameState.pendingTreasonOpponentRemoveKnight?.opponentPid === pid) {
+      s({ type: "PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT", pid, vid });
     } else if (gameState.pendingKnightPromotions?.pid === pid) {
       s({ type: "PROGRESS_PROMOTE_FREE_KNIGHT", pid, vid });
     } else if (gameState.pendingTreason?.pid === pid) {

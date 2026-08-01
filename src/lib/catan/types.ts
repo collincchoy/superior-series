@@ -320,6 +320,13 @@ export interface PendingTreason {
   active: boolean;
 }
 
+export interface PendingTreasonOpponentRemoveKnight {
+  /** Player who played Treason and is waiting for the opponent to remove a knight */
+  initiatorPid: PlayerId;
+  /** Player who must choose one of their knights to remove from the board */
+  opponentPid: PlayerId;
+}
+
 export interface PendingCommercialHarbor {
   initiatorPid: PlayerId;
   offeredResource: ResourceType;
@@ -380,6 +387,7 @@ export type PendingStateField =
   | "pendingKnightPromotions"
   | "pendingCommercialHarbor"
   | "pendingTreason"
+  | "pendingTreasonOpponentRemoveKnight"
   | "pendingVpCardAnnouncement"
   | "pendingScienceBonus"
   | "pendingTradeOffer"
@@ -427,6 +435,7 @@ export interface GameState {
   pendingKnightPromotions: PendingKnightPromotions | null;
   pendingCommercialHarbor: PendingCommercialHarbor | null;
   pendingTreason: PendingTreason | null;
+  pendingTreasonOpponentRemoveKnight: PendingTreasonOpponentRemoveKnight | null;
   pendingVpCardAnnouncement: PendingVpCardAnnouncement | null;
   /** Populated while phase === "RESOLVE_BARBARIANS"; drives the attack cinematic */
   pendingBarbarian: PendingBarbarian | null;
@@ -508,6 +517,7 @@ export type GameAction =
   | { type: "PROGRESS_SKIP_FREE_PROMOTIONS"; pid: PlayerId }
   | { type: "PROGRESS_PLACE_TREASON_KNIGHT"; pid: PlayerId; vid: VertexId; strength: KnightStrength }
   | { type: "PROGRESS_SKIP_TREASON"; pid: PlayerId }
+  | { type: "PROGRESS_TREASON_OPPONENT_REMOVE_KNIGHT"; pid: PlayerId; vid: VertexId }
   | { type: "ACKNOWLEDGE_VP_CARD"; pid: PlayerId }
   | {
       type: "PROGRESS_RESPOND_COMMERCIAL_HARBOR";
