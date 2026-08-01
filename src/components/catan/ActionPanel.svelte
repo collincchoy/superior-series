@@ -452,7 +452,8 @@
     </p>
   {:else if phase === "RESOLVE_PROGRESS_DRAW" && (gameState.pendingProgressDraw?.remaining ?? []).includes(pid)}
     <button
-      class="action-btn"
+      type="button"
+      class="action-btn action-btn-primary"
       onclick={() =>
         send({
           type: "DRAW_PROGRESS",
@@ -494,7 +495,7 @@
   {:else if phase === "ROLL_DICE"}
     <button
       type="button"
-      class="roll-dice-btn"
+      class="action-btn action-btn-primary"
       onclick={() => send({ type: "ROLL_DICE", pid })}
     >
       🎲 Roll Dice
@@ -1397,7 +1398,7 @@
   .action-btn.disabled {
     opacity: 0.4;
   }
-  .roll-dice-btn {
+  .action-btn-primary {
     width: 100%;
     padding: 0.9rem;
     font-size: 1.2rem;
@@ -1410,12 +1411,12 @@
     transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
     animation: dice-pulse 2s ease-in-out infinite;
   }
-  .roll-dice-btn:hover {
+  .action-btn-primary:hover {
     background: #4a7a28;
     transform: translateY(-2px);
     box-shadow: 0 4px 16px rgba(107, 191, 109, 0.3);
   }
-  .roll-dice-btn:active {
+  .action-btn-primary:active {
     transform: translateY(0) scale(0.97);
     box-shadow: none;
     animation: none;
@@ -1502,9 +1503,9 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .action-btn, .roll-dice-btn { transition: none; animation: none; }
+    .action-btn, .action-btn-primary { transition: none; animation: none; }
     .action-btn:hover:not(:disabled):not(.disabled),
-    .roll-dice-btn:hover { transform: none; box-shadow: none; }
+    .action-btn-primary:hover { transform: none; box-shadow: none; }
   }
 
   .trade-hint-panel {
