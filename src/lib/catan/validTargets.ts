@@ -52,7 +52,15 @@ export type PendingAction =
   | { type: "advance_knight_to"; from: VertexId }
   // Chase robber (two-step)
   | { type: "chase_robber_from" }
-  | { type: "chase_robber_hex"; knight: VertexId };
+  | { type: "chase_robber_hex"; knight: VertexId }
+  // Robber victim selection (post-hex selection when multiple victims are eligible)
+  | { type: "robber_select_victim"; hid: HexId; victims: PlayerId[] }
+  | {
+      type: "chase_robber_select_victim";
+      knight: VertexId;
+      hid: HexId;
+      victims: PlayerId[];
+    };
 
 export type PendingAdminAction =
   | { type: "admin_move_road_pick_from"; unsafe?: boolean; reason?: string }
@@ -310,8 +318,15 @@ export function computeValidTargets(
           if (!h.hasRobber) validHexes.add(h.id);
         });
         break;
+      case "robber_select_victim":
+      case "chase_robber_select_victim":
+        // Waiting for player selection in modal; no board targets.
+        break;
     }
   } else if (state.phase === "ROBBER_MOVE") {
+    if (pending?.type === "robber_select_victim") {
+      return { validVertices, validEdges, validHexes };
+    }
     Object.values(state.board.hexes).forEach((h) => {
       if (!h.hasRobber) validHexes.add(h.id);
     });

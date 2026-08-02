@@ -62,6 +62,10 @@ function progressMessage(pa: PendingAction): string | null {
         ? "Invention: choose the first numbered hex to swap."
         : "Invention: choose the second numbered hex.";
     }
+    case "robber_select_victim":
+      return "Robber: choose which adjacent player to rob.";
+    case "chase_robber_select_victim":
+      return "Chase Robber: choose which adjacent player to rob.";
     default:
       return null;
   }
@@ -122,11 +126,7 @@ export function getBoardPendingUi(
     };
   }
 
-  if (
-    pendingAction &&
-    pendingAction.type.startsWith("progress_") &&
-    isPlayerActing(gs, localPid)
-  ) {
+  if (pendingAction && isPlayerActing(gs, localPid)) {
     const msg = progressMessage(pendingAction);
     if (msg) return { message: msg };
   }

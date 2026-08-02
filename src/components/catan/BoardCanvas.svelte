@@ -42,6 +42,7 @@
   } from "../../lib/catan/svgHelpers.js";
   import { EVENT_COLORS } from "../../lib/catan/constants.js";
   import { buildGraph } from "../../lib/catan/board.js";
+  import { resolveRobberVictimChoice } from "../../lib/catan/robberVictims.js";
   import CatanPopover from "./CatanPopover.svelte";
 
   let {
@@ -271,23 +272,30 @@
     }
 
     if (gameState.phase === "ROBBER_MOVE") {
-      const adjacentBuildings = Object.entries(gameState.board.vertices).filter(
-        ([vid, b]) => {
-          if (!b || b.playerId === pid) return false;
-          return (graph.hexesOfVertex[vid as VertexId] ?? []).includes(hid);
-        },
-      );
-      const stealFrom = adjacentBuildings[0]?.[1]?.playerId ?? null;
-      s({ type: "MOVE_ROBBER", pid, hid, stealFrom });
+      const victimChoice = resolveRobberVictimChoice(gameState, pid, hid, graph);
+      if (victimChoice.kind === "immediate") {
+        s({ type: "MOVE_ROBBER", pid, hid, stealFrom: victimChoice.stealFrom });
+      } else {
+        store.setPendingAction({ type: "robber_select_victim", hid, victims: victimChoice.victims });
+      }
     } else if (pendingAction?.type === "chase_robber_hex") {
-      const adjacentBuildings = Object.entries(gameState.board.vertices).filter(
-        ([vid, b]) => {
-          if (!b || b.playerId === pid) return false;
-          return (graph.hexesOfVertex[vid as VertexId] ?? []).includes(hid);
-        },
-      );
-      const stealFrom = adjacentBuildings[0]?.[1]?.playerId ?? null;
-      s({ type: "CHASE_ROBBER", pid, knight: pendingAction.knight, hid, stealFrom });
+      const victimChoice = resolveRobberVictimChoice(gameState, pid, hid, graph);
+      if (victimChoice.kind === "immediate") {
+        s({
+          type: "CHASE_ROBBER",
+          pid,
+          knight: pendingAction.knight,
+          hid,
+          stealFrom: victimChoice.stealFrom,
+        });
+      } else {
+        store.setPendingAction({
+          type: "chase_robber_select_victim",
+          knight: pendingAction.knight,
+          hid,
+          victims: victimChoice.victims,
+        });
+      }
     } else if (pendingAction?.type === "progress_select_hex") {
       s({ type: "PLAY_PROGRESS", pid, card: pendingAction.card, params: { hid } });
     } else if (pendingAction?.type === "progress_select_hex_pair") {

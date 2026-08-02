@@ -20,7 +20,10 @@ export function compactActionLeftTab(pa: PendingAction | null): CompactActionLef
     case "advance_knight_to":
     case "chase_robber_from":
     case "chase_robber_hex":
+    case "chase_robber_select_victim":
       return "knights";
+    case "robber_select_victim":
+      return null;
     case "progress_select_vertex":
     case "progress_select_knight":
     case "progress_select_hex":

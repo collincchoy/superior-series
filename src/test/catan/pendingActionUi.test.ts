@@ -17,6 +17,11 @@ const CASES: { pa: PendingAction; expected: "build" | "knights" | null }[] = [
   { pa: { type: "advance_knight_to", from: v }, expected: "knights" },
   { pa: { type: "chase_robber_from" }, expected: "knights" },
   { pa: { type: "chase_robber_hex", knight: v }, expected: "knights" },
+  { pa: { type: "robber_select_victim", hid: h, victims: ["p2"] }, expected: null },
+  {
+    pa: { type: "chase_robber_select_victim", knight: v, hid: h, victims: ["p2"] },
+    expected: "knights",
+  },
   { pa: { type: "progress_select_vertex", card: "Engineering" }, expected: null },
   { pa: { type: "progress_select_vertex", card: "Medicine" }, expected: null },
   { pa: { type: "progress_select_knight", card: "Intrigue" }, expected: null },

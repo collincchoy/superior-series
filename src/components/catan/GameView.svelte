@@ -13,6 +13,7 @@
   import PlayerTradeModal from "./PlayerTradeModal.svelte";
   import InfoModal from "./InfoModal.svelte";
   import CommercialHarborModal from "./CommercialHarborModal.svelte";
+  import RobVictimModal from "./RobVictimModal.svelte";
   import VpCardModal from "./VpCardModal.svelte";
   import MasterControlModal from "./MasterControlModal.svelte";
   import BarbarianAttackOverlay from "./BarbarianAttackOverlay.svelte";
@@ -208,6 +209,7 @@
 {/if}
 <PlayerTradeModal {gameState} {localPid} bind:openInitiate={showPlayerTrade} />
 <CommercialHarborModal {gameState} {localPid} />
+<RobVictimModal {gameState} {localPid} {pendingAction} />
 <VpCardModal {gameState} {localPid} />
 <InfoModal />
 {#if isHost}
