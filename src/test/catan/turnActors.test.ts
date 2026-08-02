@@ -21,8 +21,10 @@ describe("turn actor resolution", () => {
       pendingTradeOffer: {
         initiatorPid: "p1",
         targetPids: ["p2"],
+        willingPids: [],
         offer: { brick: 1 },
         want: { ore: 1 },
+        autoComplete: false,
       },
     };
 

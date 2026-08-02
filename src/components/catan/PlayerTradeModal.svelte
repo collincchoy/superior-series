@@ -20,6 +20,9 @@
 
   let pendingOffer = $derived(gameState.pendingTradeOffer);
   let isResponding = $derived(pendingOffer?.targetPids.includes(localPid) ?? false);
+  let isConfirming = $derived(
+    pendingOffer?.initiatorPid === localPid && !isResponding,
+  );
 
   // ── Initiate mode state ────────────────────────────────────────────────────
   let selectedTargetPids = $state(new Set<PlayerId>());
@@ -97,6 +100,16 @@
     openInitiate = false;
   }
 
+  function confirmOffer(to: PlayerId) {
+    if (!pendingOffer) return;
+    store.sendAction({ type: "TRADE_CONFIRM", from: localPid, to });
+  }
+
+  function cancelOffer() {
+    if (!pendingOffer) return;
+    store.sendAction({ type: "TRADE_CANCEL", from: localPid, to: localPid });
+  }
+
   function acceptOffer() {
     if (!pendingOffer) return;
     store.sendAction({
@@ -163,6 +176,62 @@
         <button class="btn-accept" onclick={acceptOffer} disabled={!canAfford}>
           ✓ Accept
         </button>
+      </div>
+    </div>
+  </Modal>
+{:else if isConfirming && pendingOffer}
+  <!-- ── Confirming Mode (initiator waits for/picks a trading partner) ─────── -->
+  <Modal open={true} title="🤝 Trade Offer Sent" closeable={false}>
+    <div class="responder-body">
+      <div class="trade-summary">
+        <div class="trade-side">
+          <div class="pane-title">You offer:</div>
+          <div class="pill-row">
+            {#each RESOURCE_KEYS as k}
+              {#if (pendingOffer.offer[k] ?? 0) > 0}
+                <ResourcePill resource={k} count={pendingOffer.offer[k]!} />
+              {/if}
+            {/each}
+          </div>
+        </div>
+        <div class="trade-arrow">⇄</div>
+        <div class="trade-side">
+          <div class="pane-title">You want:</div>
+          <div class="pill-row">
+            {#each RESOURCE_KEYS as k}
+              {#if (pendingOffer.want[k] ?? 0) > 0}
+                <ResourcePill resource={k} count={pendingOffer.want[k]!} />
+              {/if}
+            {/each}
+          </div>
+        </div>
+      </div>
+
+      {#if pendingOffer.willingPids.length > 0}
+        <div class="willing-section">
+          <div class="pane-title">Ready to trade:</div>
+          <div class="willing-list">
+            {#each pendingOffer.willingPids as pid}
+              {@const partner = gameState.players[pid]}
+              <button class="btn-confirm-trade" onclick={() => confirmOffer(pid)}>
+                <span class="player-dot" style="background:{partner?.color}"></span>
+                Trade with {partner?.name}
+              </button>
+            {/each}
+          </div>
+        </div>
+      {/if}
+
+      {#if pendingOffer.targetPids.length > 0}
+        <p class="waiting-note">
+          ⏳ Waiting for {pendingOffer.targetPids.length} more player{pendingOffer.targetPids.length > 1 ? "s" : ""}…
+        </p>
+      {:else if pendingOffer.willingPids.length === 0}
+        <p class="waiting-note">Nobody accepted the offer.</p>
+      {/if}
+
+      <div class="respond-btns">
+        <button class="btn-reject" onclick={cancelOffer}>✗ Cancel Offer</button>
       </div>
     </div>
   </Modal>
@@ -436,6 +505,46 @@
   .btn-accept:disabled {
     opacity: 0.4;
     cursor: default;
+  }
+
+  /* ── Confirming mode ── */
+  .willing-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .willing-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .btn-confirm-trade {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #2a5e1e;
+    color: #f0e8d0;
+    border: 1px solid #4a9e3e;
+    border-radius: 6px;
+    padding: 0.55rem 1rem;
+    min-height: 44px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 100ms ease;
+    text-align: left;
+  }
+
+  .btn-confirm-trade:hover {
+    background: #3a7e28;
+  }
+
+  .waiting-note {
+    margin: 0;
+    font-size: 0.82rem;
+    color: #a0b0a0;
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -1698,7 +1698,14 @@ function applyActionReducer(state: GameState, action: GameAction): GameState {
       }
       s = {
         ...s,
-        pendingTradeOffer: { initiatorPid: from, targetPids, offer, want },
+        pendingTradeOffer: {
+          initiatorPid: from,
+          targetPids,
+          willingPids: [],
+          offer,
+          want,
+          autoComplete: targetPids.every((pid) => s.players[pid]?.isBot),
+        },
       };
       const targetNames = targetPids.map((p) => s.players[p]?.name).join(", ");
       s = log(s, `${s.players[from]?.name} offered a trade to ${targetNames}.`);
@@ -1712,6 +1719,79 @@ function applyActionReducer(state: GameState, action: GameAction): GameState {
         return s;
       const initiator = s.players[from]!;
       const responder = s.players[to]!;
+      for (const [k, v] of Object.entries(pending.want)) {
+        if (
+          (responder.resources[k as keyof Resources] ?? 0) < (v ?? 0)
+        )
+          return s;
+      }
+      // Fast path: all targets are bots — execute immediately (no confirm step)
+      if (pending.autoComplete) {
+        s = {
+          ...s,
+          players: {
+            ...s.players,
+            [from]: {
+              ...initiator,
+              resources: addResources(
+                subtractResources(initiator.resources, pending.offer),
+                pending.want,
+              ),
+            },
+            [to]: {
+              ...responder,
+              resources: addResources(
+                subtractResources(responder.resources, pending.want),
+                pending.offer,
+              ),
+            },
+          },
+          pendingTradeOffer: null,
+        };
+        const tradeDetails = tradeDetailsText(pending.offer, pending.want);
+        s = log(
+          s,
+          appendLogTokens(
+            `${s.players[from]?.name} and ${s.players[to]?.name} made a deal.`,
+            tradeDetails.length > 0 ? tradeDetails.split(" ") : [],
+          ),
+        );
+        return s;
+      }
+      // Normal path: mark responder as willing; initiator confirms via TRADE_CONFIRM
+      s = {
+        ...s,
+        pendingTradeOffer: {
+          ...pending,
+          targetPids: pending.targetPids.filter((p) => p !== to),
+          willingPids: [...pending.willingPids, to],
+        },
+      };
+      return s;
+    }
+
+    case "TRADE_REJECT": {
+      const { from, to } = action;
+      const pending = s.pendingTradeOffer;
+      if (!pending || pending.initiatorPid !== from || !pending.targetPids.includes(to))
+        return s;
+      const remaining = pending.targetPids.filter((p) => p !== to);
+      // Keep offer alive if anyone is still waiting to respond OR has already accepted
+      s = (remaining.length > 0 || pending.willingPids.length > 0)
+        ? { ...s, pendingTradeOffer: { ...pending, targetPids: remaining } }
+        : { ...s, pendingTradeOffer: null };
+      s = log(s, `${s.players[to]?.name} declined the trade offer.`);
+      return s;
+    }
+
+    case "TRADE_CONFIRM": {
+      const { from, to } = action;
+      const pending = s.pendingTradeOffer;
+      if (!pending || pending.initiatorPid !== from || !pending.willingPids.includes(to))
+        return s;
+      const initiator = s.players[from]!;
+      const responder = s.players[to]!;
+      // Defensive check: resources can't change mid-turn, but guard anyway
       for (const [k, v] of Object.entries(pending.want)) {
         if (
           (responder.resources[k as keyof Resources] ?? 0) < (v ?? 0)
@@ -1747,19 +1827,6 @@ function applyActionReducer(state: GameState, action: GameAction): GameState {
           tradeDetails.length > 0 ? tradeDetails.split(" ") : [],
         ),
       );
-      return s;
-    }
-
-    case "TRADE_REJECT": {
-      const { from, to } = action;
-      const pending = s.pendingTradeOffer;
-      if (!pending || pending.initiatorPid !== from || !pending.targetPids.includes(to))
-        return s;
-      const remaining = pending.targetPids.filter((p) => p !== to);
-      s = remaining.length > 0
-        ? { ...s, pendingTradeOffer: { ...pending, targetPids: remaining } }
-        : { ...s, pendingTradeOffer: null };
-      s = log(s, `${s.players[to]?.name} declined the trade offer.`);
       return s;
     }
 

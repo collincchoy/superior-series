@@ -94,9 +94,11 @@ export function chooseBotAction(state: GameState, pid: PlayerId): GameAction {
       if (state.pendingTradeOffer?.targetPids.includes(pid))
         return chooseBotTradeResponse(state, pid);
       if (state.pendingTradeOffer?.initiatorPid === pid) {
-        // Defensive: runBotTurns routes to targets first in real play, but if
-        // the host happens to poll us, cancel so the turn can progress.
-        const to = state.pendingTradeOffer.targetPids[0];
+        const { willingPids, targetPids } = state.pendingTradeOffer;
+        if (willingPids.length > 0)
+          return { type: "TRADE_CONFIRM", from: pid, to: willingPids[0]! };
+        // Defensive: cancel if still waiting on targets so the turn can progress
+        const to = targetPids[0];
         if (to) return { type: "TRADE_CANCEL", from: pid, to };
       }
       if (state.pendingCommercialHarbor?.remainingPids.includes(pid))

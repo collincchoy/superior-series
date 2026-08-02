@@ -3138,8 +3138,10 @@ describe("player trading", () => {
     expect(after.pendingTradeOffer).toEqual({
       initiatorPid: p1,
       targetPids: [p2],
+      willingPids: [],
       offer: { brick: 2 },
       want: { ore: 1 },
+      autoComplete: false,
     });
     expect(after.log.at(-1)).toContain("offered");
   });
@@ -3238,7 +3240,7 @@ describe("player trading", () => {
     expect(s2.pendingTradeOffer?.want).toEqual({ ore: 1 });
   });
 
-  it("TRADE_ACCEPT transfers resources and clears pending", () => {
+  it("TRADE_ACCEPT marks responder as willing (no immediate transfer)", () => {
     const { state, p1, p2 } = makeTradeState();
     const offered = applyAction(state, {
       type: "TRADE_OFFER",
@@ -3252,15 +3254,15 @@ describe("player trading", () => {
       from: p1,
       to: p2,
     });
-    expect(after.pendingTradeOffer).toBeNull();
-    expect(after.players[p1]!.resources.brick).toBe(1);  // had 3, gave 2
-    expect(after.players[p1]!.resources.ore).toBe(3);    // received 3
-    expect(after.players[p2]!.resources.ore).toBe(1);    // had 4, gave 3
-    expect(after.players[p2]!.resources.brick).toBe(2);  // received 2
-    expect(after.log.at(-1)).toContain("deal");
+    expect(after.pendingTradeOffer).not.toBeNull();
+    expect(after.pendingTradeOffer?.willingPids).toContain(p2);
+    expect(after.pendingTradeOffer?.targetPids).not.toContain(p2);
+    // Resources NOT transferred yet
+    expect(after.players[p1]!.resources.brick).toBe(3);
+    expect(after.players[p2]!.resources.ore).toBe(4);
   });
 
-  it("TRADE_ACCEPT by one of multiple targets clears offer for all", () => {
+  it("TRADE_ACCEPT by one of multiple targets adds to willingPids, keeps offer live", () => {
     const { state, p1, p2, p3 } = makeTradeState();
     const offered = applyAction(state, {
       type: "TRADE_OFFER",
@@ -3275,9 +3277,11 @@ describe("player trading", () => {
       from: p1,
       to: p2,
     });
-    expect(after.pendingTradeOffer).toBeNull();
-    expect(after.players[p1]!.resources.brick).toBe(2); // gave 1
-    expect(after.players[p2]!.resources.brick).toBe(1); // received 1
+    expect(after.pendingTradeOffer).not.toBeNull();
+    expect(after.pendingTradeOffer?.willingPids).toContain(p2);
+    expect(after.pendingTradeOffer?.targetPids).toEqual([p3]);
+    // Resources NOT transferred yet
+    expect(after.players[p1]!.resources.brick).toBe(3);
   });
 
   it("TRADE_ACCEPT rejected when target lacks wanted resources", () => {
@@ -3294,9 +3298,108 @@ describe("player trading", () => {
       from: p1,
       to: p2,
     });
-    // Rejected: pending still set, resources unchanged
+    expect(after.pendingTradeOffer?.willingPids).not.toContain(p2);
+    expect(after.players[p1]!.resources.brick).toBe(3);
+  });
+
+  it("TRADE_ACCEPT executes immediately when autoComplete (bot-only targets)", () => {
+    const { state, p1, p2 } = makeTradeState();
+    const botState = {
+      ...state,
+      players: { ...state.players, [p2]: { ...state.players[p2]!, isBot: true } },
+    };
+    const offered = applyAction(botState, {
+      type: "TRADE_OFFER",
+      from: p1,
+      to: [p2],
+      offer: { brick: 2 },
+      want: { ore: 3 },
+    });
+    expect(offered.pendingTradeOffer?.autoComplete).toBe(true);
+    const after = applyAction(offered, {
+      type: "TRADE_ACCEPT",
+      from: p1,
+      to: p2,
+    });
+    expect(after.pendingTradeOffer).toBeNull();
+    expect(after.players[p1]!.resources.brick).toBe(1);
+    expect(after.players[p1]!.resources.ore).toBe(3);
+    expect(after.players[p2]!.resources.ore).toBe(1);
+    expect(after.players[p2]!.resources.brick).toBe(2);
+    expect(after.log.at(-1)).toContain("deal");
+  });
+
+  it("TRADE_CONFIRM transfers resources and clears pending", () => {
+    const { state, p1, p2 } = makeTradeState();
+    const offered = applyAction(state, {
+      type: "TRADE_OFFER",
+      from: p1,
+      to: [p2],
+      offer: { brick: 2 },
+      want: { ore: 3 },
+    });
+    const willing = applyAction(offered, {
+      type: "TRADE_ACCEPT",
+      from: p1,
+      to: p2,
+    });
+    const after = applyAction(willing, {
+      type: "TRADE_CONFIRM",
+      from: p1,
+      to: p2,
+    });
+    expect(after.pendingTradeOffer).toBeNull();
+    expect(after.players[p1]!.resources.brick).toBe(1);
+    expect(after.players[p1]!.resources.ore).toBe(3);
+    expect(after.players[p2]!.resources.ore).toBe(1);
+    expect(after.players[p2]!.resources.brick).toBe(2);
+    expect(after.log.at(-1)).toContain("deal");
+  });
+
+  it("TRADE_CONFIRM rejected when to not in willingPids", () => {
+    const { state, p1, p2, p3 } = makeTradeState();
+    const offered = applyAction(state, {
+      type: "TRADE_OFFER",
+      from: p1,
+      to: [p2, p3],
+      offer: { brick: 1 },
+      want: { ore: 1 },
+    });
+    const willing = applyAction(offered, {
+      type: "TRADE_ACCEPT",
+      from: p1,
+      to: p2,
+    });
+    // Try to confirm with p3 who hasn't accepted
+    const after = applyAction(willing, {
+      type: "TRADE_CONFIRM",
+      from: p1,
+      to: p3,
+    });
     expect(after.pendingTradeOffer).not.toBeNull();
     expect(after.players[p1]!.resources.brick).toBe(3);
+  });
+
+  it("TRADE_CONFIRM rejected when from is not the initiator", () => {
+    const { state, p1, p2 } = makeTradeState();
+    const offered = applyAction(state, {
+      type: "TRADE_OFFER",
+      from: p1,
+      to: [p2],
+      offer: { brick: 1 },
+      want: { ore: 1 },
+    });
+    const willing = applyAction(offered, {
+      type: "TRADE_ACCEPT",
+      from: p1,
+      to: p2,
+    });
+    const after = applyAction(willing, {
+      type: "TRADE_CONFIRM",
+      from: p2,
+      to: p1,
+    });
+    expect(after.pendingTradeOffer).not.toBeNull();
   });
 
   it("TRADE_REJECT with multiple targets removes player but keeps offer live", () => {
@@ -3335,6 +3438,23 @@ describe("player trading", () => {
     expect(after.pendingTradeOffer).toBeNull();
     expect(after.players[p1]!.resources.brick).toBe(3); // unchanged
     expect(after.log.at(-1)).toContain("declined");
+  });
+
+  it("TRADE_REJECT by last remaining target keeps offer alive when willingPids non-empty", () => {
+    const { state, p1, p2, p3 } = makeTradeState();
+    const offered = applyAction(state, {
+      type: "TRADE_OFFER",
+      from: p1,
+      to: [p2, p3],
+      offer: { brick: 1 },
+      want: { ore: 1 },
+    });
+    const s1 = applyAction(offered, { type: "TRADE_ACCEPT", from: p1, to: p2 });
+    expect(s1.pendingTradeOffer?.willingPids).toContain(p2);
+    const after = applyAction(s1, { type: "TRADE_REJECT", from: p1, to: p3 });
+    expect(after.pendingTradeOffer).not.toBeNull();
+    expect(after.pendingTradeOffer?.targetPids).toHaveLength(0);
+    expect(after.pendingTradeOffer?.willingPids).toContain(p2);
   });
 
   it("TRADE_CANCEL clears pending (initiator only)", () => {

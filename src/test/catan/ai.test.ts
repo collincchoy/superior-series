@@ -1125,8 +1125,10 @@ describe("chooseBotAction - trade response", () => {
         pendingTradeOffer: {
           initiatorPid,
           targetPids: [botPid],
+          willingPids: [],
           offer: opts.offer ?? { brick: 2 },
           want: opts.want ?? { ore: 2 },
+          autoComplete: false,
         },
       },
       botPid,

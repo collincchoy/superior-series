@@ -352,12 +352,16 @@ export interface PendingScienceBonus {
 
 export interface PendingTradeOffer {
   initiatorPid: PlayerId;
-  /** Players who have not yet responded; offer stays live until empty or someone accepts */
+  /** Players who have not yet responded */
   targetPids: PlayerId[];
+  /** Players who accepted; initiator picks one via TRADE_CONFIRM to complete the trade */
+  willingPids: PlayerId[];
   /** Resources the initiator gives to the accepting player */
   offer: Partial<Resources>;
   /** Resources the initiator wants from the accepting player */
   want: Partial<Resources>;
+  /** True when all original targets are bots — TRADE_ACCEPT executes immediately */
+  autoComplete: boolean;
 }
 
 /**
@@ -561,6 +565,7 @@ export type GameAction =
   | { type: "TRADE_ACCEPT"; from: PlayerId; to: PlayerId }
   | { type: "TRADE_REJECT"; from: PlayerId; to: PlayerId }
   | { type: "TRADE_CANCEL"; from: PlayerId; to: PlayerId }
+  | { type: "TRADE_CONFIRM"; from: PlayerId; to: PlayerId }
   // Turn
   | { type: "END_TURN"; pid: PlayerId }
   // Barbarian attack commit (host-driven after cinematic plays out)
