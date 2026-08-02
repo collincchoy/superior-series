@@ -401,6 +401,40 @@ describe("chooseBotAction - knight promotion", () => {
       expect(action.pid).toBe(pid);
     }
   });
+
+  it("activates a knight at barbarian position 4 when there is a defensive gap", () => {
+    const base = buildActionState();
+    const pid = base.currentPlayerId;
+
+    const playerEdgeEntry = Object.entries(base.board.edges).find(
+      ([, e]) => e?.playerId === pid,
+    )!;
+    const eid = playerEdgeEntry[0] as EdgeId;
+    const [vA] = graph.verticesOfEdge[eid]!;
+    const knightVid = vA as VertexId;
+
+    // Remove all other knights so the gap is clearly > 0 (cities > active knights).
+    const state: GameState = {
+      ...base,
+      barbarian: { ...base.barbarian, position: 4 },
+      board: {
+        ...base.board,
+        knights: { [knightVid]: { playerId: pid, strength: 1, active: false } },
+      },
+      players: {
+        ...base.players,
+        [pid]: {
+          ...base.players[pid]!,
+          // Only grain to activate; no build resources so other options are skipped.
+          resources: { ...emptyResources(), grain: 1 },
+        },
+      },
+      phase: "ACTION",
+    };
+
+    const action = chooseBotAction(state, pid);
+    expect(action.type).toBe("ACTIVATE_KNIGHT");
+  });
 });
 
 // ─── Bot trade response ────────────────────────────────────────────────────────
@@ -537,6 +571,38 @@ describe("chooseBotAction - improvement track", () => {
     expect(action.type).toBe("IMPROVE_CITY");
     if (action.type === "IMPROVE_CITY") {
       expect(action.track).toBe("politics");
+    }
+  });
+
+  it("prefers the track whose commodity is most stockpiled when tracks have equal level", () => {
+    let state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    state = {
+      ...state,
+      phase: "ACTION" as const,
+      players: {
+        ...state.players,
+        [pid]: {
+          ...state.players[pid]!,
+          resources: {
+            ...emptyResources(),
+            // cloth=4 (trade), coin=2 (politics), paper=2 (science)
+            // All tracks at L1 (cost 2 each) — all affordable.
+            // Should prefer trade (cloth stockpile is highest).
+            cloth: 4,
+            coin: 2,
+            paper: 2,
+          },
+          improvements: { science: 1, trade: 1, politics: 1 },
+        },
+      },
+    };
+
+    const action = chooseBotAction(state, pid);
+    expect(action.type).toBe("IMPROVE_CITY");
+    if (action.type === "IMPROVE_CITY") {
+      expect(action.track).toBe("trade");
     }
   });
 });
@@ -1171,6 +1237,34 @@ describe("chooseBotAction - trade response", () => {
       offer: { wool: 1 },
       want: { ore: 4 },
     });
+    const action = chooseBotAction(state, botPid);
+    expect(action.type).toBe("TRADE_REJECT");
+  });
+
+  it("rejects a trade that would deplete goal-reserved ore when building a city", () => {
+    // Bot has exactly 3 ore (reserved for city build goal).
+    // Trade asks for 2 ore — leaving only 1, below the 3 reserved → reject.
+    const { state: base, botPid, initiatorPid } = makePendingTradeState({
+      offer: { grain: 1 },
+      want: { ore: 2 },
+    });
+    const state = {
+      ...base,
+      players: {
+        ...base.players,
+        [botPid]: {
+          ...base.players[botPid]!,
+          resources: { ...emptyResources(), ore: 3, grain: 0 },
+        },
+      },
+      pendingTradeOffer: {
+        ...base.pendingTradeOffer!,
+        initiatorPid,
+        targetPids: [botPid],
+        offer: { grain: 1 },
+        want: { ore: 2 },
+      },
+    };
     const action = chooseBotAction(state, botPid);
     expect(action.type).toBe("TRADE_REJECT");
   });

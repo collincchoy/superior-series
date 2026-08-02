@@ -92,7 +92,7 @@ export function chooseBotAction(state: GameState, pid: PlayerId): GameAction {
 
     case "ACTION":
       if (state.pendingTradeOffer?.targetPids.includes(pid))
-        return chooseBotTradeResponse(state, pid);
+        return chooseBotTradeResponse(state, pid, graph);
       if (state.pendingTradeOffer?.initiatorPid === pid) {
         const { willingPids, targetPids } = state.pendingTradeOffer;
         if (willingPids.length > 0)
@@ -165,7 +165,7 @@ function computeBotGoal(
   }
 
   // 2. Barbarians about to attack and we'd contribute to a loss.
-  if (state.barbarian.position >= 5) {
+  if (state.barbarian.position >= 4) {
     const gap = barbarianGap(state);
     if (gap > 0) {
       return { kind: "defendBarbarian", shortfall: { ore: 1, wool: 1 } };
@@ -673,26 +673,47 @@ const TRADE_WEIGHTS: Record<string, number> = {
   wool: 1.5,
 };
 
-function scoreResources(r: Partial<Resources>): number {
-  return Object.entries(r).reduce(
-    (total, [k, v]) => total + (TRADE_WEIGHTS[k] ?? 1) * (v ?? 0),
-    0,
-  );
-}
-
 function chooseBotTradeResponse(
   state: GameState,
   pid: PlayerId,
+  graph: CatanGraph,
 ): GameAction {
   const pending = state.pendingTradeOffer!;
   const bot = state.players[pid]!;
+  const goal = computeBotGoal(state, pid, graph);
+
+  // 1. Can't afford → reject immediately
   for (const [k, v] of Object.entries(pending.want)) {
     if ((bot.resources[k as keyof Resources] ?? 0) < (v ?? 0)) {
       return { type: "TRADE_REJECT", from: pending.initiatorPid, to: pid };
     }
   }
-  const receive = scoreResources(pending.offer);
-  const give = scoreResources(pending.want);
+
+  // 2. Don't give away resources reserved for our current goal
+  for (const [k, v] of Object.entries(pending.want)) {
+    const have = bot.resources[k as keyof Resources] ?? 0;
+    const reserved = reservedFor(goal.kind, k as keyof Resources);
+    if (have - (v ?? 0) < reserved) {
+      return { type: "TRADE_REJECT", from: pending.initiatorPid, to: pid };
+    }
+  }
+
+  // 3. Score with goal-aligned weights: boost shortfall resources, discount surplus
+  function goalWeight(k: string): number {
+    const base = TRADE_WEIGHTS[k] ?? 1;
+    if ((goal.shortfall as Partial<Resources>)[k as keyof Resources]) return base * 1.5;
+    const have = bot.resources[k as keyof Resources] ?? 0;
+    const reserved = reservedFor(goal.kind, k as keyof Resources);
+    if (have > reserved + 3) return base * 0.7;
+    return base;
+  }
+
+  const receive = Object.entries(pending.offer).reduce(
+    (total, [k, v]) => total + goalWeight(k) * (v ?? 0), 0,
+  );
+  const give = Object.entries(pending.want).reduce(
+    (total, [k, v]) => total + goalWeight(k) * (v ?? 0), 0,
+  );
   return receive >= give * 0.75
     ? { type: "TRADE_ACCEPT", from: pending.initiatorPid, to: pid }
     : { type: "TRADE_REJECT", from: pending.initiatorPid, to: pid };
@@ -774,10 +795,13 @@ function chooseAction(
   const cardAction = pickProgressCardAction(state, pid, graph);
   if (cardAction) return cardAction;
 
-  // B. Defense gate: if barbarian ship imminent and we're underfit, scramble.
-  if (state.barbarian.position >= 5) {
-    const def = emergencyDefenseAction(state, pid, graph);
-    if (def) return def;
+  // B. Defense gate: if barbarian approaching with a gap, scramble for knights.
+  if (state.barbarian.position >= 4) {
+    const gap = barbarianGap(state);
+    if (gap > 0) {
+      const def = emergencyDefenseAction(state, pid, graph);
+      if (def) return def;
+    }
   }
 
   // C. Build city (highest VP gain).
@@ -1020,12 +1044,17 @@ function pickImprovementTrackToBuy(
     return "politics";
   }
 
-  // 3. Take cheapest affordable improvement (lowest commodity cost).
+  // 3. Take the track whose commodity stockpile is highest (tie-break: lower level).
   const affordable = tracks.filter((t) =>
     canImproveCity(state.board, player, t),
   );
   if (affordable.length === 0) return null;
-  affordable.sort((a, b) => player.improvements[a] - player.improvements[b]);
+  affordable.sort((a, b) => {
+    const aHave = player.resources[TRACK_COMMODITY[a]] ?? 0;
+    const bHave = player.resources[TRACK_COMMODITY[b]] ?? 0;
+    if (aHave !== bHave) return bHave - aHave;
+    return player.improvements[a] - player.improvements[b];
+  });
   return affordable[0]!;
 }
 
