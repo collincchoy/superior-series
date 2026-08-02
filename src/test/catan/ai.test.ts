@@ -742,6 +742,44 @@ describe("chooseBotAction - progress cards", () => {
   });
 });
 
+describe("chooseBotAction - barbarian tie choice", () => {
+  it("chooses a non-empty progress track when resolving a barbarian tie", () => {
+    const state = buildActionState();
+    const pid = state.currentPlayerId;
+
+    const tieState: GameState = {
+      ...state,
+      phase: "RESOLVE_BARBARIAN_TIE_DRAW",
+      pendingBarbarianTieDraw: { remaining: [pid] },
+      decks: {
+        science: [],
+        trade: [
+          {
+            name: "CommercialHarbor",
+            track: "trade",
+            isVP: false,
+          },
+        ],
+        politics: [
+          {
+            name: "Constitution",
+            track: "politics",
+            isVP: true,
+          },
+        ],
+      },
+    };
+
+    const action = chooseBotAction(tieState, pid);
+    expect(action.type).toBe("CHOOSE_BARBARIAN_PROGRESS_TRACK");
+    if (action.type === "CHOOSE_BARBARIAN_PROGRESS_TRACK") {
+      expect(action.pid).toBe(pid);
+      expect(["trade", "politics"]).toContain(action.track);
+      expect(action.track).not.toBe("science");
+    }
+  });
+});
+
 // ─── Phase 1: pending knight promotions ────────────────────────────────────────
 
 describe("chooseBotAction - pending knight promotions", () => {

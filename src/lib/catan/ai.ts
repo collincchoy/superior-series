@@ -113,6 +113,9 @@ export function chooseBotAction(state: GameState, pid: PlayerId): GameAction {
     case "RESOLVE_PROGRESS_DRAW":
       return chooseProgressDraw(state, pid);
 
+    case "RESOLVE_BARBARIAN_TIE_DRAW":
+      return chooseBarbarianTieTrack(state, pid);
+
     case "SCIENCE_SELECT_RESOURCE":
       return chooseScienceBonus(state, pid, graph);
 
@@ -1611,6 +1614,18 @@ function chooseProgressDraw(state: GameState, pid: PlayerId): GameAction {
     return { type: "END_TURN", pid };
   }
   return { type: "DRAW_PROGRESS", pid, track: pending.track };
+}
+
+function chooseBarbarianTieTrack(state: GameState, pid: PlayerId): GameAction {
+  const pending = state.pendingBarbarianTieDraw;
+  if (!pending || pending.remaining[0] !== pid) {
+    return { type: "END_TURN", pid };
+  }
+  const tracks: ImprovementTrack[] = ["science", "trade", "politics"];
+  const available = tracks.filter((track) => state.decks[track].length > 0);
+  if (available.length === 0) return { type: "END_TURN", pid };
+  const track = available[Math.floor(Math.random() * available.length)]!;
+  return { type: "CHOOSE_BARBARIAN_PROGRESS_TRACK", pid, track };
 }
 
 function chooseProgressDiscard(state: GameState, pid: PlayerId): GameAction {

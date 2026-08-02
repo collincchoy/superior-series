@@ -140,30 +140,22 @@ function randomizeHarborSetups(): HarborSetup[] {
   }));
 }
 
-function drawRandomProgressCard(state: GameState, pid: PlayerId): GameState {
-  const tracks: ImprovementTrack[] = ["science", "trade", "politics"];
-  const availableTracks = tracks.filter(
-    (track) => state.decks[track].length > 0,
-  );
-  if (availableTracks.length === 0) return state;
+function getTurnOrderFromCurrent(state: GameState): PlayerId[] {
+  const currentIdx = state.playerOrder.indexOf(state.currentPlayerId);
+  if (currentIdx < 0) return [...state.playerOrder];
+  return [
+    ...state.playerOrder.slice(currentIdx),
+    ...state.playerOrder.slice(0, currentIdx),
+  ];
+}
 
-  const track =
-    availableTracks[Math.floor(Math.random() * availableTracks.length)]!;
-  const deck = [...state.decks[track]];
-  const card = deck.shift();
-  if (!card) return state;
-
-  return {
-    ...state,
-    decks: { ...state.decks, [track]: deck },
-    players: {
-      ...state.players,
-      [pid]: {
-        ...state.players[pid]!,
-        progressCards: [...state.players[pid]!.progressCards, card],
-      },
-    },
-  };
+function orderPlayersByCurrentTurn(
+  state: GameState,
+  players: PlayerId[],
+): PlayerId[] {
+  if (players.length <= 1) return [...players];
+  const set = new Set(players);
+  return getTurnOrderFromCurrent(state).filter((pid) => set.has(pid));
 }
 
 function tryRemoveProgressCardsFromHand(
@@ -459,6 +451,7 @@ export function createInitialState(
     pendingScienceBonus: null,
     pendingTradeOffer: null,
     pendingBarbarian: null,
+    pendingBarbarianTieDraw: null,
     knightsActivatedThisTurn: [],
     progressEffects: {
       craneDiscountPlayerId: null,
@@ -694,8 +687,23 @@ function applyActionReducer(state: GameState, action: GameAction): GameState {
     // ── Commit Barbarian Attack ────────────────────────────────────────────────
     case "EXECUTE_BARBARIAN_ATTACK": {
       if (s.phase !== "RESOLVE_BARBARIANS" || !s.pendingBarbarian) return s;
-      s = commitBarbarianAttack(s, s.pendingBarbarian);
+      const pendingBarbarian = s.pendingBarbarian;
+      s = commitBarbarianAttack(s, pendingBarbarian);
       s = { ...s, pendingBarbarian: null };
+
+      if (pendingBarbarian.outcome === "tie_draw") {
+        const remaining = orderPlayersByCurrentTurn(
+          s,
+          pendingBarbarian.tiedDefenders,
+        );
+        if (remaining.length > 0) {
+          return {
+            ...s,
+            phase: "RESOLVE_BARBARIAN_TIE_DRAW",
+            pendingBarbarianTieDraw: { remaining },
+          };
+        }
+      }
 
       // Game could have ended during commit (VP token could land someone at 13)
       if (s.phase === "GAME_OVER") return s;
@@ -1252,6 +1260,54 @@ function applyActionReducer(state: GameState, action: GameAction): GameState {
 
       s = advanceProgressDrawAfterDraw(s, pid);
       return s;
+    }
+
+    case "CHOOSE_BARBARIAN_PROGRESS_TRACK": {
+      const { pid, track } = action;
+      if (s.phase !== "RESOLVE_BARBARIAN_TIE_DRAW") return s;
+      const pending = s.pendingBarbarianTieDraw;
+      if (!pending || pending.remaining[0] !== pid) return s;
+
+      const deck = [...s.decks[track]];
+      const card = deck.shift();
+      if (!card) return s;
+
+      s = {
+        ...s,
+        decks: { ...s.decks, [track]: deck },
+        players: {
+          ...s.players,
+          [pid]: {
+            ...s.players[pid]!,
+            progressCards: [...s.players[pid]!.progressCards, card],
+          },
+        },
+        ...(card.isVP ? { pendingVpCardAnnouncement: { pid, card } } : {}),
+      };
+      s = log(
+        s,
+        `${s.players[pid]?.name} chose ${track} and drew a progress card.`,
+      );
+
+      const remaining = pending.remaining.slice(1);
+      if (remaining.length > 0) {
+        return {
+          ...s,
+          pendingBarbarianTieDraw: { remaining },
+        };
+      }
+
+      s = { ...s, pendingBarbarianTieDraw: null };
+      const needDiscard = pendingProgressDiscardNeeds(s);
+      if (Object.keys(needDiscard).length > 0) {
+        return {
+          ...s,
+          phase: "DISCARD_PROGRESS",
+          pendingProgressDiscard: { remaining: needDiscard },
+        };
+      }
+
+      return applyPendingRollResumeIfAny(s, graph) ?? { ...s, phase: "ACTION" };
     }
 
     case "DISCARD_PROGRESS": {
@@ -2278,14 +2334,7 @@ export function commitBarbarianAttack(
       );
     }
   } else if (pending.outcome === "tie_draw") {
-    s = log(s, "Tied defenders each drew a progress card!");
-    for (const winnerId of pending.tiedDefenders) {
-      const before = s.players[winnerId]!.progressCards.length;
-      s = drawRandomProgressCard(s, winnerId);
-      if (s.players[winnerId]!.progressCards.length > before) {
-        s = log(s, `${s.players[winnerId]?.name} drew a progress card.`);
-      }
-    }
+    s = log(s, "Top defenders tied and must each choose a progress track.");
   } else {
     // barbarians_win: pillage each city in the pre-computed list
     if (pending.citiesPillaged.length === 0) {

@@ -262,6 +262,7 @@ export type TurnPhase =
   | "SETUP_R2_ROAD" // place road after city
   | "ROLL_DICE" // may play Alchemy before rolling
   | "RESOLVE_BARBARIANS" // host-driven barbarian attack resolution
+  | "RESOLVE_BARBARIAN_TIE_DRAW" // tied defenders choose progress tracks one-by-one
   | "RESOLVE_PROGRESS_DRAW" // players draw from progress decks
   | "PRODUCTION" // collect resources / handle 7-roll discards
   | "DISCARD" // sub-phase: specific players must discard
@@ -283,6 +284,11 @@ export interface PendingProgressDraw {
   /** Players still needing to draw, in order */
   remaining: PlayerId[];
   track: ImprovementTrack;
+}
+
+export interface PendingBarbarianTieDraw {
+  /** Tied defenders still waiting to choose, in acting order */
+  remaining: PlayerId[];
 }
 
 export interface PendingDiscard {
@@ -391,7 +397,8 @@ export type PendingStateField =
   | "pendingVpCardAnnouncement"
   | "pendingScienceBonus"
   | "pendingTradeOffer"
-  | "pendingBarbarian";
+  | "pendingBarbarian"
+  | "pendingBarbarianTieDraw";
 
 export interface ProgressEffects {
   craneDiscountPlayerId: PlayerId | null;
@@ -439,6 +446,8 @@ export interface GameState {
   pendingVpCardAnnouncement: PendingVpCardAnnouncement | null;
   /** Populated while phase === "RESOLVE_BARBARIANS"; drives the attack cinematic */
   pendingBarbarian: PendingBarbarian | null;
+  /** Populated while phase === "RESOLVE_BARBARIAN_TIE_DRAW" */
+  pendingBarbarianTieDraw: PendingBarbarianTieDraw | null;
   /** Science level 3: active player must choose a free resource (non-7 zero-production roll) */
   pendingScienceBonus: PendingScienceBonus | null;
   /** Active player-to-player trade offer waiting for the target to accept or reject */
@@ -510,6 +519,11 @@ export type GameAction =
       params?: unknown;
     }
   | { type: "DRAW_PROGRESS"; pid: PlayerId; track: ImprovementTrack }
+  | {
+      type: "CHOOSE_BARBARIAN_PROGRESS_TRACK";
+      pid: PlayerId;
+      track: ImprovementTrack;
+    }
   // Progress card multi-step actions (PROGRESS_ prefix)
   | { type: "PROGRESS_PLACE_FREE_ROAD"; pid: PlayerId; eid: EdgeId }
   | { type: "PROGRESS_SKIP_FREE_ROADS"; pid: PlayerId }

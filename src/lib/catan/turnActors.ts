@@ -13,6 +13,11 @@ export function getActingPlayerIds(state: GameState): PlayerId[] {
     case "RESOLVE_PROGRESS_DRAW":
       return [...(state.pendingProgressDraw?.remaining ?? [])];
 
+    case "RESOLVE_BARBARIAN_TIE_DRAW": {
+      const current = state.pendingBarbarianTieDraw?.remaining[0];
+      return current ? [current] : [];
+    }
+
     case "KNIGHT_DISPLACE_RESPONSE": {
       const displacedPid = state.pendingDisplace?.displacedPlayerId;
       return displacedPid ? [displacedPid] : [];

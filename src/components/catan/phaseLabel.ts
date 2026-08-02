@@ -34,6 +34,9 @@ export function phaseLabel(state: GameState, localPid: PlayerId): string {
       ? `${prefix} — Unleash the robber! 🗡️`
       : `${prefix} — Moving the robber…`,
     RESOLVE_BARBARIANS: "The barbarians attack! ⚔️🛡️",
+    RESOLVE_BARBARIAN_TIE_DRAW: isMe
+      ? "Choose your progress deck reward! 🃏"
+      : "Tied defenders are choosing progress decks… ⏳",
     RESOLVE_PROGRESS_DRAW: isMe
       ? "A progress card awaits! 🃏"
       : "Waiting for progress draws… ⏳",

@@ -359,7 +359,7 @@ describe("barbarian attack - deferred resolution flow", () => {
     expect(committed.phase).not.toBe("RESOLVE_BARBARIANS");
   });
 
-  it("EXECUTE_BARBARIAN_ATTACK enters DISCARD_PROGRESS when tie_draw draws past 4-card limit", () => {
+  it("EXECUTE_BARBARIAN_ATTACK enters tie-choice phase and then DISCARD_PROGRESS when hand exceeds limit", () => {
     let state = stateWithCities({ p1: 1 });
     state = addActiveKnights(state, "p1", 2, 1);
     state = addActiveKnights(state, "p2", 2, 1);
@@ -374,6 +374,11 @@ describe("barbarian attack - deferred resolution flow", () => {
       players: {
         ...state.players,
         p1: { ...state.players["p1"]!, progressCards: fourHand },
+      },
+      decks: {
+        science: [PROGRESS_CARD_BY_NAME.Crane],
+        trade: [PROGRESS_CARD_BY_NAME.CommercialHarbor],
+        politics: [PROGRESS_CARD_BY_NAME.Constitution],
       },
       phase: "ROLL_DICE" as const,
       barbarian: { position: 6, robberActive: false },
@@ -390,10 +395,25 @@ describe("barbarian attack - deferred resolution flow", () => {
       type: "EXECUTE_BARBARIAN_ATTACK",
       pid: "p1",
     });
-    expect(committed.phase).toBe("DISCARD_PROGRESS");
-    expect(committed.pendingRollResume).not.toBeNull();
-    expect(committed.pendingRollResume!.production).toBe(5);
-    expect(committed.pendingProgressDiscard?.remaining["p1"]).toBeGreaterThan(0);
+    expect(committed.phase).toBe("RESOLVE_BARBARIAN_TIE_DRAW");
+    expect(committed.pendingBarbarianTieDraw?.remaining).toEqual(["p1", "p2"]);
+
+    const afterP1Choice = applyAction(committed, {
+      type: "CHOOSE_BARBARIAN_PROGRESS_TRACK",
+      pid: "p1",
+      track: "science",
+    });
+
+    const afterP2Choice = applyAction(afterP1Choice, {
+      type: "CHOOSE_BARBARIAN_PROGRESS_TRACK",
+      pid: "p2",
+      track: "trade",
+    });
+
+    expect(afterP2Choice.phase).toBe("DISCARD_PROGRESS");
+    expect(afterP2Choice.pendingRollResume).not.toBeNull();
+    expect(afterP2Choice.pendingRollResume!.production).toBe(5);
+    expect(afterP2Choice.pendingProgressDiscard?.remaining["p1"]).toBeGreaterThan(0);
   });
 
   it("EXECUTE_BARBARIAN_ATTACK is a no-op if pendingBarbarian is null", () => {
@@ -442,7 +462,7 @@ describe("barbarian attack - defenders win", () => {
     expect(committed.players["p1"]!.vpTokens).toBe(before + 1);
   });
 
-  it("tied defenders each draw one progress card", () => {
+  it("tied defenders choose one-by-one in turn order and draw from chosen tracks", () => {
     let state = stateWithCities({ p1: 1 });
     state = addActiveKnights(state, "p1", 2, 1);
     state = addActiveKnights(state, "p2", 2, 1);
@@ -452,15 +472,71 @@ describe("barbarian attack - defenders win", () => {
       barbarian: { position: 6, robberActive: false },
     };
 
+    state = {
+      ...state,
+      decks: {
+        science: [PROGRESS_CARD_BY_NAME.Crane],
+        trade: [PROGRESS_CARD_BY_NAME.CommercialHarbor],
+        politics: [PROGRESS_CARD_BY_NAME.Constitution],
+      },
+    };
+
     const p1Before = state.players["p1"]!.progressCards.length;
     const p2Before = state.players["p2"]!.progressCards.length;
 
-    const committed = rollShipAndCommit(state);
+    const rolled = applyAction(state, {
+      type: "ROLL_DICE",
+      pid: "p1",
+      result: [2, 3, "ship"],
+    });
+    const committed = applyAction(rolled, {
+      type: "EXECUTE_BARBARIAN_ATTACK",
+      pid: "p1",
+    });
 
-    expect(committed.players["p1"]!.vpTokens).toBe(0);
-    expect(committed.players["p2"]!.vpTokens).toBe(0);
-    expect(committed.players["p1"]!.progressCards.length).toBe(p1Before + 1);
-    expect(committed.players["p2"]!.progressCards.length).toBe(p2Before + 1);
+    expect(committed.phase).toBe("RESOLVE_BARBARIAN_TIE_DRAW");
+    expect(committed.pendingBarbarianTieDraw?.remaining).toEqual(["p1", "p2"]);
+
+    const wrongActorNoOp = applyAction(committed, {
+      type: "CHOOSE_BARBARIAN_PROGRESS_TRACK",
+      pid: "p2",
+      track: "trade",
+    });
+    expect(wrongActorNoOp.phase).toBe("RESOLVE_BARBARIAN_TIE_DRAW");
+    expect(wrongActorNoOp.pendingBarbarianTieDraw?.remaining).toEqual([
+      "p1",
+      "p2",
+    ]);
+    expect(wrongActorNoOp.players["p2"]!.progressCards.length).toBe(p2Before);
+
+    const afterP1 = applyAction(committed, {
+      type: "CHOOSE_BARBARIAN_PROGRESS_TRACK",
+      pid: "p1",
+      track: "science",
+    });
+    expect(afterP1.pendingBarbarianTieDraw?.remaining).toEqual(["p2"]);
+
+    const emptyDeckNoOp = applyAction(afterP1, {
+      type: "CHOOSE_BARBARIAN_PROGRESS_TRACK",
+      pid: "p2",
+      track: "science",
+    });
+    expect(emptyDeckNoOp.phase).toBe("RESOLVE_BARBARIAN_TIE_DRAW");
+    expect(emptyDeckNoOp.pendingBarbarianTieDraw?.remaining).toEqual(["p2"]);
+    expect(emptyDeckNoOp.players["p2"]!.progressCards.length).toBe(p2Before);
+
+    const afterP2 = applyAction(afterP1, {
+      type: "CHOOSE_BARBARIAN_PROGRESS_TRACK",
+      pid: "p2",
+      track: "trade",
+    });
+
+    expect(afterP2.players["p1"]!.vpTokens).toBe(0);
+    expect(afterP2.players["p2"]!.vpTokens).toBe(0);
+    expect(afterP2.players["p1"]!.progressCards.length).toBe(p1Before + 1);
+    expect(afterP2.players["p2"]!.progressCards.length).toBe(p2Before + 1);
+    expect(afterP2.players["p1"]!.progressCards.at(-1)?.track).toBe("science");
+    expect(afterP2.players["p2"]!.progressCards.at(-1)?.track).toBe("trade");
   });
 
   it("all active knights become inactive after attack", () => {

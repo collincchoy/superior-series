@@ -450,6 +450,28 @@
     <p class="action-instruction">
       Preview a card, discard it, then repeat if you still owe discards.
     </p>
+  {:else if phase === "RESOLVE_BARBARIAN_TIE_DRAW" && gameState.pendingBarbarianTieDraw?.remaining[0] === pid}
+    <p class="action-instruction">Choose which progress deck to draw from:</p>
+    <div class="science-picks">
+      {#each tracks as track}
+        {#if gameState.decks[track].length > 0}
+          <button
+            type="button"
+            class="action-btn action-btn-primary"
+            onclick={() =>
+              send({
+                type: "CHOOSE_BARBARIAN_PROGRESS_TRACK",
+                pid,
+                track,
+              })}
+          >
+            {trackLabel[track].label} ({gameState.decks[track].length})
+          </button>
+        {/if}
+      {/each}
+    </div>
+  {:else if phase === "RESOLVE_BARBARIAN_TIE_DRAW"}
+    <p class="action-instruction">Waiting for tied defenders to choose their progress deck…</p>
   {:else if phase === "RESOLVE_PROGRESS_DRAW" && (gameState.pendingProgressDraw?.remaining ?? []).includes(pid)}
     <button
       type="button"

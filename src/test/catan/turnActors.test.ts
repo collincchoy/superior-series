@@ -43,4 +43,17 @@ describe("turn actor resolution", () => {
 
     expect(getActingPlayerIds(state)).toEqual(["p2"]);
   });
+
+  it("only exposes the current tied defender during barbarian tie choice", () => {
+    const initial = createInitialState(makePlayers(3));
+    const state = {
+      ...initial,
+      phase: "RESOLVE_BARBARIAN_TIE_DRAW" as const,
+      pendingBarbarianTieDraw: {
+        remaining: ["p2", "p3"],
+      },
+    };
+
+    expect(getActingPlayerIds(state)).toEqual(["p2"]);
+  });
 });
