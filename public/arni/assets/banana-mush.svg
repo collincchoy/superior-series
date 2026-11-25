@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="56" viewBox="0 0 64 56">
+  <!-- Mush: rotten, squishy, oozing goo -->
+  <path d="M4 54 Q32 46 60 54 Z" fill="#9fd45a" opacity="0.85"/>
+  <g stroke="#2e1d0e" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M8 50 C2 34 14 14 34 12 C52 10 62 30 56 50 Q32 56 8 50 Z" fill="#6b4a2b"/>
+    <path d="M30 13 q-2 -8 4 -10" fill="none"/>
+  </g>
+  <g fill="#3d2814"><circle cx="18" cy="40" r="3"/><circle cx="46" cy="24" r="2.5"/><circle cx="50" cy="42" r="3"/></g>
+  <!-- goo drips -->
+  <g fill="#9fd45a" stroke="#5d8f22" stroke-width="2">
+    <path d="M14 22 q-2 10 1 14 q3 -2 2 -14 Z"/>
+    <path d="M40 14 q2 9 0 12 q-3 -2 -2 -12 Z"/>
+  </g>
+  <!-- woozy spiral eyes -->
+  <g fill="#fff" stroke="#2e1d0e" stroke-width="2"><circle cx="25" cy="30" r="6"/><circle cx="40" cy="31" r="6"/></g>
+  <g fill="none" stroke="#2e1d0e" stroke-width="1.6" stroke-linecap="round">
+    <path d="M25 30 m0 -1 a1 1 0 1 1 -1 1 a2.5 2.5 0 1 1 2.5 2.5 a4 4 0 1 1 -4 -4"/>
+    <path d="M40 31 m0 -1 a1 1 0 1 1 -1 1 a2.5 2.5 0 1 1 2.5 2.5 a4 4 0 1 1 -4 -4"/>
+  </g>
+  <!-- goofy tongue grin -->
+  <path d="M25 42 q8 6 15 0" fill="#7a2a1a" stroke="#2e1d0e" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M30 44 q3 6 6 0" fill="#ff7aa8"/>
+</svg>
