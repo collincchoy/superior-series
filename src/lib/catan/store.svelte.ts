@@ -403,6 +403,11 @@ class CatanStore {
     this.pendingAdminAction = null;
   }
 
+  /** Manual reconnect from the in-game connection chip. */
+  retryConnection() {
+    this.net?.retryConnection();
+  }
+
   setPendingAction(pa: PendingAction | null) {
     this.pendingAction = pa;
   }
@@ -550,8 +555,7 @@ class CatanStore {
 
   async joinGame(name: string, code: string) {
     const roomCode = code.trim();
-    const sessionKey = `catan-pid-${roomCode}`;
-    const savedPid = sessionStorage.getItem(sessionKey) as PlayerId | null;
+    const savedPid = loadSavedPid(roomCode);
 
     this.joiningName = name;
     this.setLobbyStatus("Connecting…");
@@ -560,12 +564,15 @@ class CatanStore {
     this.lastStateUpdateAt = null;
     this.lastStateVersion = null;
 
-    this.net = new CatanNetwork({
+    // A previous attempt (or a dead session) must not keep a PeerJS peer alive.
+    this.net?.destroy();
+    const net = new CatanNetwork({
       onStateUpdate: (state) => {
-        if (!this.localPid) {
-          this.localPid = this.net!.myPid;
-          if (this.localPid) sessionStorage.setItem(sessionKey, this.localPid);
-        }
+        const pid = net.myPid;
+        if (pid && pid !== this.localPid) this.localPid = pid;
+        if (pid) savePid(roomCode, pid);
+        // Rejoining mid-game skips the lobby message, so set it here too.
+        this.roomCode = roomCode;
         this.applyStateUpdate(state);
       },
       onLobbyUpdate: (data) => {
@@ -586,13 +593,14 @@ class CatanStore {
         this.lastJoinFailure = failure;
       },
     });
+    this.net = net;
 
     try {
       await this.net.joinGame(roomCode, name, savedPid ?? undefined);
       this.setConnectionStatus("connected", "Connected to host");
       this.lastJoinFailure = null;
     } catch (e: unknown) {
-      this.net = null;
+      if (this.net === net) this.net = null;
       const msg = e instanceof Error ? e.message : String(e);
       const hint = isJoinFailureError(e) ? ` ${e.hint}` : "";
       this.setConnectionStatus(
@@ -609,4 +617,37 @@ class CatanStore {
   }
 }
 
+// Seat (pid) per room is kept in localStorage, not sessionStorage: iOS PWAs
+// and discarded tabs lose sessionStorage, which made rejoin land on the wrong
+// seat or fail with "No open slot".
+function pidKey(roomCode: string) {
+  return `catan-pid-${roomCode}`;
+}
+
+function loadSavedPid(roomCode: string): PlayerId | null {
+  try {
+    // Per-tab value first (accurate when several tabs share a device).
+    return (
+      (sessionStorage.getItem(pidKey(roomCode)) as PlayerId | null) ??
+      (localStorage.getItem(pidKey(roomCode)) as PlayerId | null)
+    );
+  } catch {
+    return null;
+  }
+}
+
+function savePid(roomCode: string, pid: PlayerId) {
+  try {
+    sessionStorage.setItem(pidKey(roomCode), pid);
+    localStorage.setItem(pidKey(roomCode), pid);
+  } catch {
+    /* storage unavailable (private mode) — rejoin falls back to name match */
+  }
+}
+
 export const store = new CatanStore();
+
+// Dev-only hook for poking at networking from the browser console.
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as { __catan: unknown }).__catan = store;
+}

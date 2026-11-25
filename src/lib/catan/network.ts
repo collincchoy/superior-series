@@ -29,7 +29,9 @@ export type NetMessage =
   | { type: "lobby"; hostName: string; pendingNames: string[]; bots: Array<{ name: string }> }
   | { type: "action"; action: GameAction }
   | { type: "state"; state: GameState }
-  | { type: "error"; msg: string };
+  | { type: "error"; msg: string }
+  | { type: "ping" }
+  | { type: "pong" };
 
 export type JoinDiagnosticStage =
   | "peer-open"
@@ -85,6 +87,40 @@ const JOIN_STAGE_TIMEOUT_MS: Record<JoinDiagnosticStage, number> = {
   "data-channel-open": 12000,
   "host-state": 15000,
 };
+
+// ─── Reconnect / liveness tuning ─────────────────────────────────────────────
+
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 10_000;
+/** ~1.5 minutes of retries before a client gives up and shows "Reconnect". */
+const CLIENT_MAX_RECONNECT_ATTEMPTS = 12;
+/** Client → host ping cadence. */
+const HEARTBEAT_INTERVAL_MS = 4000;
+/** No reply to a ping for this long ⇒ the data channel is dead. */
+const HEARTBEAT_TIMEOUT_MS = 10_000;
+/** Faster probe right after the page becomes visible again. */
+const RESUME_PROBE_TIMEOUT_MS = 3000;
+/** Host drops a client that has pinged before but has been silent this long. */
+const HOST_CLIENT_TIMEOUT_MS = 15_000;
+
+/** Exponential backoff: 1s, 2s, 4s, 8s, then capped at 10s. */
+export function reconnectDelayMs(attempt: number): number {
+  return Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_MAX_DELAY_MS);
+}
+
+/** PeerJS error types that mean "lost the signaling server", not "bad room". */
+const SIGNALING_ERROR_TYPES = new Set([
+  "network",
+  "server-error",
+  "socket-error",
+  "socket-closed",
+  "unavailable-id",
+  "disconnected",
+]);
+
+function netLog(...args: unknown[]) {
+  console.info("[catan-net]", ...args);
+}
 
 class CatanJoinFailure extends Error implements JoinFailure {
   name = "CatanJoinFailure" as const;
@@ -285,9 +321,35 @@ export class CatanNetwork {
   private currentLobbyState: LobbyData | null = null;
   private lastAdminSnapshot: GameState | null = null;
   private connToPid: WeakMap<DataConnection, PlayerId> = new WeakMap();
+  private createPeer: () => Peer;
 
-  constructor(callbacks: NetworkCallbacks) {
+  // Signaling (PeerJS server) reconnect — used by host and client.
+  private signalingTimer: ReturnType<typeof setTimeout> | null = null;
+  private signalingAttempt = 0;
+
+  // Client auto-reconnect state.
+  private session: { roomCode: string; name: string } | null = null;
+  private connGeneration = 0;
+  private reconnecting = false;
+  private reconnectInFlight = false;
+  private reconnectGaveUp = false;
+  private reconnectAttempt = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Liveness.
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private lastHeartbeatTickAt = 0;
+  private awaitingPongSince: number | null = null;
+  private clientLastSeen: Map<DataConnection, number> = new Map();
+
+  private removeLifecycleListeners: (() => void) | null = null;
+
+  constructor(
+    callbacks: NetworkCallbacks,
+    options: { createPeer?: () => Peer } = {},
+  ) {
     this.callbacks = callbacks;
+    this.createPeer = options.createPeer ?? (() => new Peer());
   }
 
   // ─── Host ──────────────────────────────────────────────────────────────────
@@ -305,17 +367,53 @@ export class CatanNetwork {
     );
 
     return new Promise((resolve, reject) => {
-      this.peer = new Peer();
+      const peer = this.createPeer();
+      this.peer = peer;
+      let opened = false;
 
-      this.peer.on("open", (id) => {
+      peer.on("open", (id) => {
+        this.signalingAttempt = 0;
+        if (opened) {
+          netLog("host re-registered with signaling server", id);
+          this.callbacks.onConnectionStatusChange?.(
+            "connected",
+            "Room back online",
+          );
+          return;
+        }
+        opened = true;
         this.callbacks.onConnectionStatusChange?.("connected", "Hosting room");
+        this.installLifecycleListeners();
+        this.startHeartbeat();
         resolve(id as string);
       });
-      this.peer.on("error", (err) => {
-        reject(err instanceof Error ? err : new Error(String(err)));
+      peer.on("error", (err) => {
+        const type = (err as { type?: string })?.type;
+        if (!opened) {
+          reject(err instanceof Error ? err : new Error(String(err)));
+          return;
+        }
+        // After the room exists, PeerJS errors used to vanish silently.
+        console.warn("[catan-net] host peer error", type, err);
+        if (type && SIGNALING_ERROR_TYPES.has(type)) {
+          this.scheduleSignalingReconnect(peer);
+        }
+      });
+      // The signaling websocket dropped (phone locked, app switched, network
+      // blip). Existing data channels keep working, but the PeerJS server
+      // forgets our id, so new joiners and rejoiners get "Room not found"
+      // until we re-register with the same id.
+      peer.on("disconnected", () => {
+        if (this.destroyed || !opened) return;
+        netLog("host lost signaling server");
+        this.callbacks.onConnectionStatusChange?.(
+          "reconnecting",
+          "Room offline — reconnecting so players can join",
+        );
+        this.scheduleSignalingReconnect(peer);
       });
 
-      this.peer.on("connection", (...args) => {
+      peer.on("connection", (...args) => {
         const conn = args[0] as DataConnection;
         conn.on("open", () => {
           conn.on("data", (msg) =>
@@ -331,6 +429,37 @@ export class CatanNetwork {
         });
       });
     });
+  }
+
+  /**
+   * Re-register a disconnected peer with the signaling server (same id), with
+   * backoff. Never tears down data channels.
+   */
+  private scheduleSignalingReconnect(peer: Peer, immediate = false) {
+    if (this.destroyed || peer.destroyed) return;
+    if (this.signalingTimer) {
+      if (!immediate) return;
+      clearTimeout(this.signalingTimer);
+      this.signalingTimer = null;
+    }
+    const delay = immediate ? 0 : reconnectDelayMs(this.signalingAttempt);
+    this.signalingTimer = setTimeout(() => {
+      this.signalingTimer = null;
+      if (this.destroyed || peer.destroyed || this.peer !== peer) return;
+      if (!peer.disconnected) return;
+      this.signalingAttempt++;
+      netLog(`signaling reconnect attempt ${this.signalingAttempt}`);
+      try {
+        peer.reconnect();
+      } catch (e) {
+        console.warn("[catan-net] peer.reconnect failed", e);
+      }
+      // If reconnect() failed synchronously-ish, PeerJS emits error/disconnected
+      // which re-enters here. Also re-check in case no event fires.
+      if (peer.disconnected) {
+        this.scheduleSignalingReconnect(peer);
+      }
+    }, delay);
   }
 
   initHostState(state: GameState) {
@@ -377,6 +506,19 @@ export class CatanNetwork {
   }
 
   private handleHostMessage(conn: DataConnection, msg: NetMessage) {
+    // Only clients that heartbeat are subject to the host-side timeout, so an
+    // older cached client build (no pings) is never kicked for being quiet.
+    if (msg.type === "ping" || this.clientLastSeen.has(conn)) {
+      this.clientLastSeen.set(conn, Date.now());
+    }
+    if (msg.type === "ping") {
+      try {
+        conn.send({ type: "pong" } satisfies NetMessage);
+      } catch {
+        this.handleHostConnectionClosed(conn, "Connection lost");
+      }
+      return;
+    }
     if (msg.type === "join") {
       if (!this.state) {
         // Game not started yet — queue until initHostState is called
@@ -391,30 +533,14 @@ export class CatanNetwork {
         return;
       }
 
-      // Reconnect: client sends their previous pid
-      if (
-        msg.pid &&
-        this.state.players[msg.pid] &&
-        !this.state.players[msg.pid]!.isBot
-      ) {
-        const previous = this.connections.get(msg.pid);
-        if (previous && previous !== conn) {
-          try {
-            previous.close?.();
-          } catch {
-            /* ignore stale close errors */
-          }
-        }
-        this.connections.set(msg.pid, conn);
-        this.connToPid.set(conn, msg.pid);
-        conn.send({
-          type: "welcome",
-          pid: msg.pid,
-          state: this.state,
-        } satisfies NetMessage);
-        this.callbacks.onPlayerJoined?.(msg.name, msg.pid);
+      // Reconnect: client sends their previous pid, or (if it lost its saved
+      // pid, e.g. PWA relaunch) we match the seat by player name.
+      const rejoinPid = this.findRejoinPid(msg);
+      if (rejoinPid) {
+        this.bindPlayerConnection(conn, rejoinPid);
+        this.callbacks.onPlayerJoined?.(msg.name, rejoinPid);
         this.callbacks.onPlayerConnectionChange?.(
-          msg.pid,
+          rejoinPid,
           "connected",
           `${msg.name} reconnected`,
         );
@@ -427,13 +553,7 @@ export class CatanNetwork {
         conn.send({ type: "error", msg: "No open slot" } satisfies NetMessage);
         return;
       }
-      this.connections.set(pid, conn);
-      this.connToPid.set(conn, pid);
-      conn.send({
-        type: "welcome",
-        pid,
-        state: this.state,
-      } satisfies NetMessage);
+      this.bindPlayerConnection(conn, pid);
       this.callbacks.onPlayerJoined?.(msg.name, pid);
       this.callbacks.onPlayerConnectionChange?.(
         pid,
@@ -453,7 +573,55 @@ export class CatanNetwork {
     }
   }
 
+  private isRemoteHumanSeat(pid: PlayerId): boolean {
+    const p = this.state?.players[pid];
+    return !!p && !p.isBot && pid !== this.localPid;
+  }
+
+  private findRejoinPid(msg: { name: string; pid?: PlayerId }): PlayerId | null {
+    if (!this.state) return null;
+    // A saved pid is only trusted if the seat's name matches, so two tabs on
+    // one device (shared localStorage) can't take each other's seat.
+    if (
+      msg.pid &&
+      this.isRemoteHumanSeat(msg.pid) &&
+      this.state.players[msg.pid]!.name === msg.name
+    ) {
+      return msg.pid;
+    }
+    const sameName = this.state.playerOrder.filter(
+      (pid) =>
+        this.isRemoteHumanSeat(pid) && this.state!.players[pid]!.name === msg.name,
+    );
+    // Prefer a seat nobody currently holds; otherwise assume the holder is a
+    // stale connection the host has not noticed is dead yet.
+    return (
+      sameName.find((pid) => !this.connections.has(pid)) ?? sameName[0] ?? null
+    );
+  }
+
+  /** Map `conn` to `pid`, closing any previous connection for that seat. */
+  private bindPlayerConnection(conn: DataConnection, pid: PlayerId) {
+    const previous = this.connections.get(pid);
+    if (previous && previous !== conn) {
+      this.clientLastSeen.delete(previous);
+      try {
+        previous.close?.();
+      } catch {
+        /* ignore stale close errors */
+      }
+    }
+    this.connections.set(pid, conn);
+    this.connToPid.set(conn, pid);
+    conn.send({
+      type: "welcome",
+      pid,
+      state: this.state!,
+    } satisfies NetMessage);
+  }
+
   private handleHostConnectionClosed(conn: DataConnection, detail: string) {
+    this.clientLastSeen.delete(conn);
     const pid = this.connToPid.get(conn);
     if (!pid) {
       this.removePreGameConnection(conn, detail);
@@ -644,22 +812,43 @@ export class CatanNetwork {
 
   // ─── Client ────────────────────────────────────────────────────────────────
 
+  /**
+   * Join a room. Resolves once the host sends lobby or game state; rejects
+   * with a `JoinFailure` otherwise. After the first success the client keeps
+   * itself connected: dropped channels are detected (close events + ping
+   * heartbeat) and re-joined automatically with the same pid.
+   */
   async joinGame(
     roomCode: string,
     playerName: string,
     existingPid?: PlayerId,
   ): Promise<void> {
     this.isHost = false;
+    this.session = { roomCode, name: playerName };
+    if (existingPid) this.localPid = existingPid;
+    await this.connectToHost("join");
+    this.installLifecycleListeners();
+  }
+
+  private connectToHost(mode: "join" | "reconnect"): Promise<void> {
+    const { roomCode, name: playerName } = this.session!;
+    const gen = ++this.connGeneration;
+    const isCurrent = () => gen === this.connGeneration && !this.destroyed;
     const startedAt = getMonotonicNow();
-    this.callbacks.onConnectionStatusChange?.(
-      "connecting",
-      "Connecting to host",
-    );
+    if (mode === "join") {
+      this.callbacks.onConnectionStatusChange?.(
+        "connecting",
+        "Connecting to host",
+      );
+    }
     this.emitJoinDiagnostic({
       stage: "peer-open",
       status: "info",
-      message: "Opening PeerJS connection",
-      source: "peer.new",
+      message:
+        mode === "join"
+          ? "Opening PeerJS connection"
+          : `Reconnect attempt ${this.reconnectAttempt}`,
+      source: mode === "join" ? "peer.new" : "reconnect",
       roomCode,
       elapsedMs: 0,
     });
@@ -669,6 +858,8 @@ export class CatanNetwork {
       let activeStage: JoinDiagnosticStage = "peer-open";
       let stageTimer: ReturnType<typeof setTimeout> | null = null;
       let conn: DataConnection | null = null;
+      const peer = this.createPeer();
+      this.peer = peer;
       const elapsedMs = () => Math.round(getMonotonicNow() - startedAt);
       const clearStageTimer = () => {
         if (stageTimer) clearTimeout(stageTimer);
@@ -687,11 +878,15 @@ export class CatanNetwork {
           elapsedMs: failure.elapsedMs,
           errorType: failure.errorType,
         });
-        this.callbacks.onJoinFailure?.(failure);
-        this.callbacks.onConnectionStatusChange?.(
-          "disconnected",
-          failure.message,
-        );
+        if (mode === "join") {
+          this.callbacks.onJoinFailure?.(failure);
+          this.callbacks.onConnectionStatusChange?.(
+            "disconnected",
+            failure.message,
+          );
+        } else {
+          netLog("reconnect attempt failed:", failure.message, failure.errorType ?? "");
+        }
         safeReject(failure);
       };
       const startStageTimeout = (stage: JoinDiagnosticStage) => {
@@ -701,7 +896,7 @@ export class CatanNetwork {
           fail(
             createJoinTimeoutFailure(stage, {
               roomCode,
-              peerId: this.peer?.id,
+              peerId: peer.id ?? undefined,
               elapsedMs: elapsedMs(),
             }),
           );
@@ -724,73 +919,79 @@ export class CatanNetwork {
           /* ignore close failures during cleanup */
         }
         try {
-          this.peer?.destroy();
+          peer.destroy();
         } catch {
           /* ignore destroy failures during cleanup */
         }
-        this.peer = null;
+        if (this.peer === peer) this.peer = null;
+        if (this.connections.get("host") === conn) this.connections.delete("host");
         reject(err);
+      };
+      /** After a successful join, any loss hands off to auto-reconnect. */
+      const lost = (reason: string) => {
+        if (rejecting || !isCurrent()) return;
+        if (!settled) {
+          fail(
+            new CatanJoinFailure({
+              stage: activeStage,
+              message: reason,
+              hint: "The connection closed before the host answered. Try again.",
+              source: "conn.close",
+              roomCode,
+              peerId: peer.id ?? undefined,
+              elapsedMs: elapsedMs(),
+            }),
+          );
+          return;
+        }
+        this.emitJoinDiagnostic({
+          stage: activeStage,
+          status: "error",
+          message: reason,
+          source: "connection-lost",
+          roomCode,
+          peerId: peer.id ?? undefined,
+          elapsedMs: elapsedMs(),
+        });
+        this.handleHostLost(reason);
       };
 
       startStageTimeout("peer-open");
-      this.peer = new Peer();
-      this.peer.on("error", (err) => {
+      peer.on("error", (err) => {
         if (!settled) {
           fail(
             createJoinFailureFromError(activeStage, err, {
               roomCode,
-              peerId: this.peer?.id,
+              peerId: peer.id ?? undefined,
               elapsedMs: elapsedMs(),
               source: "peer.error",
             }),
           );
+          return;
+        }
+        const type = (err as { type?: string })?.type;
+        console.warn("[catan-net] client peer error", type, err);
+        if (isCurrent() && type && SIGNALING_ERROR_TYPES.has(type)) {
+          this.scheduleSignalingReconnect(peer);
         }
       });
-      this.peer.on("disconnected", () => {
+      peer.on("disconnected", () => {
+        if (!isCurrent()) return;
         this.emitJoinDiagnostic({
           stage: activeStage,
           status: "info",
           message: "Peer disconnected from signaling server",
           source: "peer.disconnected",
           roomCode,
-          peerId: this.peer?.id,
           elapsedMs: elapsedMs(),
         });
-        this.callbacks.onConnectionStatusChange?.(
-          "reconnecting",
-          "Peer disconnected, attempting reconnect",
-        );
+        // Once joined, signaling isn't needed for the data channel — quietly
+        // re-register; the heartbeat decides whether the host is reachable.
+        if (settled) this.scheduleSignalingReconnect(peer);
       });
-      this.peer.on("close", () => {
-        if (rejecting) return;
-        this.emitJoinDiagnostic({
-          stage: activeStage,
-          status: "error",
-          message: "Peer closed",
-          source: "peer.close",
-          roomCode,
-          peerId: this.peer?.id,
-          elapsedMs: elapsedMs(),
-        });
-        this.callbacks.onConnectionStatusChange?.(
-          "disconnected",
-          "Peer closed",
-        );
-      });
-      this.peer.on("open", () => {
-        const peer = this.peer;
-        if (!peer) {
-          if (!settled) {
-            fail(
-              createJoinFailureFromError("peer-open", "Peer not ready", {
-                roomCode,
-                elapsedMs: elapsedMs(),
-                source: "peer.open",
-              }),
-            );
-          }
-          return;
-        }
+      peer.on("close", () => lost("Peer closed"));
+      peer.on("open", () => {
+        if (!isCurrent() || conn) return; // re-open after signaling reconnect
         this.emitJoinDiagnostic({
           stage: "peer-open",
           status: "success",
@@ -815,13 +1016,12 @@ export class CatanNetwork {
             );
           } else {
             const e = err instanceof Error ? err : new Error(String(err));
-            this.callbacks.onConnectionStatusChange?.(
-              "disconnected",
-              e.message || "Host connection error",
-            );
+            lost(e.message || "Host connection error");
           }
         });
+        hostConn.on("close", () => lost("Lost connection to host"));
         hostConn.on("open", () => {
+          if (!isCurrent()) return;
           this.emitJoinDiagnostic({
             stage: "data-channel-open",
             status: "success",
@@ -832,51 +1032,48 @@ export class CatanNetwork {
             elapsedMs: elapsedMs(),
           });
           startStageTimeout("host-state");
-          this.callbacks.onConnectionStatusChange?.(
-            "connecting",
-            "Connected to room, waiting for host state",
-          );
-          const joinMsg: NetMessage = existingPid
-            ? { type: "join", name: playerName, pid: existingPid }
+          if (mode === "join") {
+            this.callbacks.onConnectionStatusChange?.(
+              "connecting",
+              "Connected to room, waiting for host state",
+            );
+          }
+          const joinMsg: NetMessage = this.localPid
+            ? { type: "join", name: playerName, pid: this.localPid }
             : { type: "join", name: playerName };
           hostConn.send(joinMsg);
+          const markJoined = (source: string, message: string) => {
+            this.emitJoinDiagnostic({
+              stage: "host-state",
+              status: "success",
+              message,
+              source,
+              roomCode,
+              peerId: peer.id,
+              elapsedMs: elapsedMs(),
+            });
+            const wasReconnect = mode === "reconnect" && !settled;
+            this.onClientJoined();
+            this.callbacks.onConnectionStatusChange?.(
+              "connected",
+              wasReconnect ? "Reconnected to host" : "Connected to host",
+            );
+            safeResolve();
+          };
           hostConn.on("data", (msg) => {
+            if (!isCurrent()) return;
+            this.awaitingPongSince = null;
             const m = msg as NetMessage;
+            if (m.type === "pong") return;
             if (m.type === "welcome") {
               this.localPid = m.pid;
               this.state = m.state;
               this.callbacks.onStateUpdate(m.state);
-              this.emitJoinDiagnostic({
-                stage: "host-state",
-                status: "success",
-                message: "Received game state from host",
-                source: "message.welcome",
-                roomCode,
-                peerId: peer.id,
-                elapsedMs: elapsedMs(),
-              });
-              this.callbacks.onConnectionStatusChange?.(
-                "connected",
-                "Connected to host",
-              );
-              safeResolve();
+              markJoined("message.welcome", "Received game state from host");
             } else if (m.type === "lobby") {
               const { hostName, pendingNames, bots } = m;
               this.callbacks.onLobbyUpdate?.({ hostName, pendingNames, bots });
-              this.emitJoinDiagnostic({
-                stage: "host-state",
-                status: "success",
-                message: "Received lobby state from host",
-                source: "message.lobby",
-                roomCode,
-                peerId: peer.id,
-                elapsedMs: elapsedMs(),
-              });
-              this.callbacks.onConnectionStatusChange?.(
-                "connected",
-                "Connected to host",
-              );
-              safeResolve();
+              markJoined("message.lobby", "Received lobby state from host");
             } else if (m.type === "state") {
               this.state = m.state;
               this.callbacks.onStateUpdate(m.state);
@@ -897,26 +1094,215 @@ export class CatanNetwork {
               }
             }
           });
-          hostConn.on("close", () => {
-            if (rejecting) return;
-            this.emitJoinDiagnostic({
-              stage: activeStage,
-              status: "error",
-              message: "Lost connection to host",
-              source: "conn.close",
-              roomCode,
-              peerId: peer.id,
-              elapsedMs: elapsedMs(),
-            });
-            this.callbacks.onConnectionStatusChange?.(
-              "disconnected",
-              "Lost connection to host",
-            );
-          });
           this.connections.set("host", hostConn);
         });
       });
     });
+  }
+
+  private onClientJoined() {
+    this.reconnecting = false;
+    this.reconnectGaveUp = false;
+    this.reconnectAttempt = 0;
+    this.startHeartbeat();
+  }
+
+  /** The host link is gone (or presumed dead). Tear down and start retrying. */
+  private handleHostLost(reason: string) {
+    if (this.isHost || this.destroyed || !this.session || this.reconnecting) {
+      return;
+    }
+    netLog("host connection lost:", reason);
+    this.reconnecting = true;
+    this.reconnectGaveUp = false;
+    this.teardownClientPeer();
+    this.callbacks.onConnectionStatusChange?.(
+      "reconnecting",
+      `${reason} — reconnecting…`,
+    );
+    this.scheduleClientReconnect();
+  }
+
+  private teardownClientPeer() {
+    this.connGeneration++; // ignore late events from the old peer/conn
+    this.stopHeartbeat();
+    const conn = this.connections.get("host");
+    this.connections.delete("host");
+    try {
+      conn?.close();
+    } catch {
+      /* ignore */
+    }
+    try {
+      this.peer?.destroy();
+    } catch {
+      /* ignore */
+    }
+    this.peer = null;
+  }
+
+  private scheduleClientReconnect(delayOverride?: number) {
+    if (this.destroyed || this.reconnectInFlight) return;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    if (this.reconnectAttempt >= CLIENT_MAX_RECONNECT_ATTEMPTS) {
+      this.reconnecting = false;
+      this.reconnectGaveUp = true;
+      netLog("giving up reconnect after", this.reconnectAttempt, "attempts");
+      this.callbacks.onConnectionStatusChange?.(
+        "disconnected",
+        "Could not reconnect to host",
+      );
+      return;
+    }
+    const delay = delayOverride ?? reconnectDelayMs(this.reconnectAttempt);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.destroyed) return;
+      this.reconnectAttempt++;
+      this.reconnectInFlight = true;
+      this.connectToHost("reconnect").then(
+        () => {
+          this.reconnectInFlight = false;
+        },
+        () => {
+          this.reconnectInFlight = false;
+          if (!this.destroyed && this.reconnecting) this.scheduleClientReconnect();
+        },
+      );
+    }, delay);
+  }
+
+  /**
+   * Manual "Reconnect" (client) or "bring room back online now" (host).
+   * Also used when the page becomes visible again.
+   */
+  retryConnection() {
+    if (this.destroyed) return;
+    if (this.isHost) {
+      if (this.peer?.disconnected) this.scheduleSignalingReconnect(this.peer, true);
+      return;
+    }
+    if (!this.session || this.reconnectInFlight) return;
+    this.teardownClientPeer();
+    this.reconnecting = true;
+    this.reconnectGaveUp = false;
+    this.reconnectAttempt = 0;
+    this.callbacks.onConnectionStatusChange?.("reconnecting", "Reconnecting…");
+    this.scheduleClientReconnect(0);
+  }
+
+  // ─── Liveness ──────────────────────────────────────────────────────────────
+
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    this.awaitingPongSince = null;
+    this.lastHeartbeatTickAt = Date.now();
+    this.heartbeatTimer = setInterval(
+      () => this.heartbeatTick(),
+      HEARTBEAT_INTERVAL_MS,
+    );
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
+    this.awaitingPongSince = null;
+  }
+
+  private heartbeatTick(timeoutMs = HEARTBEAT_TIMEOUT_MS) {
+    if (this.destroyed) return;
+    const now = Date.now();
+    // A late tick means the page was frozen/throttled (background tab, locked
+    // phone). Nothing was processed meanwhile, so silence proves nothing:
+    // reset the clocks and probe afresh instead of declaring anything dead.
+    const resumed = now - this.lastHeartbeatTickAt > HEARTBEAT_INTERVAL_MS * 3;
+    this.lastHeartbeatTickAt = now;
+
+    if (this.isHost) {
+      if (resumed) {
+        for (const conn of this.clientLastSeen.keys()) this.clientLastSeen.set(conn, now);
+        return;
+      }
+      for (const [conn, seen] of this.clientLastSeen) {
+        if (now - seen > HOST_CLIENT_TIMEOUT_MS && this.connToPid.has(conn)) {
+          netLog("client timed out", this.connToPid.get(conn));
+          try {
+            conn.close();
+          } catch {
+            /* ignore */
+          }
+          this.handleHostConnectionClosed(conn, "Timed out");
+        }
+      }
+      return;
+    }
+
+    const conn = this.connections.get("host");
+    if (!conn || this.reconnecting) return;
+    if (resumed) this.awaitingPongSince = null;
+    if (this.awaitingPongSince !== null) {
+      if (now - this.awaitingPongSince > timeoutMs) {
+        this.handleHostLost("Host stopped responding");
+      }
+      return;
+    }
+    if (!conn.open) {
+      this.handleHostLost("Connection to host closed");
+      return;
+    }
+    try {
+      conn.send({ type: "ping" } satisfies NetMessage);
+      this.awaitingPongSince = now;
+    } catch {
+      this.handleHostLost("Lost connection to host");
+    }
+  }
+
+  /** Page came back to the foreground / network came back. */
+  private handleResume() {
+    if (this.destroyed) return;
+    netLog("page resumed");
+    if (this.isHost) {
+      this.heartbeatTick(); // resets client clocks after a freeze
+      this.retryConnection();
+      return;
+    }
+    if (this.reconnectGaveUp) {
+      this.retryConnection();
+      return;
+    }
+    if (this.reconnecting) {
+      // Skip the remaining backoff — try right away.
+      if (this.reconnectTimer && !this.reconnectInFlight) this.scheduleClientReconnect(0);
+      return;
+    }
+    if (!this.connections.get("host")) return;
+    // Quick probe: ping now, and if no reply within a few seconds, reconnect.
+    this.awaitingPongSince = null;
+    this.lastHeartbeatTickAt = Date.now();
+    this.heartbeatTick();
+    setTimeout(() => {
+      this.lastHeartbeatTickAt = Date.now();
+      this.heartbeatTick(RESUME_PROBE_TIMEOUT_MS - 100);
+    }, RESUME_PROBE_TIMEOUT_MS);
+  }
+
+  private installLifecycleListeners() {
+    if (this.removeLifecycleListeners) return;
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") this.handleResume();
+    };
+    const onResume = () => this.handleResume();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("online", onResume);
+    window.addEventListener("pageshow", onResume);
+    this.removeLifecycleListeners = () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", onResume);
+      window.removeEventListener("pageshow", onResume);
+    };
   }
 
   // ─── Shared ────────────────────────────────────────────────────────────────
@@ -931,6 +1317,10 @@ export class CatanNetwork {
       }
       const hostConn = this.connections.get("host");
       if (!hostConn) {
+        if (this.reconnecting) {
+          this.callbacks.onError("Reconnecting to host — try again in a moment");
+          return;
+        }
         this.callbacks.onConnectionStatusChange?.(
           "disconnected",
           "Not connected to host",
@@ -941,11 +1331,8 @@ export class CatanNetwork {
       try {
         hostConn.send({ type: "action", action } satisfies NetMessage);
       } catch {
-        this.callbacks.onConnectionStatusChange?.(
-          "disconnected",
-          "Failed to send action to host",
-        );
-        this.callbacks.onError("Failed to send action to host");
+        this.callbacks.onError("Action not sent — reconnecting to host");
+        this.handleHostLost("Failed to send action to host");
       }
     }
   }
@@ -966,6 +1353,14 @@ export class CatanNetwork {
       clearTimeout(this.botTurnTimer);
       this.botTurnTimer = null;
     }
+    if (this.signalingTimer) clearTimeout(this.signalingTimer);
+    this.signalingTimer = null;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    this.stopHeartbeat();
+    this.removeLifecycleListeners?.();
+    this.removeLifecycleListeners = null;
+    this.connGeneration++;
     this.peer?.destroy();
     this.peer = null;
     this.connections.clear();

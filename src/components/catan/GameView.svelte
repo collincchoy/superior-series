@@ -161,6 +161,14 @@
         >
           {connectionLabel}
         </span>
+        {#if store.connectionStatus === "disconnected" && !isHost}
+          <button
+            class="conn-chip conn-retry"
+            onclick={() => store.retryConnection()}
+          >
+            Reconnect
+          </button>
+        {/if}
         {#if store.lastStateVersion !== null}
           <span class="sync-meta">v{store.lastStateVersion} • {syncAgeLabel}</span>
         {/if}
@@ -348,6 +356,13 @@
     color: #fff2c2;
     background: rgba(140, 112, 43, 0.5);
     border-color: rgba(240, 196, 86, 0.5);
+  }
+
+  .conn-retry {
+    cursor: pointer;
+    color: #fff;
+    background: rgba(60, 90, 160, 0.7);
+    border-color: rgba(140, 170, 240, 0.7);
   }
 
   .conn-disconnected {
