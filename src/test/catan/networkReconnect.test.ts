@@ -255,13 +255,119 @@ describe("host signaling reconnect", () => {
     expect(stale.sent[0]).toMatchObject({ type: "welcome", pid: "player2" });
 
     // Client lost sessionStorage (PWA relaunch) and rejoins with no pid while
-    // the host has not yet noticed the old connection died.
+    // the host has not yet noticed the old connection died (silent for a while).
+    await vi.advanceTimersByTimeAsync(7000);
     const fresh = new FakeConn("client-new");
     peers[0]!.emit("connection", fresh);
     fresh.doOpen();
     fresh.receive({ type: "join", name: "Guest" });
     expect(fresh.sent[0]).toMatchObject({ type: "welcome", pid: "player2" });
     expect(stale.closed).toBe(true);
+  });
+});
+
+
+// ─── Host seat assignment (review fixes) ─────────────────────────────────────
+
+/** Host + game where turn order is shuffled: Bob's seat comes first. */
+async function hostWithShuffledSeats() {
+  const ctx = makeNetwork({
+    onPlayerConnectionChange: vi.fn(),
+    onPendingJoinClosed: vi.fn(),
+  });
+  const hosting = ctx.net.hostGame("player1");
+  ctx.peers[0]!.doOpen("room-1");
+  await hosting;
+  const base = createInitialState([
+    { id: "player1", name: "Host", color: "#e74c3c", isBot: false },
+    { id: "player2", name: "Alice", color: "#3498db", isBot: false },
+    { id: "player3", name: "Bob", color: "#2ecc71", isBot: false },
+  ]);
+  const state = { ...base, playerOrder: ["player3", "player1", "player2"] as typeof base.playerOrder };
+  const connect = (id: string) => {
+    const c = new FakeConn(id);
+    ctx.peers[0]!.emit("connection", c);
+    c.doOpen();
+    return c;
+  };
+  return { ...ctx, state, connect };
+}
+
+describe("host seat assignment", () => {
+  it("gives each lobby joiner the seat with their own name, regardless of turn order", async () => {
+    const { net, state, connect } = await hostWithShuffledSeats();
+    const alice = connect("a");
+    alice.receive({ type: "join", name: "Alice" });
+    const bob = connect("b");
+    bob.receive({ type: "join", name: "Bob" });
+    net.initHostState(state);
+    expect(alice.sent.find((m) => m.type === "welcome")).toMatchObject({ pid: "player2" });
+    expect(bob.sent.find((m) => m.type === "welcome")).toMatchObject({ pid: "player3" });
+  });
+
+  it("honors a saved pid for an unheld seat even if the typed name differs", async () => {
+    const { net, state, connect } = await hostWithShuffledSeats();
+    net.initHostState(state);
+    const c = connect("a");
+    c.receive({ type: "join", name: "alice", pid: "player2" });
+    expect(c.sent[0]).toMatchObject({ type: "welcome", pid: "player2" });
+  });
+
+  it("refuses (retryably) to take a seat whose holder is alive", async () => {
+    const { net, state, connect } = await hostWithShuffledSeats();
+    net.initHostState(state);
+    const tab1 = connect("a");
+    tab1.receive({ type: "join", name: "Alice", pid: "player2" });
+    tab1.receive({ type: "ping" });
+
+    const tab2 = connect("b");
+    tab2.receive({ type: "join", name: "Alice", pid: "player2" });
+    expect(tab2.sent[0]).toMatchObject({ type: "error", retryable: true });
+    expect(tab1.closed).toBe(false);
+  });
+
+  it("does not let a new same-named joiner take a live player's seat", async () => {
+    const { net, state, connect } = await hostWithShuffledSeats();
+    net.initHostState(state);
+    const alice = connect("a");
+    alice.receive({ type: "join", name: "Alice" });
+    const bob = connect("b");
+    bob.receive({ type: "join", name: "Bob" });
+
+    const impostor = connect("c");
+    impostor.receive({ type: "join", name: "Alice" });
+    expect(impostor.sent[0]).toMatchObject({ type: "error" });
+    expect(alice.closed).toBe(false);
+  });
+
+  it("lets a reconnecting client take over its seat once the old holder has gone quiet", async () => {
+    const { net, state, connect } = await hostWithShuffledSeats();
+    net.initHostState(state);
+    const old = connect("a");
+    old.receive({ type: "join", name: "Alice", pid: "player2" });
+    old.receive({ type: "ping" });
+
+    await vi.advanceTimersByTimeAsync(7000);
+    const fresh = connect("b");
+    fresh.receive({ type: "join", name: "Alice", pid: "player2" });
+    expect(fresh.sent[0]).toMatchObject({ type: "welcome", pid: "player2" });
+    expect(old.closed).toBe(true);
+  });
+
+  it("drops a heartbeating lobby connection that goes silent", async () => {
+    const onPendingJoinClosed = vi.fn();
+    const { net, peers } = makeNetwork({ onPendingJoinClosed });
+    const hosting = net.hostGame("player1");
+    peers[0]!.doOpen("room-1");
+    await hosting;
+
+    const c = new FakeConn("a");
+    peers[0]!.emit("connection", c);
+    c.doOpen();
+    c.receive({ type: "join", name: "Alice" });
+    c.receive({ type: "ping" });
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(onPendingJoinClosed).toHaveBeenCalledWith("Alice", "Timed out");
   });
 });
 
@@ -348,6 +454,60 @@ describe("client auto-reconnect", () => {
     expect(peer.reconnect).toHaveBeenCalled();
     expect(peers.length).toBe(1);
     expect(status).not.toHaveBeenCalledWith("reconnecting", expect.any(String));
+  });
+
+  it("gives up immediately (one toast) when the host rejects a reconnect", async () => {
+    const onError = vi.fn();
+    const ctx = makeNetwork({ onError });
+    const joined = ctx.net.joinGame("room-1", "Guest");
+    ctx.peers[0]!.doOpen("client-a");
+    ctx.peers[0]!.conns[0]!.doOpen();
+    ctx.peers[0]!.conns[0]!.receive({ type: "welcome", pid: "player2", state: twoHumanState() });
+    await joined;
+
+    ctx.peers[0]!.conns[0]!.emit("close");
+    await vi.advanceTimersByTimeAsync(1000);
+    const p2 = ctx.peers[1]!;
+    p2.doOpen("client-b");
+    p2.conns[0]!.doOpen();
+    p2.conns[0]!.receive({ type: "error", msg: "No open slot" });
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(ctx.peers.length).toBe(2);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(ctx.status).toHaveBeenLastCalledWith("disconnected", expect.any(String));
+  });
+
+  it("keeps retrying quietly when the host says the seat is still held", async () => {
+    const onError = vi.fn();
+    const ctx = makeNetwork({ onError });
+    const joined = ctx.net.joinGame("room-1", "Guest");
+    ctx.peers[0]!.doOpen("client-a");
+    ctx.peers[0]!.conns[0]!.doOpen();
+    ctx.peers[0]!.conns[0]!.receive({ type: "welcome", pid: "player2", state: twoHumanState() });
+    await joined;
+
+    ctx.peers[0]!.conns[0]!.emit("close");
+    await vi.advanceTimersByTimeAsync(1000);
+    const p2 = ctx.peers[1]!;
+    p2.doOpen("client-b");
+    p2.conns[0]!.doOpen();
+    p2.conns[0]!.receive({ type: "error", msg: "Seat in use", retryable: true });
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(ctx.peers.length).toBe(3);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("resets signaling backoff after the client re-registers", async () => {
+    const { peer } = await joinedClient();
+    for (let i = 0; i < 3; i++) {
+      peer.reconnect.mockClear();
+      peer.dropSignaling();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(peer.reconnect).toHaveBeenCalledTimes(1);
+      peer.doOpen("client-a");
+    }
   });
 
   it("does not auto-reconnect after destroy", async () => {

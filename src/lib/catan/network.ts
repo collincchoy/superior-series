@@ -29,7 +29,7 @@ export type NetMessage =
   | { type: "lobby"; hostName: string; pendingNames: string[]; bots: Array<{ name: string }> }
   | { type: "action"; action: GameAction }
   | { type: "state"; state: GameState }
-  | { type: "error"; msg: string }
+  | { type: "error"; msg: string; retryable?: boolean }
   | { type: "ping" }
   | { type: "pong" };
 
@@ -102,6 +102,12 @@ const HEARTBEAT_TIMEOUT_MS = 10_000;
 const RESUME_PROBE_TIMEOUT_MS = 3000;
 /** Host drops a client that has pinged before but has been silent this long. */
 const HOST_CLIENT_TIMEOUT_MS = 15_000;
+/**
+ * A seat holder silent this long (> one missed ping) may be replaced by a
+ * rejoining client. A live client pings every HEARTBEAT_INTERVAL_MS.
+ */
+const REJOIN_STALE_MS = 6000;
+const SEAT_IN_USE_MSG = "That seat is in use on another device";
 
 /** Exponential backoff: 1s, 2s, 4s, 8s, then capped at 10s. */
 export function reconnectDelayMs(attempt: number): number {
@@ -340,7 +346,11 @@ export class CatanNetwork {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private lastHeartbeatTickAt = 0;
   private awaitingPongSince: number | null = null;
+  /** Host: last time any message arrived on each client connection. */
   private clientLastSeen: Map<DataConnection, number> = new Map();
+  /** Host: connections that heartbeat (and so are subject to timeouts). */
+  private heartbeatConns: WeakSet<DataConnection> = new WeakSet();
+  private resumeProbeTimer: ReturnType<typeof setTimeout> | null = null;
 
   private removeLifecycleListeners: (() => void) | null = null;
 
@@ -506,11 +516,10 @@ export class CatanNetwork {
   }
 
   private handleHostMessage(conn: DataConnection, msg: NetMessage) {
+    this.clientLastSeen.set(conn, Date.now());
     // Only clients that heartbeat are subject to the host-side timeout, so an
     // older cached client build (no pings) is never kicked for being quiet.
-    if (msg.type === "ping" || this.clientLastSeen.has(conn)) {
-      this.clientLastSeen.set(conn, Date.now());
-    }
+    if (msg.type === "ping") this.heartbeatConns.add(conn);
     if (msg.type === "ping") {
       try {
         conn.send({ type: "pong" } satisfies NetMessage);
@@ -521,7 +530,21 @@ export class CatanNetwork {
     }
     if (msg.type === "join") {
       if (!this.state) {
-        // Game not started yet — queue until initHostState is called
+        // Game not started yet — queue until initHostState is called.
+        // A same-named pending join whose connection went quiet is this
+        // client's previous (dead) connection: replace it, don't duplicate.
+        const prior = this.pendingJoins.find(
+          (j) => j.name === msg.name && j.conn !== conn && this.isHolderStale(j.conn),
+        );
+        if (prior) {
+          this.clientLastSeen.delete(prior.conn);
+          try {
+            prior.conn.close();
+          } catch {
+            /* ignore */
+          }
+          this.removePreGameConnection(prior.conn, "Replaced by reconnect");
+        }
         this.pendingJoins.push({ conn, name: msg.name });
         this.preGameConns.push(conn);
         if (this.currentLobbyState) {
@@ -535,7 +558,16 @@ export class CatanNetwork {
 
       // Reconnect: client sends their previous pid, or (if it lost its saved
       // pid, e.g. PWA relaunch) we match the seat by player name.
-      const rejoinPid = this.findRejoinPid(msg);
+      const rejoin = this.resolveRejoin(msg);
+      if (rejoin && "refuse" in rejoin) {
+        conn.send({
+          type: "error",
+          msg: rejoin.refuse,
+          retryable: true,
+        } satisfies NetMessage);
+        return;
+      }
+      const rejoinPid = rejoin?.pid;
       if (rejoinPid) {
         this.bindPlayerConnection(conn, rejoinPid);
         this.callbacks.onPlayerJoined?.(msg.name, rejoinPid);
@@ -578,26 +610,48 @@ export class CatanNetwork {
     return !!p && !p.isBot && pid !== this.localPid;
   }
 
-  private findRejoinPid(msg: { name: string; pid?: PlayerId }): PlayerId | null {
+  /** True if `conn` hasn't been heard from recently (likely dead). */
+  private isHolderStale(conn: DataConnection): boolean {
+    const last = this.clientLastSeen.get(conn);
+    return last === undefined || Date.now() - last > REJOIN_STALE_MS;
+  }
+
+  /**
+   * Decide which seat a mid-game join reclaims. Returns a pid, a retryable
+   * refusal (seat is held by a live connection), or null (not a rejoin).
+   * A live holder is never kicked — only one that has gone quiet.
+   */
+  private resolveRejoin(
+    msg: { name: string; pid?: PlayerId },
+  ): { pid: PlayerId } | { refuse: string } | null {
     if (!this.state) return null;
-    // A saved pid is only trusted if the seat's name matches, so two tabs on
-    // one device (shared localStorage) can't take each other's seat.
-    if (
-      msg.pid &&
-      this.isRemoteHumanSeat(msg.pid) &&
-      this.state.players[msg.pid]!.name === msg.name
-    ) {
-      return msg.pid;
+    const holderOf = (pid: PlayerId) => this.connections.get(pid);
+    const takeable = (pid: PlayerId) => {
+      const holder = holderOf(pid);
+      return !holder || this.isHolderStale(holder);
+    };
+
+    if (msg.pid && this.isRemoteHumanSeat(msg.pid)) {
+      // Saved pid: trust it for an unheld/quiet seat, whatever name was typed.
+      if (takeable(msg.pid)) return { pid: msg.pid };
+      // Held by a live connection with the same name: probably our own old
+      // connection the host hasn't timed out yet — ask the client to retry.
+      if (this.state.players[msg.pid]!.name === msg.name) {
+        return { refuse: SEAT_IN_USE_MSG };
+      }
+      // Otherwise the pid is someone else's (e.g. shared localStorage across
+      // tabs) — fall through to matching by name.
     }
+
     const sameName = this.state.playerOrder.filter(
       (pid) =>
         this.isRemoteHumanSeat(pid) && this.state!.players[pid]!.name === msg.name,
     );
-    // Prefer a seat nobody currently holds; otherwise assume the holder is a
-    // stale connection the host has not noticed is dead yet.
-    return (
-      sameName.find((pid) => !this.connections.has(pid)) ?? sameName[0] ?? null
-    );
+    const free =
+      sameName.find((pid) => !holderOf(pid)) ?? sameName.find(takeable);
+    if (free) return { pid: free };
+    if (sameName.length > 0) return { refuse: SEAT_IN_USE_MSG };
+    return null;
   }
 
   /** Map `conn` to `pid`, closing any previous connection for that seat. */
@@ -651,16 +705,18 @@ export class CatanNetwork {
     }
   }
 
-  private findPendingSlot(_name: string): PlayerId | null {
+  private findPendingSlot(name: string): PlayerId | null {
     if (!this.state) return null;
-    // Find a non-bot, non-host, non-connected player
-    for (const pid of this.state.playerOrder) {
-      const p = this.state.players[pid]!;
-      if (!p.isBot && pid !== this.localPid && !this.connections.has(pid)) {
-        return pid;
-      }
-    }
-    return null;
+    // Free remote human seats. Prefer the one named after the joiner: with a
+    // random board, playerOrder is shuffled, so "first free" mislabels seats.
+    const free = this.state.playerOrder.filter(
+      (pid) => this.isRemoteHumanSeat(pid) && !this.connections.has(pid),
+    );
+    return (
+      free.find((pid) => this.state!.players[pid]!.name === name) ??
+      free[0] ??
+      null
+    );
   }
 
   private applyAndBroadcast(action: GameAction) {
@@ -991,7 +1047,12 @@ export class CatanNetwork {
       });
       peer.on("close", () => lost("Peer closed"));
       peer.on("open", () => {
-        if (!isCurrent() || conn) return; // re-open after signaling reconnect
+        if (!isCurrent()) return;
+        if (conn) {
+          // Re-open after a signaling reconnect: reset its backoff.
+          this.signalingAttempt = 0;
+          return;
+        }
         this.emitJoinDiagnostic({
           stage: "peer-open",
           status: "success",
@@ -1078,7 +1139,14 @@ export class CatanNetwork {
               this.state = m.state;
               this.callbacks.onStateUpdate(m.state);
             } else if (m.type === "error") {
-              this.callbacks.onError(m.msg);
+              if (settled || mode === "join") {
+                this.callbacks.onError(m.msg);
+              } else if (!m.retryable) {
+                // Host refused the seat outright: retrying won't help, so
+                // stop (one toast) instead of repeating it every attempt.
+                this.callbacks.onError(m.msg);
+                this.reconnectAttempt = CLIENT_MAX_RECONNECT_ATTEMPTS;
+              }
               if (!settled) {
                 fail(
                   new CatanJoinFailure({
@@ -1207,6 +1275,8 @@ export class CatanNetwork {
   private stopHeartbeat() {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = null;
+    if (this.resumeProbeTimer) clearTimeout(this.resumeProbeTimer);
+    this.resumeProbeTimer = null;
     this.awaitingPongSince = null;
   }
 
@@ -1225,15 +1295,15 @@ export class CatanNetwork {
         return;
       }
       for (const [conn, seen] of this.clientLastSeen) {
-        if (now - seen > HOST_CLIENT_TIMEOUT_MS && this.connToPid.has(conn)) {
-          netLog("client timed out", this.connToPid.get(conn));
-          try {
-            conn.close();
-          } catch {
-            /* ignore */
-          }
-          this.handleHostConnectionClosed(conn, "Timed out");
+        if (!this.heartbeatConns.has(conn)) continue;
+        if (now - seen <= HOST_CLIENT_TIMEOUT_MS) continue;
+        netLog("client timed out", this.connToPid.get(conn) ?? "(lobby)");
+        try {
+          conn.close();
+        } catch {
+          /* ignore */
         }
+        this.handleHostConnectionClosed(conn, "Timed out");
       }
       return;
     }
@@ -1282,7 +1352,11 @@ export class CatanNetwork {
     this.awaitingPongSince = null;
     this.lastHeartbeatTickAt = Date.now();
     this.heartbeatTick();
-    setTimeout(() => {
+    if (this.resumeProbeTimer) clearTimeout(this.resumeProbeTimer);
+    const gen = this.connGeneration;
+    this.resumeProbeTimer = setTimeout(() => {
+      this.resumeProbeTimer = null;
+      if (gen !== this.connGeneration) return; // connection replaced meanwhile
       this.lastHeartbeatTickAt = Date.now();
       this.heartbeatTick(RESUME_PROBE_TIMEOUT_MS - 100);
     }, RESUME_PROBE_TIMEOUT_MS);
