@@ -8,6 +8,7 @@ import {
   spawnTextureKey,
 } from "../../lib/arni/assets.js";
 import { TILE_KINDS, SPAWN_KINDS } from "../../lib/arni/level/legend.js";
+import { TILE_VARIANTS } from "../../lib/arni/level/parseLevel.js";
 
 const publicDir = resolve(__dirname, "../../../public");
 
@@ -30,17 +31,31 @@ describe("asset manifest", () => {
     }
   });
 
-  it("every tile kind (and ground variant) has a texture", () => {
+  it("every tile kind × variant has a texture", () => {
     for (const kind of TILE_KINDS) {
-      expect(ASSETS[tileTextureKey(kind, "top")], kind).toBeDefined();
-      expect(ASSETS[tileTextureKey(kind, "fill")], kind).toBeDefined();
+      for (const v of TILE_VARIANTS) {
+        expect(ASSETS[tileTextureKey(kind, v)], `${kind}/${v}`).toBeDefined();
+      }
     }
   });
 
-  it("ground uses different textures for top and fill", () => {
-    expect(tileTextureKey("ground", "top")).not.toBe(
-      tileTextureKey("ground", "fill"),
-    );
+  it("ground and branches have distinct end-cap textures", () => {
+    for (const kind of ["ground", "branch"] as const) {
+      const keys = new Set(
+        (["top", "topLeft", "topRight", "topSolo"] as const).map((v) => tileTextureKey(kind, v)),
+      );
+      expect(keys.size, kind).toBe(4);
+    }
+    expect(tileTextureKey("ground", "fill")).not.toBe(tileTextureKey("ground", "fillFossil"));
+  });
+
+  it("Arni has a texture for every pose, all the same frame size", () => {
+    const poses = ["arni-idle", "arni-crouch"] as const;
+    for (const p of poses) {
+      expect(ASSETS[p], p).toBeDefined();
+      expect(ASSETS[p].width).toBe(ASSETS["arni-idle"].width);
+      expect(ASSETS[p].height).toBe(ASSETS["arni-idle"].height);
+    }
   });
 
   it("every spawn kind has a texture", () => {

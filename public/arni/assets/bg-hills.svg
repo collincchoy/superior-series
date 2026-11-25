@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360">
-  <!-- Tiles horizontally: left and right edges line up. -->
-  <path d="M0 360 V150 L120 60 L200 130 L260 90 L330 150 V360 Z" fill="#a46bd6"/>
-  <path d="M100 75 L120 60 L140 78 Q120 88 100 75 Z" fill="#ff7a3d"/>
-  <path d="M0 360 V220 Q160 120 320 210 T640 200 T960 190 T1280 220 V360 Z" fill="#6ccf5a"/>
-  <path d="M0 360 V280 Q200 220 420 280 T860 270 T1280 280 V360 Z" fill="#43b04a"/>
-  <g fill="#2f8a3a"><path d="M560 280 q10 -60 0 -110 q20 30 30 0 q-10 40 0 110 Z"/><path d="M1040 285 q10 -50 0 -90 q20 25 30 0 q-10 35 0 90 Z"/></g>
-</svg>

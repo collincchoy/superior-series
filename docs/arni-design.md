@@ -44,11 +44,15 @@ Lives at `/superior-series/arni/` as a fully decoupled sibling to the Catan game
 | Rotten | Mush | Leaves slippery goo trail; splits into 2 mini-Mush when hit. | 1 (+splits) |
 
 ## Special Blocks & Hazards
-- Breakable bricks (tail whip / ground pound) and **? blocks** (coins / power-ups)
+Art direction: **organic prehistoric jungle**, not a block grid — mossy rounded ledges over layered rock with fossils, tree-branch platforms, a volcano backdrop.
+- **Breakables** (tail whip / ground pound): cracked **boulders** in the jungle, **Rex's banana crates** in the factory
+- **Amber blocks** — glowing amber with a shadowy something inside; bonk/whip to release coins or power-ups
+- **Branches** — one-way platforms (jump up through, land on top)
+- **Thorns** — bramble hazard
 - Bouncy mushroom / jelly — launches Arni high
 - Crumbling platforms — fall shortly after being stood on
 - Moving platforms — horizontal / vertical paths
-- Hazards — spikes, lava, goo (1 damage + knockback)
+- Other hazards — lava, goo (1 damage + knockback)
 
 ## Boss — Rex the Banana (3-phase arena)
 1. **Peel Barrage** — throws peels in arcs; dizzy after a volley → stomp.

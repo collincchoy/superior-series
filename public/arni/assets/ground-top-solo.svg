@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Single-width mossy pillar top, rounded both sides. -->
+  <defs><clipPath id="c"><path d="M6 64 Q2 64 2 58 V22 Q2 3 32 2 Q62 3 62 22 V58 Q62 64 58 64 Z"/></clipPath></defs>
+  <g clip-path="url(#c)">
+    <rect y="8" width="64" height="56" fill="#d06a3c"/>
+    <path d="M0 34 Q16 30 32 35 T64 34 V46 Q48 50 32 45 T0 46 Z" fill="#b24f5e"/>
+    <path d="M0 58 Q20 55 36 60 T64 58 V64 H0 Z" fill="#e8934e"/>
+  </g>
+  <path d="M1 22 Q2 3 32 2 Q62 3 63 22 Q64 34 58 36 Q54 26 48 24 Q42 34 36 24 Q30 20 24 26 Q20 34 14 24 Q8 30 6 38 Q0 36 1 22 Z" fill="#45b83f"/>
+  <path d="M4 16 Q8 4 32 3 Q56 4 60 16 Q48 10 32 10 Q16 10 4 16 Z" fill="#86e35c"/>
+  <g fill="#c4f58f"><circle cx="18" cy="7" r="1.6"/><circle cx="44" cy="6" r="1.4"/></g>
+</svg>

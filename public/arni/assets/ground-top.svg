@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Mossy ledge top. Moss/rock meet the tile edges at fixed heights so neighbours join. -->
+  <rect y="8" width="64" height="56" fill="#d06a3c"/>
+  <path d="M0 34 Q16 30 32 35 T64 34 V46 Q48 50 32 45 T0 46 Z" fill="#b24f5e"/>
+  <path d="M0 58 Q20 55 36 60 T64 58 V64 H0 Z" fill="#e8934e"/>
+  <!-- moss with drips -->
+  <path d="M0 4 Q16 0 32 4 T64 4 V22 Q60 24 56 22 Q52 32 48 22 Q40 20 34 24 Q30 36 26 24 Q18 20 12 25 Q8 30 5 23 Q2 21 0 22 Z" fill="#45b83f"/>
+  <path d="M0 4 Q16 0 32 4 T64 4 V11 Q48 8 32 11 T0 11 Z" fill="#86e35c"/>
+  <g fill="#c4f58f"><circle cx="10" cy="6" r="1.6"/><circle cx="40" cy="5" r="1.4"/><circle cx="54" cy="7" r="1.2"/></g>
+</svg>

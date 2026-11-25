@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420">
+  <!-- Parallax jungle backdrop. Left and right edges match so it tiles horizontally. -->
+  <!-- far volcano -->
+  <path d="M760 420 L900 150 Q930 130 960 150 L1100 420 Z" fill="#9a7bc9"/>
+  <path d="M900 150 Q930 130 960 150 L948 176 Q930 168 914 178 Z" fill="#ff7a3d"/>
+  <g fill="#ffffff" opacity="0.75">
+    <circle cx="935" cy="110" r="22"/><circle cx="960" cy="80" r="28"/><circle cx="1000" cy="58" r="22"/>
+  </g>
+  <!-- far canopy -->
+  <path d="M0 260 Q60 220 120 250 Q180 200 250 240 Q320 210 380 250 Q450 205 520 245 Q600 215 660 250 Q720 210 800 248 Q870 220 940 252 Q1010 212 1080 246 Q1150 215 1210 250 Q1250 230 1280 260 V420 H0 Z" fill="#5bbf9a"/>
+  <!-- palms -->
+  <g>
+    <path d="M200 420 Q206 320 186 236" fill="none" stroke="#8a6a4a" stroke-width="12" stroke-linecap="round"/>
+    <g fill="#3f9e5a"><path d="M186 236 Q140 216 108 240 Q150 232 186 244 Z"/><path d="M186 236 Q230 210 266 232 Q226 230 188 244 Z"/><path d="M186 236 Q170 196 136 186 Q166 210 182 242 Z"/><path d="M186 236 Q206 196 240 192 Q210 212 190 242 Z"/></g>
+    <path d="M620 420 Q612 340 632 270" fill="none" stroke="#8a6a4a" stroke-width="10" stroke-linecap="round"/>
+    <g fill="#3f9e5a"><path d="M632 270 Q590 254 562 274 Q600 266 632 278 Z"/><path d="M632 270 Q672 248 704 268 Q668 266 634 278 Z"/><path d="M632 270 Q620 236 590 228 Q616 248 630 276 Z"/></g>
+  </g>
+  <!-- near jungle -->
+  <path d="M0 330 Q80 290 160 320 Q240 280 330 318 Q420 290 500 324 Q590 286 680 322 Q770 292 860 326 Q950 288 1040 322 Q1130 294 1210 320 Q1250 306 1280 330 V420 H0 Z" fill="#2f9a55"/>
+  <!-- giant fern fronds -->
+  <g fill="#257a45">
+    <path d="M420 420 Q400 340 340 310 Q390 350 404 420 Z"/>
+    <path d="M430 420 Q450 330 520 300 Q462 348 444 420 Z"/>
+    <path d="M1000 420 Q980 350 930 326 Q972 362 986 420 Z"/>
+    <path d="M1010 420 Q1030 344 1092 318 Q1040 360 1024 420 Z"/>
+  </g>
+  <path d="M0 380 Q160 360 320 384 T640 380 T960 382 T1280 380 V420 H0 Z" fill="#1f7a42"/>
+</svg>

@@ -5,7 +5,7 @@ import { LevelScene } from "./scenes/LevelScene.js";
 
 /** Boot the Arni game into `parent`. `baseUrl` is the site's BASE_URL. */
 export function createGame(parent: HTMLElement, baseUrl: string): Phaser.Game {
-  return new Phaser.Game({
+  const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
     width: VIEW_WIDTH,
@@ -21,4 +21,14 @@ export function createGame(parent: HTMLElement, baseUrl: string): Phaser.Game {
     },
     scene: [new BootScene(baseUrl), LevelScene],
   });
+
+  if (import.meta.env.DEV) {
+    // Dev-only handle for poking at the game from the browser console:
+    //   __arni.level().debugState()  /  __arni.level().debugTeleport(tx, ty)
+    (window as unknown as Record<string, unknown>).__arni = {
+      game,
+      level: () => game.scene.getScene("level") as LevelScene,
+    };
+  }
+  return game;
 }

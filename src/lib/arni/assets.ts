@@ -9,7 +9,7 @@
  * origin is 0..1 within the image: (0.5, 1) = bottom-center (feet),
  * (0.5, 0.5) = center (tiles).
  */
-import type { GroundVariant } from "./level/parseLevel.js";
+import type { TileVariant } from "./level/parseLevel.js";
 import type { SpawnKind, TileKind } from "./level/legend.js";
 import { TILE_SIZE } from "./constants.js";
 
@@ -49,12 +49,25 @@ export const ASSETS = {
   "banana-spotter": feet("banana-spotter.svg", 56, 72),
   "banana-mush": feet("banana-mush.svg", 64, 56),
 
-  // Tiles
-  "tile-grass": tile("tile-grass.svg"),
-  "tile-dirt": tile("tile-dirt.svg"),
-  "tile-brick": tile("tile-brick.svg"),
-  "tile-question": tile("tile-question.svg"),
-  "tile-spikes": tile("tile-spikes.svg"),
+  "arni-crouch": feet("arni-crouch.svg", 96, 96),
+
+  // Terrain — mossy jungle ledges over layered rock
+  "ground-top": tile("ground-top.svg"),
+  "ground-top-left": tile("ground-top-left.svg"),
+  "ground-top-right": tile("ground-top-right.svg"),
+  "ground-top-solo": tile("ground-top-solo.svg"),
+  "ground-fill": tile("ground-fill.svg"),
+  "ground-fossil": tile("ground-fossil.svg"),
+  // One-way tree branches
+  "branch-mid": tile("branch-mid.svg"),
+  "branch-left": tile("branch-left.svg"),
+  "branch-right": tile("branch-right.svg"),
+  "branch-solo": tile("branch-solo.svg"),
+  // Blocks & hazards
+  boulder: tile("boulder.svg"),
+  crate: tile("crate.svg"),
+  amber: tile("amber.svg"),
+  thorns: tile("thorns.svg"),
 
   // Pickups & markers
   coin: { file: "coin.svg", width: 36, height: 36, originX: 0.5, originY: 0.5 },
@@ -63,22 +76,43 @@ export const ASSETS = {
 
   // Backgrounds
   "bg-sky": { file: "bg-sky.svg", width: 1280, height: 720, originX: 0, originY: 0 },
-  "bg-hills": { file: "bg-hills.svg", width: 1280, height: 360, originX: 0, originY: 1 },
+  "bg-jungle": { file: "bg-jungle.svg", width: 1280, height: 420, originX: 0, originY: 1 },
 } satisfies Record<string, AssetDef>;
 
 export type AssetKey = keyof typeof ASSETS;
 export const ASSET_KEYS = Object.keys(ASSETS) as AssetKey[];
 
-export function tileTextureKey(kind: TileKind, variant: GroundVariant): AssetKey {
+const GROUND_TEXTURES: Record<TileVariant, AssetKey> = {
+  top: "ground-top",
+  topLeft: "ground-top-left",
+  topRight: "ground-top-right",
+  topSolo: "ground-top-solo",
+  fill: "ground-fill",
+  fillFossil: "ground-fossil",
+  single: "ground-top-solo",
+};
+
+const BRANCH_TEXTURES: Record<TileVariant, AssetKey> = {
+  top: "branch-mid",
+  topLeft: "branch-left",
+  topRight: "branch-right",
+  topSolo: "branch-solo",
+  fill: "branch-mid",
+  fillFossil: "branch-mid",
+  single: "branch-solo",
+};
+
+export function tileTextureKey(kind: TileKind, variant: TileVariant): AssetKey {
   switch (kind) {
     case "ground":
-      return variant === "top" ? "tile-grass" : "tile-dirt";
-    case "brick":
-      return "tile-brick";
-    case "question":
-      return "tile-question";
-    case "spikes":
-      return "tile-spikes";
+      return GROUND_TEXTURES[variant];
+    case "branch":
+      return BRANCH_TEXTURES[variant];
+    case "boulder":
+    case "crate":
+    case "amber":
+    case "thorns":
+      return kind;
   }
 }
 

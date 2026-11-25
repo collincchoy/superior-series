@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Cracked mossy boulder (breakable). -->
+  <path d="M8 60 Q1 44 6 26 Q12 6 32 4 Q54 4 60 24 Q65 44 57 60 Q32 64 8 60 Z" fill="#8c7fb0" stroke="#4a3f6b" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M14 22 Q20 10 32 9 Q44 10 50 20 Q36 16 14 22 Z" fill="#b3a8d6"/>
+  <path d="M32 10 l-4 14 l8 6 l-6 12 M36 30 l12 4 M28 24 l-12 6" fill="none" stroke="#3a3157" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M6 32 Q4 22 12 16 Q14 26 10 34 Z" fill="#45b83f"/>
+  <path d="M44 56 q6 -6 12 -2" fill="none" stroke="#6b5f92" stroke-width="2" stroke-linecap="round"/>
+</svg>

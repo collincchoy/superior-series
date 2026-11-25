@@ -26,7 +26,16 @@ export interface Level {
   playerStart: TilePos;
 }
 
-export type GroundVariant = "top" | "fill";
+export const TILE_VARIANTS = [
+  "top",
+  "topLeft",
+  "topRight",
+  "topSolo",
+  "fill",
+  "fillFossil",
+  "single",
+] as const;
+export type TileVariant = (typeof TILE_VARIANTS)[number];
 
 /** Parse an ASCII level (one string per row, top to bottom). Throws on invalid input. */
 export function parseLevel(rows: readonly string[]): Level {
@@ -72,13 +81,37 @@ export function parseLevel(rows: readonly string[]): Level {
   return { width, height: rows.length, tiles, spawns, playerStart: starts[0] };
 }
 
-/** Ground tiles with nothing solid on top get the grassy "top" texture. */
-export function groundVariant(
-  level: Level,
-  tx: number,
-  ty: number,
-): GroundVariant {
-  return ty > 0 && level.tiles[ty - 1][tx] === "ground" ? "fill" : "top";
+/**
+ * Which art variant a tile uses, so terrain looks organic rather than gridded:
+ * mossy tops with rounded ends on exposed sides, rock fill with the odd fossil,
+ * and branches with leafy end caps.
+ */
+export function tileVariant(level: Level, tx: number, ty: number): TileVariant {
+  const kind = level.tiles[ty][tx];
+  if (kind === "ground") {
+    if (ty > 0 && level.tiles[ty - 1][tx] === "ground") {
+      return fossilAt(tx, ty) ? "fillFossil" : "fill";
+    }
+    return edgeVariant(level, tx, ty, kind);
+  }
+  if (kind === "branch") return edgeVariant(level, tx, ty, kind);
+  return "single";
+}
+
+function edgeVariant(level: Level, tx: number, ty: number, kind: TileKind): TileVariant {
+  const row = level.tiles[ty];
+  const openL = tx > 0 && row[tx - 1] !== kind;
+  const openR = tx < level.width - 1 && row[tx + 1] !== kind;
+  if (openL && openR) return "topSolo";
+  if (openL) return "topLeft";
+  if (openR) return "topRight";
+  return "top";
+}
+
+/** Deterministic sprinkle of fossils (~1 in 11 fill tiles). */
+function fossilAt(tx: number, ty: number): boolean {
+  const h = Math.imul(tx, 73856093) ^ Math.imul(ty, 19349663);
+  return (h >>> 0) % 11 === 0;
 }
 
 /** Center of a tile in world pixels. */

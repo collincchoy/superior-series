@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseLevel,
-  groundVariant,
+  tileVariant,
   tileCenter,
   spawnPoint,
 } from "../../lib/arni/level/parseLevel.js";
@@ -11,7 +11,7 @@ import { TEST_LEVEL } from "../../lib/arni/level/levels/testLevel.js";
 describe("parseLevel", () => {
   const rows = [
     "..........",
-    "...?B.o.E.",
+    "...AR.o.E.",
     "P.....C..g",
     "####^^####",
     "##########",
@@ -26,9 +26,9 @@ describe("parseLevel", () => {
   it("places solid and hazard tiles in the grid", () => {
     const level = parseLevel(rows);
     expect(level.tiles[3][0]).toBe("ground");
-    expect(level.tiles[3][4]).toBe("spikes");
-    expect(level.tiles[1][3]).toBe("question");
-    expect(level.tiles[1][4]).toBe("brick");
+    expect(level.tiles[3][4]).toBe("thorns");
+    expect(level.tiles[1][3]).toBe("amber");
+    expect(level.tiles[1][4]).toBe("boulder");
     expect(level.tiles[0][0]).toBeNull();
   });
 
@@ -82,22 +82,48 @@ describe("parseLevel", () => {
   });
 });
 
-describe("groundVariant", () => {
+describe("tileVariant", () => {
   const level = parseLevel(["P...", ".##.", ".##.", "####"]);
+  const isFill = (v: string) => v === "fill" || v === "fillFossil";
 
-  it("is 'top' when nothing solid is above", () => {
-    expect(groundVariant(level, 1, 1)).toBe("top");
-    expect(groundVariant(level, 0, 3)).toBe("top");
+  it("ground with open sky above is a top tile, rounded on open sides", () => {
+    expect(tileVariant(level, 1, 1)).toBe("topLeft");
+    expect(tileVariant(level, 2, 1)).toBe("topRight");
+    expect(tileVariant(parseLevel(["P#.", "###"]), 1, 0)).toBe("topSolo");
   });
 
-  it("is 'fill' when ground is directly above", () => {
-    expect(groundVariant(level, 1, 2)).toBe("fill");
-    expect(groundVariant(level, 2, 3)).toBe("fill");
+  it("the level's left/right edge counts as continuing ground", () => {
+    expect(tileVariant(level, 0, 3)).toBe("top");
+    expect(tileVariant(level, 3, 3)).toBe("top");
   });
 
-  it("is 'top' on the first row", () => {
-    const top = parseLevel(["#P", "##"]);
-    expect(groundVariant(top, 0, 0)).toBe("top");
+  it("ground under ground is fill (sometimes with a fossil)", () => {
+    expect(isFill(tileVariant(level, 1, 2))).toBe(true);
+    expect(isFill(tileVariant(level, 2, 3))).toBe(true);
+  });
+
+  it("fossils are deterministic and occasional", () => {
+    const big = parseLevel(["P" + ".".repeat(39), ...Array(20).fill("#".repeat(40))]);
+    const variants: string[] = [];
+    for (let ty = 2; ty < 21; ty++)
+      for (let tx = 0; tx < 40; tx++) variants.push(tileVariant(big, tx, ty));
+    const fossils = variants.filter((v) => v === "fillFossil").length;
+    expect(fossils).toBeGreaterThan(0);
+    expect(fossils / variants.length).toBeLessThan(0.2);
+    expect(tileVariant(big, 5, 5)).toBe(tileVariant(big, 5, 5));
+  });
+
+  it("branches get end caps", () => {
+    const b = parseLevel(["P=.===.", "#######"]);
+    expect(tileVariant(b, 1, 0)).toBe("topSolo");
+    expect(tileVariant(b, 3, 0)).toBe("topLeft");
+    expect(tileVariant(b, 4, 0)).toBe("top");
+    expect(tileVariant(b, 5, 0)).toBe("topRight");
+  });
+
+  it("other tiles are 'single'", () => {
+    const o = parseLevel(["PARX^", "#####"]);
+    for (let tx = 1; tx <= 4; tx++) expect(tileVariant(o, tx, 0)).toBe("single");
   });
 });
 

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Thorny bramble (hazard). Vines enter/exit at the same heights so they chain. -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M0 52 Q16 34 32 48 T64 52" stroke="#4b2a5e" stroke-width="7"/>
+    <path d="M0 40 Q20 58 36 38 T64 40" stroke="#6b3d82" stroke-width="6"/>
+    <path d="M0 52 Q16 34 32 48 T64 52" stroke="#7a4f99" stroke-width="2.5"/>
+  </g>
+  <g fill="#e8e0f0" stroke="#4b2a5e" stroke-width="1.5" stroke-linejoin="round">
+    <path d="M8 44 l-3 -12 l8 9 Z"/><path d="M22 38 l2 -14 l5 12 Z"/><path d="M38 44 l6 -12 l1 12 Z"/>
+    <path d="M52 46 l4 -13 l3 13 Z"/><path d="M16 56 l-4 7 l9 -3 Z"/><path d="M46 56 l6 7 l-1 -8 Z"/>
+  </g>
+  <rect y="58" width="64" height="6" fill="#4b2a5e"/>
+</svg>

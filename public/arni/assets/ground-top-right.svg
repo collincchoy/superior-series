@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Mirror of ground-top-left: rounded on the right. -->
+  <defs><clipPath id="c"><path d="M64 0 V64 H6 Q2 64 2 58 V22 Q2 4 22 2 Q40 1 64 4 Z"/></clipPath></defs>
+  <g transform="translate(64 0) scale(-1 1)">
+    <g clip-path="url(#c)">
+      <rect y="8" width="64" height="56" fill="#d06a3c"/>
+      <path d="M0 34 Q16 30 32 35 T64 34 V46 Q48 50 32 45 T0 46 Z" fill="#b24f5e"/>
+      <path d="M0 58 Q20 55 36 60 T64 58 V64 H0 Z" fill="#e8934e"/>
+    </g>
+    <path d="M64 4 Q40 1 22 2 Q2 4 1 22 Q0 36 6 38 Q10 30 12 25 Q18 20 26 24 Q30 36 34 24 Q40 20 48 22 Q52 32 56 22 Q60 24 64 22 Z" fill="#45b83f"/>
+    <path d="M64 4 Q40 1 22 2 Q6 4 4 16 Q12 10 22 10 Q42 9 64 11 Z" fill="#86e35c"/>
+    <g fill="#c4f58f"><circle cx="14" cy="7" r="1.6"/><circle cx="44" cy="5" r="1.4"/></g>
+  </g>
+</svg>
