@@ -16,10 +16,10 @@ export function overlaps(a: Rect, b: Rect): boolean {
 }
 
 /** Arni spins, so the tail sweeps both sides over the whole body (and just above the head). */
-export function whipHitbox(body: Rect): Rect {
+export function whipHitbox(body: Rect, reachMult = 1): Rect {
   return {
-    left: body.left - T.whipReach,
-    right: body.right + T.whipReach,
+    left: body.left - T.whipReach * reachMult,
+    right: body.right + T.whipReach * reachMult,
     top: body.top - 8,
     bottom: body.bottom - 4,
   };
@@ -67,8 +67,8 @@ export function newEnemy(kind: EnemyKind): Enemy {
   return { kind, hp: enemyMaxHp(kind), defeated: false };
 }
 
-export function damageEnemy(e: Enemy): Enemy {
+export function damageEnemy(e: Enemy, amount = 1): Enemy {
   if (e.defeated) return e;
-  const hp = Math.max(0, e.hp - 1);
+  const hp = Math.max(0, e.hp - amount);
   return { ...e, hp, defeated: hp === 0 };
 }

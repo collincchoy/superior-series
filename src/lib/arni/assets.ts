@@ -10,7 +10,7 @@
  * (0.5, 0.5) = center (tiles).
  */
 import type { TileVariant } from "./level/parseLevel.js";
-import type { SpawnKind, TileKind } from "./level/legend.js";
+import type { PowerUpKind, SpawnKind, TileKind } from "./level/legend.js";
 import { TILE_SIZE } from "./constants.js";
 
 export interface AssetDef {
@@ -83,6 +83,15 @@ export const ASSETS = {
   // HUD
   "heart-full": { file: "heart-full.svg", width: 44, height: 40, originX: 0, originY: 0 },
   "heart-empty": { file: "heart-empty.svg", width: 44, height: 40, originX: 0, originY: 0 },
+  "heart-bonus": { file: "heart-bonus.svg", width: 44, height: 40, originX: 0, originY: 0 },
+
+  // Power-ups (pickup orbs; also used as HUD timer icons)
+  "powerup-heart": { file: "powerup-heart.svg", width: 48, height: 48, originX: 0.5, originY: 0.5 },
+  "powerup-fire": { file: "powerup-fire.svg", width: 48, height: 48, originX: 0.5, originY: 0.5 },
+  "powerup-pound": { file: "powerup-pound.svg", width: 48, height: 48, originX: 0.5, originY: 0.5 },
+  "powerup-sword": { file: "powerup-sword.svg", width: 48, height: 48, originX: 0.5, originY: 0.5 },
+  fireball: { file: "fireball.svg", width: 44, height: 28, originX: 0.5, originY: 0.5 },
+  sword: { file: "sword.svg", width: 96, height: 24, originX: 0, originY: 0.5 },
   "hud-coin": { file: "coin.svg", width: 32, height: 32, originX: 0, originY: 0 },
   "hud-egg": { file: "egg.svg", width: 30, height: 36, originX: 0, originY: 0 },
   "hud-egg-empty": { file: "egg-empty.svg", width: 30, height: 36, originX: 0, originY: 0 },
@@ -157,4 +166,8 @@ const SPAWN_TEXTURES: Record<SpawnKind, AssetKey> = {
 
 export function spawnTextureKey(kind: SpawnKind): AssetKey {
   return SPAWN_TEXTURES[kind];
+}
+
+export function powerUpTextureKey(kind: PowerUpKind): AssetKey {
+  return `powerup-${kind}`;
 }

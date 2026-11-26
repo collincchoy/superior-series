@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="24" viewBox="0 0 96 24">
+  <!-- Sword held by Arni's tail during a spin (hilt at the left, blade pointing right). -->
+  <g stroke="#271f40" stroke-width="2.5" stroke-linejoin="round">
+    <path d="M2 9 H12 V15 H2 Z" fill="#a0124e"/>
+    <path d="M12 3 H18 V21 H12 Z" fill="#ffd36a"/>
+    <path d="M18 8 H84 L94 12 L84 16 H18 Z" fill="#e8f4ff"/>
+  </g>
+  <path d="M22 10.5 H82" stroke="#ffffff" stroke-width="1.5"/>
+</svg>

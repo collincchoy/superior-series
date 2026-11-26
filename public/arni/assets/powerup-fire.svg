@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <!-- Fire roar power-up: a flame in a glowing bubble. -->
+  <circle cx="24" cy="24" r="22" fill="#ffd9a8" fill-opacity="0.55" stroke="#ffffff" stroke-width="2.5"/>
+  <path d="M24 40 C14 40 10 33 12 25 C13 20 17 17 17 11 C21 14 22 18 22 21 C24 17 26 12 26 6 C33 11 37 19 36 27 C35 35 30 40 24 40 Z" fill="#ff6a2e" stroke="#a3300c" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M24 37 C19 37 17 33 18 29 C19 26 22 25 22 21 C25 24 28 27 28 31 C28 34 26.5 37 24 37 Z" fill="#ffd36a"/>
+  <path d="M38 6 l1.5 3.5 l3.5 1.5 l-3.5 1.5 l-1.5 3.5 l-1.5 -3.5 l-3.5 -1.5 l3.5 -1.5 Z" fill="#fff"/>
+</svg>

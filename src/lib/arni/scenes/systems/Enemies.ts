@@ -22,6 +22,7 @@ import {
   type MinionKind,
 } from "../../enemyAi.js";
 import { groundAhead, rectHitsSolid, wallAhead } from "../../level/collision.js";
+import { POWER } from "../../powerups.js";
 import { spawnPoint } from "../../level/parseLevel.js";
 import { bodyRect, centerX, type LevelContext } from "../context.js";
 import type { Blocks } from "./Blocks.js";
@@ -51,6 +52,13 @@ interface Peel {
   dead: boolean;
 }
 
+interface Fireball {
+  img: Phaser.GameObjects.Image;
+  dir: 1 | -1;
+  age: number;
+  dead: boolean;
+}
+
 interface Goo {
   img: Phaser.GameObjects.Image;
   rect: Rect;
@@ -68,6 +76,7 @@ export class Enemies {
   private minions: Minion[] = [];
   private peels: Peel[] = [];
   private goo: Goo[] = [];
+  private fireballs: Fireball[] = [];
   /** Minions already hit by the current tail swing. */
   private swingHits = new Set<Minion>();
 
@@ -152,6 +161,7 @@ export class Enemies {
     }
 
     this.updatePeels(dtMs, arni);
+    this.updateFireballs(dtMs);
     this.updateGoo(dtMs);
   }
 
@@ -171,7 +181,7 @@ export class Enemies {
     this.swingHits.clear();
   }
 
-  contact(whip: Rect | null, prevBottom: number): ContactOutcome {
+  contact(whip: Rect | null, prevBottom: number, whipDamage = 1): ContactOutcome {
     const arni = this.ctx.arniRect();
     let outcome: ContactOutcome = "none";
     for (const m of this.minions) {
@@ -186,7 +196,7 @@ export class Enemies {
       });
       if (result === "whip") {
         this.swingHits.add(m);
-        this.hit(m, "whip");
+        this.hit(m, "whip", whipDamage);
       } else if (result === "stomp" && outcome === "none") {
         this.hit(m, "stomp");
         outcome = "stomp";
@@ -204,9 +214,9 @@ export class Enemies {
     return this.goo.some((g) => overlaps(feet, g.rect));
   }
 
-  private hit(m: Minion, how: "whip" | "stomp"): void {
+  private hit(m: Minion, how: "whip" | "stomp" | "fire" | "pound", amount = 1): void {
     const { host: scene } = this.ctx;
-    m.enemy = damageEnemy(m.enemy);
+    m.enemy = damageEnemy(m.enemy, amount);
     this.ctx.sparks(m.body.center.x, m.body.center.y, 10);
     scene.cameras.main.shake(70, 0.004);
 
@@ -259,6 +269,51 @@ export class Enemies {
     m.body.enable = false;
     m.view.setVisible(false);
     m.idle.stop();
+  }
+
+  // ── Fire roar & ground pound ───────────────────────────────────
+
+  shootFireball(x: number, y: number, dir: 1 | -1): void {
+    const img = this.ctx.host.add.image(x + dir * 30, y, "fireball").setDepth(13).setFlipX(dir < 0);
+    this.fireballs.push({ img, dir, age: 0, dead: false });
+  }
+
+  private updateFireballs(dtMs: number): void {
+    for (const f of this.fireballs) {
+      if (f.dead) continue;
+      f.age += dtMs;
+      f.img.x += (f.dir * POWER.fireSpeed * dtMs) / 1000;
+      f.img.y += Math.sin(f.age / 60) * 0.8; // a little flicker-wobble
+      const r = { left: f.img.x - 16, right: f.img.x + 16, top: f.img.y - 11, bottom: f.img.y + 11 };
+      const hitMinion = this.minions.find((m) => !m.gone && !m.enemy.defeated && m.active && overlaps(r, bodyRect(m.body)));
+      if (hitMinion) {
+        this.hit(hitMinion, "fire");
+        this.killFireball(f);
+        continue;
+      }
+      for (const p of this.peels) {
+        if (!p.dead && overlaps(r, bodyRect(p.body))) this.killPeel(p);
+      }
+      const tx = Math.floor((f.img.x + f.dir * 14) / TILE_SIZE);
+      const ty = Math.floor(f.img.y / TILE_SIZE);
+      if (this.blocks.fireHit(tx, ty) || f.age > POWER.fireLifeMs) this.killFireball(f);
+    }
+    this.fireballs = this.fireballs.filter((f) => !f.dead);
+  }
+
+  private killFireball(f: Fireball): void {
+    f.dead = true;
+    this.ctx.sparks(f.img.x, f.img.y, 8);
+    f.img.destroy();
+  }
+
+  /** Ground-pound shockwave: hits every grounded minion within the radius. */
+  poundShock(x: number, feetY: number, radius: number): void {
+    for (const m of this.minions) {
+      if (m.gone || m.enemy.defeated || !m.active) continue;
+      const near = Math.abs(m.body.center.x - x) <= radius && Math.abs(m.body.bottom - feetY) <= TILE_SIZE;
+      if (near && m.body.blocked.down) this.hit(m, "pound");
+    }
   }
 
   // ── Peels ──────────────────────────────────────────────────────

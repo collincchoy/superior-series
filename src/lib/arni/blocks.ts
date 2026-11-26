@@ -1,7 +1,7 @@
 /** Smashing, bonking and cracking open blocks. Pure: returns new Levels, never mutates. */
 import type { Rect } from "./combat.js";
 import { TILE_SIZE as T } from "./constants.js";
-import { TILE_PROPS, type TileKind } from "./level/legend.js";
+import { TILE_PROPS, type PowerUpKind, type TileKind } from "./level/legend.js";
 import type { Level } from "./level/parseLevel.js";
 
 /** Coins that burst out of an amber block. */
@@ -46,13 +46,12 @@ export function breakTile(level: Level, tx: number, ty: number): Level {
   return withTile(level, tx, ty, null);
 }
 
-export interface AmberReward {
-  coins: number;
-}
+export type AmberReward = { coins: number } | { powerUp: PowerUpKind };
 
 export function hitAmber(level: Level, tx: number, ty: number): { level: Level; reward: AmberReward | null } {
   if (level.tiles[ty]?.[tx] !== "amber") return { level, reward: null };
-  return { level: withTile(level, tx, ty, "spent"), reward: { coins: AMBER_COINS } };
+  const powerUp = level.amberContents[`${tx},${ty}`];
+  return { level: withTile(level, tx, ty, "spent"), reward: powerUp ? { powerUp } : { coins: AMBER_COINS } };
 }
 
 /**

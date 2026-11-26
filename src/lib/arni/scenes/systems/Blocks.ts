@@ -96,6 +96,23 @@ export class Blocks {
     else if (hit) this.ctx.dust(this.ctx.arniBody.center.x, this.ctx.arniBody.top, 3);
   }
 
+  /** Ground pound landing: smash breakables / crack amber right under Arni's feet. */
+  smashBelow(feet: Rect): void {
+    const strip = { left: feet.left + 4, right: feet.right - 4, top: feet.bottom + 1, bottom: feet.bottom + 12 };
+    for (const t of whipTargets(this.ctx.level, strip)) this.strike(t);
+  }
+
+  /**
+   * A fireball hit something solid at this tile. Wooden crates burn and amber
+   * cracks; stone shrugs it off. Returns true if the tile was solid.
+   */
+  fireHit(tx: number, ty: number): boolean {
+    const kind = this.ctx.level.tiles[ty]?.[tx];
+    if (!kind || !TILE_PROPS[kind].solid) return false;
+    if (kind === "crate" || kind === "amber") this.strike({ tx, ty, kind });
+    return true;
+  }
+
   private strike(t: TileHit): void {
     const sprite = this.sprites.get(key(t.tx, t.ty));
     if (!sprite) return;
@@ -106,7 +123,9 @@ export class Blocks {
       sprite.setTexture(tileTextureKey("spent", "single"));
       sprite.setData("tile", { ...t, kind: "spent" });
       this.ctx.host.tweens.add({ targets: sprite, y: sprite.y - 10, duration: 80, yoyo: true });
-      this.ctx.addCoins(reward.coins, { x: sprite.x, y: sprite.y - TILE_SIZE / 2 });
+      const at = { x: sprite.x, y: sprite.y - TILE_SIZE / 2 };
+      if ("powerUp" in reward) this.ctx.releasePowerUp(reward.powerUp, at);
+      else this.ctx.addCoins(reward.coins, at);
       return;
     }
     if (TILE_PROPS[t.kind].breakable) {

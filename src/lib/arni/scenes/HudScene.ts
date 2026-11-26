@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { VIEW_WIDTH } from "../constants.js";
+import { POWER, TIMED_POWERS, type TimedPower } from "../powerups.js";
 
 /** Registry keys the level writes and the HUD reads. */
 export const HUD_KEYS = {
@@ -8,6 +9,8 @@ export const HUD_KEYS = {
   coins: "coins",
   eggs: "eggs",
   eggsTotal: "eggsTotal",
+  /** Object of power-up timers (ms left), mutated in place by the level; read every frame. */
+  powers: "powers",
 } as const;
 
 /** Game-wide events the HUD emits. */
@@ -36,6 +39,7 @@ export class HudScene extends Phaser.Scene {
   create(): void {
     this.hearts = [];
     this.eggs = [];
+    this.powerBadges = new Map(); // restart reuses this instance; old objects are gone
     this.renderHearts();
 
     this.coinIcon = this.add.image(24, 76, "hud-coin").setOrigin(0);
@@ -67,10 +71,48 @@ export class HudScene extends Phaser.Scene {
   private renderHearts(): void {
     const max = this.get(HUD_KEYS.maxHearts, 3);
     const cur = this.get(HUD_KEYS.hearts, max);
-    for (let i = 0; i < max; i++) {
+    // One extra slot for the golden bonus heart, hidden unless earned.
+    for (let i = 0; i <= max; i++) {
       const img = this.hearts[i] ?? this.add.image(24 + i * 52, 22, "heart-full").setOrigin(0);
       this.hearts[i] = img;
-      img.setTexture(i < cur ? "heart-full" : "heart-empty");
+      if (i === max) img.setTexture("heart-bonus").setVisible(cur > max);
+      else img.setTexture(i < cur ? "heart-full" : "heart-empty");
+    }
+  }
+
+  // ── Power-up timers ───────────────────────────────────────────
+
+  private powerBadges = new Map<TimedPower, { icon: Phaser.GameObjects.Image; ring: Phaser.GameObjects.Graphics }>();
+
+  update(): void {
+    const timers = this.registry.get(HUD_KEYS.powers) as Record<TimedPower, number> | undefined;
+    if (!timers) return;
+    let slot = 0;
+    for (const kind of TIMED_POWERS) {
+      const left = timers[kind] ?? 0;
+      let badge = this.powerBadges.get(kind);
+      if (left <= 0) {
+        badge?.icon.setVisible(false);
+        badge?.ring.setVisible(false);
+        continue;
+      }
+      if (!badge) {
+        badge = { icon: this.add.image(0, 0, `powerup-${kind}`), ring: this.add.graphics() };
+        this.powerBadges.set(kind, badge);
+      }
+      const x = 48 + slot * 60;
+      const y = 196;
+      slot++;
+      // Blink during the last 3 seconds so kids notice it's running out.
+      const blink = left < 3000 && Math.floor(left / 150) % 2 === 0;
+      badge.icon.setVisible(true).setPosition(x, y).setAlpha(blink ? 0.35 : 1);
+      badge.ring.setVisible(true).clear();
+      badge.ring.lineStyle(5, 0x271f40, 0.6).strokeCircle(x, y, 27);
+      badge.ring
+        .lineStyle(5, 0xffd36a, 1)
+        .beginPath()
+        .arc(x, y, 27, -Math.PI / 2, -Math.PI / 2 + (2 * Math.PI * left) / POWER.durationMs)
+        .strokePath();
     }
   }
 

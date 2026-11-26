@@ -32,6 +32,7 @@ class Sim {
   floor = true;
   canStand = true;
   slippery = false;
+  canPound = false;
   events: PlayerEvent[] = [];
   maxHeight = 0;
 
@@ -48,6 +49,7 @@ class Sim {
         grounded,
         canStand: this.canStand,
         slippery: this.slippery,
+        canPound: this.canPound,
         vx: this.state.vx,
         vy,
       };
@@ -377,5 +379,49 @@ describe("goo (slippery ground)", () => {
     goo.step(input({ right: true }), 120).step(input(), 10);
     expect(dry.state.vx).toBe(0);
     expect(goo.state.vx).toBeGreaterThan(T.runSpeed * 0.6);
+  });
+});
+
+describe("ground pound (power-up)", () => {
+  const airborne = (canPound: boolean) => {
+    const sim = new Sim();
+    sim.canPound = canPound;
+    return sim.step(input({ jump: true }), 20).step(input(), 1); // near the top of a full jump
+  };
+
+  it("pressing down in the air slams straight down", () => {
+    const sim = airborne(true).step(input({ down: true, right: true }));
+    expect(sim.events).toContain("poundStart");
+    expect(sim.state.pounding).toBe(true);
+    expect(sim.state.vy).toBe(T.poundSpeed);
+    expect(sim.state.vx).toBe(0);
+  });
+
+  it("does nothing without the power-up", () => {
+    const sim = airborne(false).step(input({ down: true }));
+    expect(sim.events).not.toContain("poundStart");
+    expect(sim.state.pounding).toBe(false);
+  });
+
+  it("ignores steering while slamming, and lands with a poundLand", () => {
+    const sim = airborne(true).step(input({ down: true }));
+    sim.step(input({ right: true, down: true }), 5);
+    expect(sim.state.vx).toBe(0);
+    sim.step(input({ down: true }), 60);
+    expect(sim.events).toContain("poundLand");
+    expect(sim.state.pounding).toBe(false);
+  });
+
+  it("can't start a pound on the ground (down just crouches)", () => {
+    const sim = new Sim();
+    sim.canPound = true;
+    sim.step(input({ down: true }));
+    expect(sim.events).not.toContain("poundStart");
+    expect(sim.state.pose).toBe("crouch");
+  });
+
+  it("getting hurt cancels a pound", () => {
+    const pounding = airborne(true).step(input({ down: true })).state;
+    expect(applyHurt(pounding, 1).pounding).toBe(false);
   });
 });

@@ -24,11 +24,13 @@ Lives at `/superior-series/arni/` as a fully decoupled sibling to the Catan game
 
 **Health:** 3 hearts. Hit → brief invulnerability flash. 0 hearts → respawn at last checkpoint (coins kept). No lives, no game over.
 
-## Power-ups (from ? blocks)
-- **Extra heart** — heals 1 / bonus heart.
-- **Fire roar** — temporary ranged attack.
-- **Super stomp** — down + jump in air = ground pound; breaks blocks below, stuns nearby enemies.
-- **Sword** — timed (~20s); replaces tail whip with longer-reach, 2-damage slash.
+## Power-ups (from amber blocks)
+Amber cracks open (bonk from below, whip, fireball or ground pound) and a power-up bubble pops out, then drifts to Arni so it's never stranded. In level text: `h` heart, `f` fire, `p` pound, `w` sword (plain `A` = 3 coins).
+- **Extra heart** — heals 1; at full health grants one golden bonus heart (lost first).
+- **Fire roar** (20s) — K/C shoots fireballs: hit minions, burn crates, crack amber, pop peels.
+- **Ground pound** (20s) — ↓ in mid-air slams down: smashes the block underfoot, shockwave hits nearby minions.
+- **Sword** (20s) — the tail spin swings a sword: ~2× reach, 2 damage (one-shots Bruisers).
+- Timed powers stack, show as HUD badges with countdown rings (blink in the last 3s), and are lost when hearts run out.
 
 ## Collectibles
 - **Coins** (leaf/gem style) — score counter.

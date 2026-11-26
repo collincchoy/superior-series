@@ -1,9 +1,11 @@
 import { TILE_SIZE } from "../constants.js";
 import {
+  AMBER_CHARS,
   EMPTY_CHARS,
   PLAYER_START_CHAR,
   SPAWN_CHARS,
   TILE_CHARS,
+  type PowerUpKind,
   type SpawnKind,
   type TileKind,
 } from "./legend.js";
@@ -24,6 +26,8 @@ export interface Level {
   tiles: (TileKind | null)[][];
   spawns: Spawn[];
   playerStart: TilePos;
+  /** Power-ups inside amber blocks, keyed "tx,ty". Amber not listed holds coins. */
+  amberContents: Record<string, PowerUpKind>;
 }
 
 export const TILE_VARIANTS = [
@@ -45,6 +49,7 @@ export function parseLevel(rows: readonly string[]): Level {
   const tiles: (TileKind | null)[][] = [];
   const spawns: Spawn[] = [];
   const starts: TilePos[] = [];
+  const amberContents: Record<string, PowerUpKind> = {};
 
   rows.forEach((row, ty) => {
     if (row.length !== width) {
@@ -58,6 +63,9 @@ export function parseLevel(rows: readonly string[]): Level {
         tileRow.push(null);
       } else if (ch in TILE_CHARS) {
         tileRow.push(TILE_CHARS[ch]);
+      } else if (ch in AMBER_CHARS) {
+        tileRow.push("amber");
+        amberContents[`${tx},${ty}`] = AMBER_CHARS[ch];
       } else if (ch in SPAWN_CHARS) {
         tileRow.push(null);
         spawns.push({ kind: SPAWN_CHARS[ch], tx, ty });
@@ -79,7 +87,7 @@ export function parseLevel(rows: readonly string[]): Level {
     );
   }
 
-  return { width, height: rows.length, tiles, spawns, playerStart: starts[0] };
+  return { width, height: rows.length, tiles, spawns, playerStart: starts[0], amberContents };
 }
 
 /**

@@ -33,6 +33,9 @@ export interface PlayerState {
   attackHeld: boolean;
   /** Remaining knockback stun (no control). */
   stunMs: number;
+  /** Slamming down in a ground pound. */
+  pounding: boolean;
+  downHeld: boolean;
 }
 
 export interface PlayerEnv {
@@ -41,6 +44,8 @@ export interface PlayerEnv {
   canStand: boolean;
   /** Standing in goo: sluggish to start, slow to stop. */
   slippery?: boolean;
+  /** Has the ground-pound power-up. */
+  canPound?: boolean;
   vx: number;
   vy: number;
 }
@@ -54,7 +59,9 @@ export type PlayerEvent =
   | "stand"
   | "slideStart"
   | "slideEnd"
-  | "whip";
+  | "whip"
+  | "poundStart"
+  | "poundLand";
 
 export interface StepResult {
   state: PlayerState;
@@ -89,6 +96,8 @@ export function initialPlayer(): PlayerState {
     attackCooldownMs: 0,
     attackHeld: false,
     stunMs: 0,
+    pounding: false,
+    downHeld: false,
   };
 }
 
@@ -108,6 +117,7 @@ export function applyHurt(s: PlayerState, fromDir: -1 | 0 | 1): PlayerState {
     attackMs: 0,
     slideMs: 0,
     chargeMs: 0,
+    pounding: false,
     pose: s.pose === "slide" ? "crouch" : s.pose,
   };
 }
@@ -179,6 +189,25 @@ export function stepPlayer(
     s.attackMs = T.whipMs;
     s.attackCooldownMs = T.whipCooldownMs;
     events.push("whip");
+  }
+
+  // Ground pound (power-up): Down in mid-air slams straight down until landing.
+  const downPressed = input.down && !prev.downHeld;
+  s.downHeld = input.down;
+  if (prev.pounding && s.grounded) {
+    s.pounding = false;
+    events.push("poundLand");
+  } else if (!s.pounding && !s.grounded && downPressed && env.canPound && !stunned) {
+    s.pounding = true;
+    s.rising = false;
+    s.chargeMs = 0;
+    events.push("poundStart");
+  }
+  if (s.pounding) {
+    s.vx = 0;
+    s.vy = T.poundSpeed;
+    s.jumpBufferMs = 0;
+    return { state: s, events };
   }
 
   const dir = stunned ? 0 : (input.right ? 1 : 0) - (input.left ? 1 : 0);

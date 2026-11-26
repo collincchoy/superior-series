@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <!-- Extra-heart power-up: a heart in a glowing bubble. -->
+  <circle cx="24" cy="24" r="22" fill="#ffd9e6" fill-opacity="0.55" stroke="#ffffff" stroke-width="2.5"/>
+  <path d="M24 37 C14 30 9 24 9 17.5 C9 13 12.5 10 16.5 10 C19.5 10 22 12 24 14.6 C26 12 28.5 10 31.5 10 C35.5 10 39 13 39 17.5 C39 24 34 30 24 37 Z" fill="#ff4f7b" stroke="#8a1238" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M14 16 Q16 13 19 13.5" fill="none" stroke="#ffc2d4" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M38 6 l1.5 3.5 l3.5 1.5 l-3.5 1.5 l-1.5 3.5 l-1.5 -3.5 l-3.5 -1.5 l3.5 -1.5 Z" fill="#fff"/>
+</svg>

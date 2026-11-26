@@ -1,11 +1,12 @@
 /**
- * Volcanic test level (Milestones 1–5). Edit freely!
+ * Volcanic test level (Milestones 1–6). Edit freely!
  *
  * Legend (see ../legend.ts):
  *   .  empty            #  basalt ground       =  branch (one-way)
  *   R  boulder (break)  X  banana crate (break) A  amber (bonk/whip for coins)
- *   a  spent amber      ^  thorns (hurt)        ~  lava (hurt)
+ *   a  spent amber      ^  thorns (hurt)        ~  lava (like a pit)
  *   U  bounce mushroom  %  crumbly rock
+ *   Power-up amber:     h  extra heart   f  fire roar   p  ground pound   w  sword
  *   P  player start  o  coin  E  hidden egg  C  checkpoint
  *   H  sliding slab (2 wide, moves right & back)   V  rising slab (moves up & back)
  *   Banana minions: g bunchling (green)  y peelback (ripe)  b bruiser (bruised)
@@ -16,21 +17,22 @@
  * - Everything must be reachable (src/lib/arni/level/reachability.ts).
  *
  * Tour: coin arc + amber → boulder step → thorn pit → branch staircase with
- * bunchling → crawl tunnel (egg 1) → checkpoint → lava pool + sliding slab →
- * bounce mushroom onto a pillar (egg 2) → peelback runway → crumbling bridge →
- * checkpoint → bruiser, spotter on a branch, rising slab → plateau with mush,
- * a ledge-diving bunchling, and Rex's crates hiding egg 3.
+ * bunchling and a fire-roar amber → crawl tunnel (egg 1) → checkpoint → lava
+ * pool + sliding slab → bounce mushroom onto a pillar (egg 2) → extra-heart
+ * amber over the peelback runway → crumbling bridge → checkpoint → bruiser,
+ * spotter on a branch under a sword amber, rising slab → plateau with mush,
+ * a ledge-diving bunchling, a ground-pound amber, and Rex's crates hiding egg 3.
  */
 export const TEST_LEVEL: readonly string[] = [
   "......................................................................................................................................................",
   "......................................................................................................................................................",
   "......................................................................................................................................................",
-  "...................................................................o........................................................A......XX.................",
+  "...................................................................o........................................................p......XX.................",
   "....................................................................E..............................................................XX.................",
-  "................................A..................................##.........................................oooo...............X.XX.....o.o.o.o.....",
+  "................................f..................................##...........................w.............oooo...............X.XX.....o.o.o.o.....",
   "...................................................................##...............................................m.....g.....XX.XX.E...............",
   "...................................................................##..........................s............##########################################",
-  "..........A..............oooo.=====....................ooo.........##........................=====..........##########################################",
+  "..........A..............oooo.=====....................ooo.........##...h....................=====..........##########################################",
   ".......o...........................................................##.............o.o.o.....................##########################################",
   "......o.o......R.o......=====.........#########....................##.......................................##########################################",
   "..P..........#####.........g........o.....E.....o.C..H...........U.##......y....%%%%%%%%...C........b....V..##########################################",

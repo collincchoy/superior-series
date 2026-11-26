@@ -35,6 +35,12 @@ describe("whipHitbox (spin attack)", () => {
     expect(hb.right).toBe(body.right + T.whipReach);
   });
 
+  it("reaches further with a reach multiplier (sword)", () => {
+    const sword = whipHitbox(body, 2);
+    expect(sword.left).toBe(body.left - T.whipReach * 2);
+    expect(sword.right).toBe(body.right + T.whipReach * 2);
+  });
+
   it("sweeps Arni's whole height, reaching just above the head", () => {
     // So a block at head height (e.g. a crate wall) gets hit too.
     expect(hb.top).toBeLessThan(body.top);
@@ -105,6 +111,10 @@ describe("enemies", () => {
     expect(e.defeated).toBe(false);
     e = damageEnemy(e);
     expect(e.defeated).toBe(true);
+  });
+
+  it("a 2-damage sword hit defeats a bruiser at once", () => {
+    expect(damageEnemy(newEnemy("bruiser"), 2).defeated).toBe(true);
   });
 
   it("defeated enemies stay defeated", () => {

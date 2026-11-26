@@ -54,6 +54,11 @@ export const TUNING = {
   /** How far below an enemy's top Arni's feet can be (last frame) and still count as a stomp. */
   stompTolerance: 14,
 
+  // Ground pound (power-up)
+  poundSpeed: 1300,
+  /** Radius (px) around the landing spot that hits minions. */
+  poundRadius: 150,
+
   // Bounce mushroom
   springVelocity: 1250, // ≈ 6 tiles
   springVelocityHigh: 1420,

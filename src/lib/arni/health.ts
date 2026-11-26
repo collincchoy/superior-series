@@ -31,6 +31,15 @@ export function tickHealth(h: Health, dtMs: number): Health {
   return h.invulnMs > 0 ? { ...h, invulnMs: Math.max(0, h.invulnMs - dtMs) } : h;
 }
 
+/** Extra-heart pickup: heal one, or at full health grant one golden bonus heart. */
+export function heal(h: Health): Health {
+  return { ...h, hearts: Math.min(h.maxHearts + 1, h.hearts + 1) };
+}
+
+export function hasBonusHeart(h: Health): boolean {
+  return h.hearts > h.maxHearts;
+}
+
 export function respawnHealth(h: Health): Health {
   return { ...h, hearts: h.maxHearts, invulnMs: T.invulnMs };
 }

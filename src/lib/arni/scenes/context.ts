@@ -1,5 +1,6 @@
 import type Phaser from "phaser";
 import type { Rect } from "../combat.js";
+import type { PowerUpKind } from "../level/legend.js";
 import type { Level } from "../level/parseLevel.js";
 import type { PlayerState } from "../player.js";
 
@@ -18,6 +19,10 @@ export interface LevelContext {
   hurtArni(fromDir: -1 | 0 | 1): void;
   addCoins(n: number, at: { x: number; y: number }): void;
   collectEgg(at: { x: number; y: number }): void;
+  /** An amber block cracked open with a power-up inside: pop it out. */
+  releasePowerUp(kind: PowerUpKind, at: { x: number; y: number }): void;
+  /** Arni touched a power-up pickup. */
+  collectPowerUp(kind: PowerUpKind, at: { x: number; y: number }): void;
   sparks(x: number, y: number, n: number): void;
   dust(x: number, y: number, n: number): void;
 }

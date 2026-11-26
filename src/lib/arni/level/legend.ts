@@ -61,6 +61,17 @@ export const SPAWN_KINDS = [
 ] as const;
 export type SpawnKind = (typeof SPAWN_KINDS)[number];
 
+export const POWER_UP_KINDS = ["heart", "fire", "pound", "sword"] as const;
+export type PowerUpKind = (typeof POWER_UP_KINDS)[number];
+
+/** Amber blocks that hold a power-up instead of coins (plain `A` holds coins). */
+export const AMBER_CHARS: Record<string, PowerUpKind> = {
+  h: "heart", // extra heart
+  f: "fire", // fire roar
+  p: "pound", // ground pound
+  w: "sword", // sword ("weapon")
+};
+
 export const EMPTY_CHARS = new Set([".", " "]);
 export const PLAYER_START_CHAR = "P";
 

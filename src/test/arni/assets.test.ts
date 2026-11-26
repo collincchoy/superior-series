@@ -4,10 +4,11 @@ import { resolve } from "node:path";
 import {
   ASSETS,
   ASSET_DIR,
+  powerUpTextureKey,
   tileTextureKey,
   spawnTextureKey,
 } from "../../lib/arni/assets.js";
-import { TILE_KINDS, SPAWN_KINDS } from "../../lib/arni/level/legend.js";
+import { POWER_UP_KINDS, TILE_KINDS, SPAWN_KINDS } from "../../lib/arni/level/legend.js";
 import { TILE_VARIANTS } from "../../lib/arni/level/parseLevel.js";
 
 const publicDir = resolve(__dirname, "../../../public");
@@ -47,6 +48,10 @@ describe("asset manifest", () => {
       expect(keys.size, kind).toBe(4);
     }
     expect(tileTextureKey("ground", "fill")).not.toBe(tileTextureKey("ground", "fillAccent"));
+  });
+
+  it("every power-up has a pickup texture", () => {
+    for (const k of POWER_UP_KINDS) expect(ASSETS[powerUpTextureKey(k)], k).toBeDefined();
   });
 
   it("Arni has a texture for every pose, all the same frame size", () => {

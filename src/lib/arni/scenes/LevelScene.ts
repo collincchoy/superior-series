@@ -2,9 +2,20 @@ import Phaser from "phaser";
 import { ASSETS } from "../assets.js";
 import { overlaps, whipHitbox, type Rect } from "../combat.js";
 import { TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH } from "../constants.js";
-import { damage, initialHealth, isInvulnerable, respawnHealth, tickHealth, type Health } from "../health.js";
+import { damage, heal, initialHealth, isInvulnerable, respawnHealth, tickHealth, type Health } from "../health.js";
 import { ACTIONS, emptyInput, inputFromPressed, KEYBOARD_BINDINGS, type PlayerInput } from "../input.js";
 import { rectHitsSolid } from "../level/collision.js";
+import type { PowerUpKind } from "../level/legend.js";
+import {
+  grantPower,
+  hasPower,
+  initialPowers,
+  POWER,
+  tickPowers,
+  tryFire,
+  type Powers,
+  type TimedPower,
+} from "../powerups.js";
 import { TEST_LEVEL } from "../level/levels/testLevel.js";
 import { parseLevel, spawnPoint, type Level, type TilePos } from "../level/parseLevel.js";
 import { addCoins, collectEgg, initialScore, type Score } from "../pickups.js";
@@ -36,6 +47,14 @@ const CHARGE_TINT = 0xfff27a;
 const HURT_TINT = 0xff4f7b;
 const RESPAWN_DELAY_MS = 900;
 
+/** Shown when a power-up is picked up — names it and teaches the button. */
+const POWER_UP_LABELS: Record<PowerUpKind, string> = {
+  heart: "Extra Heart!",
+  fire: "Fire Roar!\nPress K to roar",
+  pound: "Ground Pound!\nPress ↓ in the air",
+  sword: "Sword!\nX swings it",
+};
+
 interface CheckpointEntity {
   pos: TilePos;
   img: Phaser.GameObjects.Image;
@@ -59,6 +78,11 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
   private dustFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private sparkFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private health: Health = initialHealth();
+  private powers: Powers = initialPowers();
+  /** Shared with the HUD (read every frame), so it's mutated in place. */
+  private hudPowers: Record<TimedPower, number> = { fire: 0, pound: 0, sword: 0 };
+  private specialHeld = false;
+  private swordView!: Phaser.GameObjects.Image;
   private progress: Progress = initialProgress();
   private score!: Score;
   private checkpoints: CheckpointEntity[] = [];
@@ -142,12 +166,60 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     this.tweens.add({ targets: t, y: t.y - 50, alpha: 0, delay: 700, duration: 700, onComplete: () => t.destroy() });
   }
 
+  releasePowerUp(kind: PowerUpKind, at: { x: number; y: number }): void {
+    this.pickups.spawnPowerUp(kind, at);
+  }
+
+  collectPowerUp(kind: PowerUpKind, at: { x: number; y: number }): void {
+    if (kind === "heart") {
+      this.health = heal(this.health);
+      this.registry.set(HUD_KEYS.hearts, this.health.hearts);
+    } else {
+      this.powers = grantPower(this.powers, kind);
+    }
+    this.sparks(at.x, at.y, 24);
+    this.cameras.main.flash(180, 255, 246, 214);
+    this.squashView(1.3, 0.8, 120);
+    this.banner(POWER_UP_LABELS[kind], at);
+  }
+
+  /** Big friendly text that names a pickup and teaches its button. */
+  private banner(text: string, at: { x: number; y: number }): void {
+    const t = this.add
+      .text(at.x, at.y - 60, text, {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "30px",
+        fontStyle: "bold",
+        color: "#fff6e0",
+        stroke: "#271f40",
+        strokeThickness: 7,
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setDepth(30);
+    this.tweens.add({ targets: t, y: t.y - 50, alpha: 0, delay: 1300, duration: 700, onComplete: () => t.destroy() });
+  }
+
+  private tryFireRoar(input: PlayerInput): void {
+    if (!input.special || this.specialHeld) return;
+    const { powers, fired } = tryFire(this.powers);
+    this.powers = powers;
+    if (!fired) return;
+    const p = this.player;
+    const y = p.pose === "stand" ? this.body.top + 22 : this.body.top + 14;
+    this.enemies.shootFireball(this.body.center.x, y, p.facing);
+    this.squashView(1.15, 0.92, 60);
+  }
+
   // ── Lifecycle ─────────────────────────────────────────────────────
 
   create(): void {
     this.level = parseLevel(TEST_LEVEL);
     this.player = initialPlayer();
     this.health = initialHealth();
+    this.powers = initialPowers();
+    this.hudPowers = { fire: 0, pound: 0, sword: 0 };
+    this.specialHeld = false;
     this.progress = initialProgress();
     this.score = initialScore(this.level);
     this.checkpoints = [];
@@ -196,6 +268,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     this.registry.set(HUD_KEYS.coins, 0);
     this.registry.set(HUD_KEYS.eggs, 0);
     this.registry.set(HUD_KEYS.eggsTotal, this.score.eggsTotal);
+    this.registry.set(HUD_KEYS.powers, this.hudPowers);
     this.scene.launch("hud");
   }
 
@@ -203,22 +276,28 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     const dt = Math.min(delta, MAX_DT_MS);
     this.bg.tilePositionX = this.cameras.main.scrollX * 0.3;
     this.health = tickHealth(this.health, dt);
+    this.powers = tickPowers(this.powers, dt);
+    Object.assign(this.hudPowers, this.powers.timers);
 
+    const input = this.dying ? emptyInput() : this.readInput();
     this.platforms.update(dt);
-    this.updateArni(this.dying ? emptyInput() : this.readInput(), dt);
+    this.updateArni(input, dt);
     this.enemies.update(dt);
 
     if (!this.dying) {
-      const whip = isWhipping(this.player) ? whipHitbox(this.arniRect()) : null;
+      this.tryFireRoar(input);
+      const sword = hasPower(this.powers, "sword");
+      const whip = isWhipping(this.player) ? whipHitbox(this.arniRect(), sword ? POWER.swordReachMult : 1) : null;
       if (whip) this.blocks.whip(whip);
-      if (this.enemies.contact(whip, this.lastBottom) === "stomp") {
+      if (this.enemies.contact(whip, this.lastBottom, sword ? POWER.swordDamage : 1) === "stomp") {
         this.player = applyBounce(this.player, this.jumpHeld());
         this.body.setVelocityY(this.player.vy);
         this.squashView(0.8, 1.2);
       }
-      this.pickups.update();
+      this.pickups.update(dt);
       this.checkCheckpoints();
     }
+    this.specialHeld = input.special;
 
     this.updateCamera();
     this.lastBottom = this.body.bottom;
@@ -291,6 +370,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     this.body.setAllowGravity(false); // gravity is applied by stepPlayer
     const a = ASSETS["arni-idle"];
     this.view = this.add.image(start.x, start.y, "arni-idle").setOrigin(a.originX, a.originY).setDepth(10);
+    this.swordView = this.add.image(start.x, start.y, "sword").setOrigin(0, 0.5).setDepth(11).setVisible(false);
     this.lastBottom = this.body.bottom;
   }
 
@@ -370,6 +450,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
         grounded,
         canStand: this.canStand(),
         slippery: grounded && this.enemies.onGoo(this.arniRect()),
+        canPound: hasPower(this.powers, "pound"),
         vx: b.velocity.x,
         vy: b.velocity.y,
       },
@@ -459,6 +540,8 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
 
   private die(): void {
     this.dying = true;
+    // Running out of hearts loses any power-ups (falling in a pit doesn't).
+    this.powers = initialPowers();
     this.body.setVelocity(0, -500);
     this.player = { ...this.player, vy: -500, vx: 0 };
     this.tweens.add({ targets: this.view, angle: 720, alpha: 0, scale: 0.4, duration: RESPAWN_DELAY_MS * 0.8 });
@@ -525,17 +608,46 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
           this.enemies.newSwing();
           this.whipSwoosh();
           break;
+        case "poundStart":
+          this.squashView(0.8, 1.2, 80);
+          break;
+        case "poundLand":
+          this.poundImpact();
+          break;
         default:
           break;
       }
     }
   }
 
+  /** Ground pound landing: smash blocks underfoot, shockwave nearby minions. */
+  private poundImpact(): void {
+    const b = this.body;
+    this.blocks.smashBelow(this.arniRect());
+    this.enemies.poundShock(b.center.x, b.bottom, TUNING.poundRadius);
+    this.cameras.main.shake(160, 0.01);
+    this.squashView(1.45, 0.6, 140);
+    this.dust(b.center.x - 30, b.bottom, 8);
+    this.dust(b.center.x + 30, b.bottom, 8);
+    const ring = this.add.ellipse(b.center.x, b.bottom - 4, 40, 14).setStrokeStyle(6, 0xffd36a, 1).setDepth(9);
+    ring.isFilled = false;
+    this.tweens.add({
+      targets: ring,
+      scaleX: (TUNING.poundRadius * 2) / 40,
+      scaleY: 2,
+      alpha: 0,
+      duration: 350,
+      ease: "Quad.out",
+      onComplete: () => ring.destroy(),
+    });
+  }
+
   private whipSwoosh(): void {
-    const r = whipHitbox(this.arniRect());
+    const sword = hasPower(this.powers, "sword");
+    const r = whipHitbox(this.arniRect(), sword ? POWER.swordReachMult : 1);
     const ring = this.add
       .ellipse(centerX(r), (r.top + r.bottom) / 2, r.right - r.left, (r.bottom - r.top) * 0.9)
-      .setStrokeStyle(9, 0xffd36a, 1)
+      .setStrokeStyle(9, sword ? 0xc9f1ff : 0xffd36a, 1)
       .setDepth(9);
     ring.isFilled = false;
     this.tweens.add({
@@ -556,12 +668,25 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     const p = this.player;
     const v = this.view;
     v.setPosition(this.body.center.x, this.body.bottom);
+    this.swordView.setVisible(false);
     if (this.dying) return;
     v.setFlipX(p.facing < 0);
-    v.setTexture(p.pose === "stand" ? "arni-idle" : "arni-crouch");
+    v.setTexture(p.pose === "stand" && !p.pounding ? "arni-idle" : "arni-crouch");
 
-    if (isWhipping(p)) {
-      v.setAngle((1 - p.attackMs / TUNING.whipMs) * 360 * p.facing);
+    if (p.pounding) {
+      // Curled up and spinning on the way down.
+      v.setAngle((this.time.now * 1.4 * p.facing) % 360);
+    } else if (isWhipping(p)) {
+      const angle = (1 - p.attackMs / TUNING.whipMs) * 360 * p.facing;
+      v.setAngle(angle);
+      if (hasPower(this.powers, "sword")) {
+        // The tail swings the sword around with the spin.
+        const rad = Phaser.Math.DegToRad(angle + (p.facing > 0 ? 180 : 0));
+        this.swordView
+          .setVisible(true)
+          .setPosition(this.body.center.x, this.body.center.y)
+          .setRotation(rad);
+      }
     } else {
       const lean = p.pose === "slide" ? 10 * p.facing : (p.vx / TUNING.runSpeed) * 4;
       v.setAngle(lean);

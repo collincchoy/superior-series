@@ -52,6 +52,12 @@ describe("parseLevel", () => {
     ]);
   });
 
+  it("power-up amber letters become amber tiles with contents", () => {
+    const level = parseLevel(["hfpwA", "P....", "#####"]);
+    expect(level.tiles[0]).toEqual(["amber", "amber", "amber", "amber", "amber"]);
+    expect(level.amberContents).toEqual({ "0,0": "heart", "1,0": "fire", "2,0": "pound", "3,0": "sword" });
+  });
+
   it("parses every banana minion variant", () => {
     const { spawns } = parseLevel(["Pgybsm", "######"]);
     expect(spawns.map((s) => s.kind)).toEqual([

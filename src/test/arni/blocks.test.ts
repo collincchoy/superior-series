@@ -67,6 +67,13 @@ describe("hitAmber", () => {
     expect(reward).toEqual({ coins: AMBER_COINS });
   });
 
+  it("amber holding a power-up releases it instead of coins", () => {
+    const l = parseLevel(["..f.w.", "......", "P.....", "######"]);
+    expect(hitAmber(l, 2, 0).reward).toEqual({ powerUp: "fire" });
+    expect(hitAmber(l, 4, 0).reward).toEqual({ powerUp: "sword" });
+    expect(hitAmber(l, 2, 0).level.tiles[0][2]).toBe("spent");
+  });
+
   it("spent amber gives nothing", () => {
     const l = level();
     const r = hitAmber(l, 4, 2);

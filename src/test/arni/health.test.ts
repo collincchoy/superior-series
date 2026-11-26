@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   damage,
+  hasBonusHeart,
+  heal,
   initialHealth,
   isInvulnerable,
   respawnHealth,
@@ -52,5 +54,28 @@ describe("health", () => {
     const h = respawnHealth({ hearts: 0, maxHearts: 3, invulnMs: 0 });
     expect(h.hearts).toBe(3);
     expect(isInvulnerable(h)).toBe(true);
+  });
+});
+
+describe("extra heart pickup", () => {
+  it("heals a lost heart", () => {
+    const hurt = { hearts: 2, maxHearts: 3, invulnMs: 0 };
+    expect(heal(hurt).hearts).toBe(3);
+  });
+
+  it("at full health gives one golden bonus heart (but only one)", () => {
+    const full = initialHealth();
+    const bonus = heal(full);
+    expect(bonus.hearts).toBe(full.maxHearts + 1);
+    expect(hasBonusHeart(bonus)).toBe(true);
+    expect(heal(bonus).hearts).toBe(full.maxHearts + 1);
+  });
+
+  it("the bonus heart is the first one lost", () => {
+    const bonus = heal(initialHealth());
+    const { health, result } = damage(bonus);
+    expect(result).toBe("hurt");
+    expect(health.hearts).toBe(health.maxHearts);
+    expect(hasBonusHeart(health)).toBe(false);
   });
 });
