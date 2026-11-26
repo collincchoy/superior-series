@@ -1,28 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420">
-  <!-- Parallax jungle backdrop. Left and right edges match so it tiles horizontally. -->
-  <!-- far volcano -->
-  <path d="M760 420 L900 150 Q930 130 960 150 L1100 420 Z" fill="#9a7bc9"/>
-  <path d="M900 150 Q930 130 960 150 L948 176 Q930 168 914 178 Z" fill="#ff7a3d"/>
-  <g fill="#ffffff" opacity="0.75">
-    <circle cx="935" cy="110" r="22"/><circle cx="960" cy="80" r="28"/><circle cx="1000" cy="58" r="22"/>
+  <!-- Volcanic jungle backdrop. Left and right edges match so it tiles horizontally. -->
+  <!-- big volcano with lava -->
+  <path d="M640 420 L860 110 Q900 86 940 110 L1160 420 Z" fill="#6c5aa8"/>
+  <path d="M860 110 Q900 86 940 110 L928 140 Q900 128 872 140 Z" fill="#ff6a2e"/>
+  <path d="M884 136 Q880 200 860 250 Q850 300 830 340 Q846 300 870 250 Q892 200 900 138 Z" fill="#ff8a3d"/>
+  <path d="M912 138 Q930 220 980 300 Q950 230 922 136 Z" fill="#ffb347"/>
+  <g fill="#ffffff" opacity="0.8"><circle cx="905" cy="70" r="24"/><circle cx="935" cy="40" r="30"/><circle cx="985" cy="22" r="22"/></g>
+  <!-- far hills -->
+  <path d="M0 270 Q90 220 180 255 Q280 205 380 250 Q470 215 560 255 Q640 225 720 262 Q800 232 880 266 Q980 225 1080 258 Q1180 222 1280 270 V420 H0 Z" fill="#8d74c9"/>
+  <!-- palms & cycads in teal silhouette -->
+  <g fill="#2a9d8f">
+    <path d="M196 420 Q204 330 186 250 L194 248 Q214 330 208 420 Z"/>
+    <path d="M190 250 Q140 226 106 250 Q150 242 190 258 Z M190 250 Q236 222 272 244 Q232 242 192 258 Z M190 250 Q176 208 140 198 Q170 222 186 256 Z M190 250 Q210 206 246 202 Q214 224 194 256 Z"/>
+    <path d="M610 420 Q604 350 624 284 L632 286 Q616 350 622 420 Z"/>
+    <path d="M628 284 Q586 268 556 290 Q596 280 628 292 Z M628 284 Q670 262 702 282 Q664 280 630 292 Z M628 284 Q616 248 586 240 Q612 262 626 290 Z"/>
   </g>
-  <!-- far canopy -->
-  <path d="M0 260 Q60 220 120 250 Q180 200 250 240 Q320 210 380 250 Q450 205 520 245 Q600 215 660 250 Q720 210 800 248 Q870 220 940 252 Q1010 212 1080 246 Q1150 215 1210 250 Q1250 230 1280 260 V420 H0 Z" fill="#5bbf9a"/>
-  <!-- palms -->
-  <g>
-    <path d="M200 420 Q206 320 186 236" fill="none" stroke="#8a6a4a" stroke-width="12" stroke-linecap="round"/>
-    <g fill="#3f9e5a"><path d="M186 236 Q140 216 108 240 Q150 232 186 244 Z"/><path d="M186 236 Q230 210 266 232 Q226 230 188 244 Z"/><path d="M186 236 Q170 196 136 186 Q166 210 182 242 Z"/><path d="M186 236 Q206 196 240 192 Q210 212 190 242 Z"/></g>
-    <path d="M620 420 Q612 340 632 270" fill="none" stroke="#8a6a4a" stroke-width="10" stroke-linecap="round"/>
-    <g fill="#3f9e5a"><path d="M632 270 Q590 254 562 274 Q600 266 632 278 Z"/><path d="M632 270 Q672 248 704 268 Q668 266 634 278 Z"/><path d="M632 270 Q620 236 590 228 Q616 248 630 276 Z"/></g>
-  </g>
-  <!-- near jungle -->
-  <path d="M0 330 Q80 290 160 320 Q240 280 330 318 Q420 290 500 324 Q590 286 680 322 Q770 292 860 326 Q950 288 1040 322 Q1130 294 1210 320 Q1250 306 1280 330 V420 H0 Z" fill="#2f9a55"/>
-  <!-- giant fern fronds -->
-  <g fill="#257a45">
-    <path d="M420 420 Q400 340 340 310 Q390 350 404 420 Z"/>
-    <path d="M430 420 Q450 330 520 300 Q462 348 444 420 Z"/>
+  <!-- near rocky ridge -->
+  <path d="M0 330 L70 300 L140 318 L220 284 L300 316 L380 296 L470 324 L560 290 L650 320 L740 298 L830 326 L920 292 L1010 320 L1100 300 L1190 322 L1280 330 V420 H0 Z" fill="#4e3f84"/>
+  <g fill="#1f8a7a">
+    <path d="M420 420 Q400 340 340 312 Q392 352 404 420 Z"/>
+    <path d="M430 420 Q450 332 520 302 Q462 350 444 420 Z"/>
     <path d="M1000 420 Q980 350 930 326 Q972 362 986 420 Z"/>
     <path d="M1010 420 Q1030 344 1092 318 Q1040 360 1024 420 Z"/>
   </g>
-  <path d="M0 380 Q160 360 320 384 T640 380 T960 382 T1280 380 V420 H0 Z" fill="#1f7a42"/>
+  <path d="M0 384 Q160 366 320 386 T640 382 T960 384 T1280 384 V420 H0 Z" fill="#3a2f66"/>
 </svg>

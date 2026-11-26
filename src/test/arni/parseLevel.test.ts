@@ -84,7 +84,7 @@ describe("parseLevel", () => {
 
 describe("tileVariant", () => {
   const level = parseLevel(["P...", ".##.", ".##.", "####"]);
-  const isFill = (v: string) => v === "fill" || v === "fillFossil";
+  const isFill = (v: string) => v === "fill" || v === "fillAccent" || v === "fillCrack";
 
   it("ground with open sky above is a top tile, rounded on open sides", () => {
     expect(tileVariant(level, 1, 1)).toBe("topLeft");
@@ -97,20 +97,37 @@ describe("tileVariant", () => {
     expect(tileVariant(level, 3, 3)).toBe("top");
   });
 
-  it("ground under ground is fill (sometimes with a fossil)", () => {
+  it("ground under ground is fill (sometimes with a crystal)", () => {
     expect(isFill(tileVariant(level, 1, 2))).toBe(true);
     expect(isFill(tileVariant(level, 2, 3))).toBe(true);
   });
 
-  it("fossils are deterministic and occasional", () => {
+  it("crystals are deterministic and occasional", () => {
     const big = parseLevel(["P" + ".".repeat(39), ...Array(20).fill("#".repeat(40))]);
     const variants: string[] = [];
     for (let ty = 2; ty < 21; ty++)
       for (let tx = 0; tx < 40; tx++) variants.push(tileVariant(big, tx, ty));
-    const fossils = variants.filter((v) => v === "fillFossil").length;
-    expect(fossils).toBeGreaterThan(0);
-    expect(fossils / variants.length).toBeLessThan(0.2);
+    const share = (v: string) => variants.filter((x) => x === v).length / variants.length;
+    expect(share("fillAccent")).toBeGreaterThan(0.03);
+    expect(share("fillAccent")).toBeLessThan(0.15);
+    expect(share("fillCrack")).toBeGreaterThan(0.1);
+    expect(share("fillCrack")).toBeLessThan(0.35);
+    expect(share("fill")).toBeGreaterThan(0.5);
     expect(tileVariant(big, 5, 5)).toBe(tileVariant(big, 5, 5));
+  });
+
+  it("decorations don't line up in a regular pattern along a row", () => {
+    const big = parseLevel(["P" + ".".repeat(59), ...Array(3).fill("#".repeat(60))]);
+    const row = Array.from({ length: 60 }, (_, tx) => tileVariant(big, tx, 2));
+    const gaps: number[] = [];
+    let last = -1;
+    row.forEach((v, tx) => {
+      if (v !== "fill") {
+        if (last >= 0) gaps.push(tx - last);
+        last = tx;
+      }
+    });
+    expect(new Set(gaps).size).toBeGreaterThan(2);
   });
 
   it("branches get end caps", () => {

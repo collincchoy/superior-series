@@ -27,6 +27,12 @@ export interface PlayerState {
   jumpHeld: boolean;
   /** In the rising part of a jump that can still be cut short. */
   rising: boolean;
+  /** Remaining time the tail-whip hitbox is active. */
+  attackMs: number;
+  attackCooldownMs: number;
+  attackHeld: boolean;
+  /** Remaining knockback stun (no control). */
+  stunMs: number;
 }
 
 export interface PlayerEnv {
@@ -45,7 +51,8 @@ export type PlayerEvent =
   | "crouch"
   | "stand"
   | "slideStart"
-  | "slideEnd";
+  | "slideEnd"
+  | "whip";
 
 export interface StepResult {
   state: PlayerState;
@@ -76,6 +83,42 @@ export function initialPlayer(): PlayerState {
     slideMs: 0,
     jumpHeld: false,
     rising: false,
+    attackMs: 0,
+    attackCooldownMs: 0,
+    attackHeld: false,
+    stunMs: 0,
+  };
+}
+
+export function isWhipping(s: PlayerState): boolean {
+  return s.attackMs > 0;
+}
+
+/** Knock Arni away from a hit. `fromDir` is the side the hit came from (+1 right, -1 left, 0 below). */
+export function applyHurt(s: PlayerState, fromDir: -1 | 0 | 1): PlayerState {
+  return {
+    ...s,
+    vx: -fromDir * T.hurtKnockbackX,
+    vy: -T.hurtKnockbackY,
+    stunMs: T.hurtStunMs,
+    grounded: false,
+    rising: false,
+    attackMs: 0,
+    slideMs: 0,
+    chargeMs: 0,
+    pose: s.pose === "slide" ? "crouch" : s.pose,
+  };
+}
+
+/** Bounce off a stomped enemy. Holding jump bounces higher (and can still be cut short). */
+export function applyBounce(s: PlayerState, jumpHeld: boolean): PlayerState {
+  return {
+    ...s,
+    vy: -(jumpHeld ? T.stompBounceHigh : T.stompBounce),
+    grounded: false,
+    rising: jumpHeld,
+    coyoteMs: 0,
+    jumpBufferMs: 0,
   };
 }
 
@@ -102,13 +145,28 @@ export function stepPlayer(
   }
   s.coyoteMs = s.grounded ? T.coyoteMs : Math.max(0, s.coyoteMs - dtMs);
 
+  // Knockback stun: no steering, jumping or attacking
+  const stunned = prev.stunMs > 0;
+  s.stunMs = Math.max(0, s.stunMs - dtMs);
+
   // Jump press + buffer
   const jumpNow = input.jump || input.up;
-  const jumpPressed = jumpNow && !prev.jumpHeld;
+  const jumpPressed = jumpNow && !prev.jumpHeld && !stunned;
   s.jumpBufferMs = jumpPressed ? T.jumpBufferMs : Math.max(0, s.jumpBufferMs - dtMs);
   s.jumpHeld = jumpNow;
 
-  const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+  // Tail whip
+  s.attackMs = Math.max(0, s.attackMs - dtMs);
+  s.attackCooldownMs = Math.max(0, s.attackCooldownMs - dtMs);
+  const attackPressed = input.attack && !prev.attackHeld;
+  s.attackHeld = input.attack;
+  if (attackPressed && !stunned && s.attackCooldownMs === 0 && s.pose !== "slide") {
+    s.attackMs = T.whipMs;
+    s.attackCooldownMs = T.whipCooldownMs;
+    events.push("whip");
+  }
+
+  const dir = stunned ? 0 : (input.right ? 1 : 0) - (input.left ? 1 : 0);
   if (dir !== 0 && s.pose !== "slide") s.facing = dir as Facing;
 
   // Pose transitions
@@ -146,6 +204,8 @@ export function stepPlayer(
   // Horizontal
   if (s.pose === "slide") {
     s.vx = approach(s.vx, 0, T.slideFriction * dt);
+  } else if (stunned) {
+    s.vx = approach(s.vx, 0, T.airDecel * dt);
   } else {
     const max = s.pose === "crouch" ? T.crawlSpeed : T.runSpeed;
     const target = dir * max;

@@ -46,7 +46,7 @@ describe("asset manifest", () => {
       );
       expect(keys.size, kind).toBe(4);
     }
-    expect(tileTextureKey("ground", "fill")).not.toBe(tileTextureKey("ground", "fillFossil"));
+    expect(tileTextureKey("ground", "fill")).not.toBe(tileTextureKey("ground", "fillAccent"));
   });
 
   it("Arni has a texture for every pose, all the same frame size", () => {

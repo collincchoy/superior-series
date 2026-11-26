@@ -32,7 +32,8 @@ export const TILE_VARIANTS = [
   "topRight",
   "topSolo",
   "fill",
-  "fillFossil",
+  "fillAccent",
+  "fillCrack",
   "single",
 ] as const;
 export type TileVariant = (typeof TILE_VARIANTS)[number];
@@ -83,14 +84,17 @@ export function parseLevel(rows: readonly string[]): Level {
 
 /**
  * Which art variant a tile uses, so terrain looks organic rather than gridded:
- * mossy tops with rounded ends on exposed sides, rock fill with the odd fossil,
+ * basalt caps with chamfered ends on exposed sides, rock fill with the odd crystal,
  * and branches with leafy end caps.
  */
 export function tileVariant(level: Level, tx: number, ty: number): TileVariant {
   const kind = level.tiles[ty][tx];
   if (kind === "ground") {
     if (ty > 0 && level.tiles[ty - 1][tx] === "ground") {
-      return fossilAt(tx, ty) ? "fillFossil" : "fill";
+      const h = tileHash(tx, ty) % 100;
+      if (h < 8) return "fillAccent";
+      if (h < 30) return "fillCrack";
+      return "fill";
     }
     return edgeVariant(level, tx, ty, kind);
   }
@@ -108,10 +112,11 @@ function edgeVariant(level: Level, tx: number, ty: number, kind: TileKind): Tile
   return "top";
 }
 
-/** Deterministic sprinkle of fossils (~1 in 11 fill tiles). */
-function fossilAt(tx: number, ty: number): boolean {
-  const h = Math.imul(tx, 73856093) ^ Math.imul(ty, 19349663);
-  return (h >>> 0) % 11 === 0;
+/** Well-mixed deterministic hash so decorations don't form visible patterns. */
+function tileHash(tx: number, ty: number): number {
+  let h = Math.imul(tx, 374761393) + Math.imul(ty, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
 }
 
 /** Center of a tile in world pixels. */

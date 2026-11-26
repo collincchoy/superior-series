@@ -41,4 +41,23 @@ export const TUNING = {
   slideSpeed: 560,
   slideMs: 450,
   slideFriction: 500,
+
+  // Tail whip (spin attack — hits both sides)
+  whipMs: 180,
+  whipCooldownMs: 380,
+  /** How far the tail reaches past Arni's body on each side. */
+  whipReach: 52,
+
+  // Stomp
+  stompBounce: 620,
+  stompBounceHigh: 900,
+  /** How far below an enemy's top Arni's feet can be (last frame) and still count as a stomp. */
+  stompTolerance: 14,
+
+  // Getting hurt
+  maxHearts: 3,
+  invulnMs: 1200,
+  hurtStunMs: 300,
+  hurtKnockbackX: 300,
+  hurtKnockbackY: 520,
 } as const;

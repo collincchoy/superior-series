@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  applyBounce,
+  applyHurt,
   bodyFor,
+  isWhipping,
   initialPlayer,
   stepPlayer,
   type PlayerEnv,
@@ -267,5 +270,80 @@ describe("slide", () => {
   it("does not start a slide from a slow walk", () => {
     const sim = new Sim().step(input({ right: true }), 2).step(input({ right: true, down: true }));
     expect(sim.state.pose).toBe("crouch");
+  });
+});
+
+describe("tail whip (spin attack)", () => {
+  it("a fresh attack press starts a whip", () => {
+    const sim = new Sim().step(input({ attack: true }));
+    expect(isWhipping(sim.state)).toBe(true);
+    expect(sim.events).toContain("whip");
+  });
+
+  it("whip ends after its duration", () => {
+    const sim = new Sim().step(input({ attack: true }), Math.ceil(T.whipMs / DT) + 1);
+    expect(isWhipping(sim.state)).toBe(false);
+  });
+
+  it("holding attack does not repeat", () => {
+    const sim = new Sim().step(input({ attack: true }), 120);
+    expect(sim.events.filter((e) => e === "whip")).toHaveLength(1);
+  });
+
+  it("cooldown prevents spamming, then allows another whip", () => {
+    const sim = new Sim().step(input({ attack: true })).step(input()).step(input({ attack: true }));
+    expect(sim.events.filter((e) => e === "whip")).toHaveLength(1);
+    sim.step(input(), Math.ceil(T.whipCooldownMs / DT)).step(input({ attack: true }));
+    expect(sim.events.filter((e) => e === "whip")).toHaveLength(2);
+  });
+
+  it("works in the air", () => {
+    const sim = new Sim().step(input({ jump: true }), 5).step(input({ jump: true, attack: true }));
+    expect(sim.events).toContain("whip");
+  });
+
+  it("can't whip mid-slide", () => {
+    const sim = new Sim().step(input({ right: true }), 60).step(input({ down: true }), 2);
+    sim.step(input({ down: true, attack: true }));
+    expect(sim.events).not.toContain("whip");
+  });
+});
+
+describe("getting hurt", () => {
+  it("knocks Arni away from the source and up", () => {
+    const s = applyHurt({ ...initialPlayer(), grounded: true }, 1); // hit from the right
+    expect(s.vx).toBeLessThan(0);
+    expect(s.vy).toBeLessThan(0);
+    expect(s.stunMs).toBeGreaterThan(0);
+  });
+
+  it("ignores movement and jump input while stunned", () => {
+    const sim = new Sim();
+    sim.state = applyHurt(sim.state, -1); // knocked right
+    const vx = sim.state.vx;
+    sim.step(input({ left: true, jump: true }));
+    expect(sim.events).not.toContain("jump");
+    expect(sim.state.vx).toBeGreaterThan(0);
+    expect(sim.state.vx).toBeLessThanOrEqual(vx);
+  });
+
+  it("control returns after the stun", () => {
+    const sim = new Sim();
+    sim.state = applyHurt(sim.state, -1);
+    sim.step(input(), Math.ceil(T.hurtStunMs / DT) + 1);
+    sim.step(input({ left: true }), 30);
+    expect(sim.state.vx).toBeLessThan(0);
+  });
+});
+
+describe("stomp bounce", () => {
+  it("bounces Arni up, higher when jump is held", () => {
+    const air = { ...initialPlayer(), vy: 500 };
+    const low = applyBounce(air, false);
+    const high = applyBounce(air, true);
+    expect(low.vy).toBe(-T.stompBounce);
+    expect(high.vy).toBe(-T.stompBounceHigh);
+    expect(high.rising).toBe(true);
+    expect(high.grounded).toBe(false);
   });
 });

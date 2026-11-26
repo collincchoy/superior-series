@@ -51,13 +51,14 @@ export const ASSETS = {
 
   "arni-crouch": feet("arni-crouch.svg", 96, 96),
 
-  // Terrain — mossy jungle ledges over layered rock
+  // Terrain — volcanic basalt with glowing cracks
   "ground-top": tile("ground-top.svg"),
   "ground-top-left": tile("ground-top-left.svg"),
   "ground-top-right": tile("ground-top-right.svg"),
   "ground-top-solo": tile("ground-top-solo.svg"),
   "ground-fill": tile("ground-fill.svg"),
-  "ground-fossil": tile("ground-fossil.svg"),
+  "ground-crystal": tile("ground-crystal.svg"),
+  "ground-crack": tile("ground-crack.svg"),
   // One-way tree branches
   "branch-mid": tile("branch-mid.svg"),
   "branch-left": tile("branch-left.svg"),
@@ -73,6 +74,11 @@ export const ASSETS = {
   coin: { file: "coin.svg", width: 36, height: 36, originX: 0.5, originY: 0.5 },
   egg: feet("egg.svg", 44, 52),
   checkpoint: feet("checkpoint.svg", 48, 112),
+  "checkpoint-on": feet("checkpoint-on.svg", 48, 112),
+
+  // HUD
+  "heart-full": { file: "heart-full.svg", width: 44, height: 40, originX: 0, originY: 0 },
+  "heart-empty": { file: "heart-empty.svg", width: 44, height: 40, originX: 0, originY: 0 },
 
   // Backgrounds
   "bg-sky": { file: "bg-sky.svg", width: 1280, height: 720, originX: 0, originY: 0 },
@@ -88,7 +94,8 @@ const GROUND_TEXTURES: Record<TileVariant, AssetKey> = {
   topRight: "ground-top-right",
   topSolo: "ground-top-solo",
   fill: "ground-fill",
-  fillFossil: "ground-fossil",
+  fillAccent: "ground-crystal",
+  fillCrack: "ground-crack",
   single: "ground-top-solo",
 };
 
@@ -98,7 +105,8 @@ const BRANCH_TEXTURES: Record<TileVariant, AssetKey> = {
   topRight: "branch-right",
   topSolo: "branch-solo",
   fill: "branch-mid",
-  fillFossil: "branch-mid",
+  fillAccent: "branch-mid",
+  fillCrack: "branch-mid",
   single: "branch-solo",
 };
 

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="112" viewBox="0 0 48 112">
+  <!-- Checkpoint totem, lit: glowing runes and a bright flame. Same frame as checkpoint.svg. -->
+  <ellipse cx="24" cy="18" rx="22" ry="20" fill="#ffb347" opacity="0.25"/>
+  <path d="M12 110 L14 40 H34 L36 110 Z" fill="#7d6bb8" stroke="#271f40" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M16 56 H32 M17 76 H31 M18 94 H30" stroke="#ffd36a" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="24" cy="66" r="5" fill="#3ef0d0" stroke="#0e8f7a" stroke-width="1.5"/>
+  <path d="M6 30 H42 L36 42 H12 Z" fill="#4b3e74" stroke="#271f40" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M10 30 Q8 16 18 8 Q16 18 24 14 Q22 4 30 0 Q30 10 36 14 Q40 20 38 30 Z" fill="#ff6a2e" stroke="#a3300c" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M16 30 Q15 22 21 18 Q21 24 26 22 Q26 16 30 12 Q32 22 32 30 Z" fill="#ffd36a"/>
+  <path d="M21 30 Q21 26 24 24 Q27 26 27 30 Z" fill="#fff8d8"/>
+</svg>
