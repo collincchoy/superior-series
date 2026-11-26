@@ -11,6 +11,8 @@ export const HUD_KEYS = {
   eggsTotal: "eggsTotal",
   /** Object of power-up timers (ms left), mutated in place by the level; read every frame. */
   powers: "powers",
+  /** Rex hits left in the boss fight; -1 hides the boss bar. */
+  bossHits: "bossHits",
 } as const;
 
 /** Game-wide events the HUD emits. */
@@ -39,7 +41,11 @@ export class HudScene extends Phaser.Scene {
   create(): void {
     this.hearts = [];
     this.eggs = [];
-    this.powerBadges = new Map(); // restart reuses this instance; old objects are gone
+    // Restart reuses this instance; old game objects are gone.
+    this.powerBadges = new Map();
+    this.bossBar = null;
+    this.bossPips = [];
+    this.bossShown = -1;
     this.renderHearts();
 
     this.coinIcon = this.add.image(24, 76, "hud-coin").setOrigin(0);
@@ -84,7 +90,40 @@ export class HudScene extends Phaser.Scene {
 
   private powerBadges = new Map<TimedPower, { icon: Phaser.GameObjects.Image; ring: Phaser.GameObjects.Graphics }>();
 
+  // ── Rex's health bar ──────────────────────────────────────────
+
+  private bossBar: Phaser.GameObjects.Container | null = null;
+  private bossPips: Phaser.GameObjects.Rectangle[] = [];
+  private bossShown = -1;
+
+  private updateBossBar(): void {
+    const hits = (this.registry.get(HUD_KEYS.bossHits) as number | undefined) ?? -1;
+    if (hits === this.bossShown) return;
+    const prev = this.bossShown;
+    this.bossShown = hits;
+    if (hits < 0) {
+      this.bossBar?.setVisible(false);
+      return;
+    }
+    if (!this.bossBar) {
+      const cx = VIEW_WIDTH / 2;
+      const label = this.add.text(0, 0, "REX", { ...TEXT_STYLE, fontSize: "28px", color: "#ffd36a" }).setOrigin(1, 0.5);
+      this.bossPips = [0, 1, 2].map((i) =>
+        this.add.rectangle(16 + i * 62, 0, 56, 22, 0xffe14d).setOrigin(0, 0.5).setStrokeStyle(4, 0x271f40),
+      );
+      this.bossBar = this.add.container(cx - 90, 34, [label, ...this.bossPips]);
+      this.bossBar.setAlpha(0);
+      this.tweens.add({ targets: this.bossBar, alpha: 1, y: { from: 0, to: 34 }, duration: 400, ease: "Back.out" });
+    }
+    this.bossBar.setVisible(true);
+    this.bossPips.forEach((p, i) => p.setFillStyle(i < hits ? 0xffe14d : 0x3a2f66, i < hits ? 1 : 0.6));
+    if (prev > hits && prev >= 0) {
+      this.tweens.add({ targets: this.bossBar, scale: { from: 1.25, to: 1 }, duration: 300, ease: "Back.out" });
+    }
+  }
+
   update(): void {
+    this.updateBossBar();
     const timers = this.registry.get(HUD_KEYS.powers) as Record<TimedPower, number> | undefined;
     if (!timers) return;
     let slot = 0;

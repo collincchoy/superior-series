@@ -4,6 +4,7 @@ import { overlaps, whipHitbox, type Rect } from "../combat.js";
 import { TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH } from "../constants.js";
 import { damage, heal, initialHealth, isInvulnerable, respawnHealth, tickHealth, type Health } from "../health.js";
 import { ACTIONS, emptyInput, inputFromPressed, KEYBOARD_BINDINGS, type PlayerInput } from "../input.js";
+import { logicDeltaMs } from "../frameTiming.js";
 import { rectHitsSolid } from "../level/collision.js";
 import type { PowerUpKind } from "../level/legend.js";
 import {
@@ -32,16 +33,17 @@ import {
   type Pose,
 } from "../player.js";
 import { activateCheckpoint, initialProgress, respawnTile, type Progress } from "../progress.js";
+import { COIN_TROPHY, trophies } from "../victory.js";
+import type { VictoryData } from "./VictoryScene.js";
 import { TUNING } from "../tuning.js";
 import { bodyRect, centerX, type LevelContext } from "./context.js";
 import { HUD_EVENTS, HUD_KEYS } from "./HudScene.js";
 import { Blocks } from "./systems/Blocks.js";
+import { Boss } from "./systems/Boss.js";
 import { Enemies } from "./systems/Enemies.js";
 import { Pickups } from "./systems/Pickups.js";
 import { Platforms } from "./systems/Platforms.js";
 
-/** Max simulated frame time, so a hitch doesn't launch Arni through floors. */
-const MAX_DT_MS = 50;
 const LOOKAHEAD_X = 110;
 const CHARGE_TINT = 0xfff27a;
 const HURT_TINT = 0xff4f7b;
@@ -90,6 +92,9 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
   private pickups!: Pickups;
   private platforms!: Platforms;
   private enemies!: Enemies;
+  private boss!: Boss;
+  private won = false;
+  private startedAt = 0;
   private dying = false;
   private hurtFlashUntil = 0;
   private lastBottom = 0;
@@ -229,6 +234,8 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     this.keys = new Map();
     this.lookahead = 0;
     this.hurtFlashUntil = 0;
+    this.won = false;
+    this.startedAt = this.time.now;
 
     const worldW = this.level.width * TILE_SIZE;
     const worldH = this.level.height * TILE_SIZE;
@@ -241,6 +248,13 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     this.pickups = new Pickups(this);
     this.platforms = new Platforms(this);
     this.enemies = new Enemies(this, this.blocks);
+    this.boss = new Boss(this, this.blocks, this.enemies);
+    this.boss.onHits = (n) => this.registry.set(HUD_KEYS.bossHits, n);
+    this.boss.onStart = (arena) => {
+      // Respawn inside the arena once the gate has closed.
+      this.progress = activateCheckpoint(this.progress, { tx: arena.leftTx, ty: arena.floorTy }).progress;
+    };
+    this.boss.onDefeated = () => this.win();
     this.createCheckpoints();
 
     this.blocks.addArniColliders((tile) => this.touchHazard(tile.body, (tile.getData("tile") as { kind: string }).kind));
@@ -269,12 +283,19 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     this.registry.set(HUD_KEYS.eggs, 0);
     this.registry.set(HUD_KEYS.eggsTotal, this.score.eggsTotal);
     this.registry.set(HUD_KEYS.powers, this.hudPowers);
+    this.registry.set(HUD_KEYS.bossHits, -1); // hidden until the fight starts
     this.scene.launch("hud");
   }
 
-  update(_time: number, delta: number): void {
-    const dt = Math.min(delta, MAX_DT_MS);
+  update(): void {
     this.bg.tilePositionX = this.cameras.main.scrollX * 0.3;
+    // Lockstep with physics: on frames without a physics step, contact flags
+    // are stale (they cancelled jumps and re-triggered the mushroom). See frameTiming.ts.
+    const dt = logicDeltaMs(this.physics.world.stepsLastFrame, this.physics.world.fps);
+    if (dt === 0) {
+      this.updateCamera();
+      return;
+    }
     this.health = tickHealth(this.health, dt);
     this.powers = tickPowers(this.powers, dt);
     Object.assign(this.hudPowers, this.powers.timers);
@@ -283,13 +304,16 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     this.platforms.update(dt);
     this.updateArni(input, dt);
     this.enemies.update(dt);
+    this.boss.update(dt);
 
     if (!this.dying) {
       this.tryFireRoar(input);
       const sword = hasPower(this.powers, "sword");
       const whip = isWhipping(this.player) ? whipHitbox(this.arniRect(), sword ? POWER.swordReachMult : 1) : null;
       if (whip) this.blocks.whip(whip);
-      if (this.enemies.contact(whip, this.lastBottom, sword ? POWER.swordDamage : 1) === "stomp") {
+      const enemyHit = this.enemies.contact(whip, this.lastBottom, sword ? POWER.swordDamage : 1);
+      const bossHit = this.boss.contact(whip, this.lastBottom);
+      if (enemyHit === "stomp" || bossHit !== "none") {
         this.player = applyBounce(this.player, this.jumpHeld());
         this.body.setVelocityY(this.player.vy);
         this.squashView(0.8, 1.2);
@@ -305,8 +329,21 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
 
   // ── Pause menu hooks ──────────────────────────────────────────────
 
+  /** Rex is beaten: freeze the level and show the victory screen. */
+  private win(): void {
+    if (this.won) return;
+    this.won = true;
+    const data: VictoryData = {
+      score: { ...this.score },
+      timeMs: this.time.now - this.startedAt,
+      trophies: trophies(this.score, COIN_TROPHY),
+    };
+    this.scene.pause();
+    this.scene.launch("victory", data);
+  }
+
   openPause(): void {
-    if (!this.sys.isActive() || this.scene.isActive("pause")) return;
+    if (this.won || !this.sys.isActive() || this.scene.isActive("pause")) return;
     this.scene.pause();
     this.scene.launch("pause");
   }
@@ -606,6 +643,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
           break;
         case "whip":
           this.enemies.newSwing();
+          this.boss.newSwing();
           this.whipSwoosh();
           break;
         case "poundStart":
@@ -625,6 +663,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     const b = this.body;
     this.blocks.smashBelow(this.arniRect());
     this.enemies.poundShock(b.center.x, b.bottom, TUNING.poundRadius);
+    this.boss.poundShock(b.center.x, b.bottom, TUNING.poundRadius);
     this.cameras.main.shake(160, 0.01);
     this.squashView(1.45, 0.6, 140);
     this.dust(b.center.x - 30, b.bottom, 8);
@@ -664,6 +703,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
   private syncViews(): void {
     this.platforms.syncViews();
     this.enemies.syncViews();
+    this.boss.syncView();
 
     const p = this.player;
     const v = this.view;

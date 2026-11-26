@@ -130,7 +130,7 @@ export function unreachableThings(level: Level, reach: JumpReach): Unreachable[]
 
   const out: Unreachable[] = [];
   for (const s of level.spawns) {
-    if (s.kind === "platformH" || s.kind === "platformV") continue; // gadgets, not goals
+    if (s.kind === "platformH" || s.kind === "platformV" || s.kind === "gate") continue; // gadgets, not goals
     const ok =
       s.kind === "coin" || !isStandable(level, s.tx, s.ty)
         ? grabbable(s.tx, s.ty)

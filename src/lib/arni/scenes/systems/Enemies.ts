@@ -291,6 +291,10 @@ export class Enemies {
         this.killFireball(f);
         continue;
       }
+      if (this.extraFireTarget?.(r)) {
+        this.killFireball(f);
+        continue;
+      }
       for (const p of this.peels) {
         if (!p.dead && overlaps(r, bodyRect(p.body))) this.killPeel(p);
       }
@@ -319,18 +323,33 @@ export class Enemies {
   // ── Peels ──────────────────────────────────────────────────────
 
   private throwPeel(m: Minion, at: { dx: number; dy: number }): void {
-    const { host: scene } = this.ctx;
-    const x = m.body.center.x;
     const y = m.body.top + 10;
+    // `at` is relative to the thrower's feet; aim a bit above Arni's feet.
+    this.lobPeel(m.body.center.x, y, at.dx, at.dy + (m.body.bottom - y) - 30);
+    this.ctx.host.tweens.add({ targets: m.view, scaleY: 1.2, duration: 90, yoyo: true });
+  }
+
+  /** Lob a peel from (x, y) so it lands at (x+dx, y+dy). Used by Spotters and Rex. */
+  lobPeel(x: number, y: number, dx: number, dy: number): void {
+    const { host: scene } = this.ctx;
     const body = scene.physics.add.body(x - 12, y - 10, 24, 20);
     body.setGravityY(PEEL_GRAVITY);
-    const { vx, vy } = lobVelocity(at.dx, at.dy + (m.body.bottom - y) - 30, PEEL_FLIGHT_MS, PEEL_GRAVITY);
+    const { vx, vy } = lobVelocity(dx, dy, PEEL_FLIGHT_MS, PEEL_GRAVITY);
     body.setVelocity(vx, vy);
     const img = scene.add.image(x, y, "peel").setDepth(9);
     scene.tweens.add({ targets: img, angle: 360 * Math.sign(vx || 1), duration: 500, repeat: -1 });
     this.peels.push({ img, body, age: 0, dead: false });
-    scene.tweens.add({ targets: m.view, scaleY: 1.2, duration: 90, yoyo: true });
   }
+
+  /** Bring a minion into play (Rex's Minion Call). */
+  summon(kind: MinionKind, x: number, feetY: number, facing: Facing): void {
+    const m = this.spawn(kind, x, feetY, facing, true);
+    m.body.setVelocityY(-300);
+    this.ctx.sparks(x, feetY - 30, 16);
+  }
+
+  /** Other things fireballs can hit (Rex). Return true if the fireball was used up. */
+  extraFireTarget: ((r: Rect) => boolean) | null = null;
 
   private updatePeels(dtMs: number, arni: Rect): void {
     for (const p of this.peels) {

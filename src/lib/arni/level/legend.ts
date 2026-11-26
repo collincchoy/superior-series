@@ -52,6 +52,9 @@ export const SPAWN_KINDS = [
   // Moving stone slabs (2 tiles wide, spawn marks the left tile)
   "platformH", // slides right and back
   "platformV", // rises and falls
+  // Boss fight
+  "rex", // Rex the Banana (one per level, needs a gate)
+  "gate", // arena entrance: a stone gate rises here when the fight starts
   // Rex's banana minions, by ripeness
   "bunchling", // green — jittery walker
   "peelback", // ripe yellow — charger
@@ -94,6 +97,8 @@ export const SPAWN_CHARS: Record<string, SpawnKind> = {
   C: "checkpoint",
   H: "platformH",
   V: "platformV",
+  K: "rex",
+  "|": "gate",
   g: "bunchling",
   y: "peelback",
   b: "bruiser",

@@ -92,6 +92,12 @@ export const ASSETS = {
   "powerup-sword": { file: "powerup-sword.svg", width: 48, height: 48, originX: 0.5, originY: 0.5 },
   fireball: { file: "fireball.svg", width: 44, height: 28, originX: 0.5, originY: 0.5 },
   sword: { file: "sword.svg", width: 96, height: 24, originX: 0, originY: 0.5 },
+
+  // Boss
+  rex: feet("rex.svg", 128, 160),
+  "rex-dizzy": feet("rex-dizzy.svg", 128, 160),
+  "rex-defeated": feet("rex-defeated.svg", 128, 160),
+  gate: tile("gate.svg"),
   "hud-coin": { file: "coin.svg", width: 32, height: 32, originX: 0, originY: 0 },
   "hud-egg": { file: "egg.svg", width: 30, height: 36, originX: 0, originY: 0 },
   "hud-egg-empty": { file: "egg-empty.svg", width: 30, height: 36, originX: 0, originY: 0 },
@@ -157,6 +163,8 @@ const SPAWN_TEXTURES: Record<SpawnKind, AssetKey> = {
   checkpoint: "checkpoint",
   platformH: "platform",
   platformV: "platform",
+  rex: "rex",
+  gate: "gate",
   bunchling: "banana-bunchling",
   peelback: "banana-peelback",
   bruiser: "banana-bruiser",

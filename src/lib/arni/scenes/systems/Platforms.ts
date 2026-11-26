@@ -71,6 +71,9 @@ export class Platforms {
   glue(arni: Phaser.Physics.Arcade.Body, jumping: boolean): Ride | null {
     const cand = this.touched ?? this.lastRiding;
     this.touched = null;
+    // Movement since the last logic frame (accumulated across drawn frames).
+    const moved = new Map(this.slabs.map((s) => [s, s.movedX]));
+    for (const s of this.slabs) s.movedX = 0;
     if (!cand || jumping) {
       this.lastRiding = null;
       return null;
@@ -79,7 +82,7 @@ export class Platforms {
     const onX = arni.right > b.left + 4 && arni.left < b.right - 4;
     const gap = arni.bottom - b.top;
     this.lastRiding = onX && gap > -24 && gap < 14 ? cand : null;
-    return this.lastRiding && { body: b, movedX: this.lastRiding.movedX };
+    return this.lastRiding && { body: b, movedX: moved.get(this.lastRiding) ?? 0 };
   }
 
   /**
@@ -99,7 +102,7 @@ export class Platforms {
   /** After physics: record how far each slab moved, and place its image. */
   syncViews(): void {
     for (const s of this.slabs) {
-      s.movedX = s.body.x - s.lastX;
+      s.movedX += s.body.x - s.lastX; // consumed (reset) by glue on the next logic frame
       s.lastX = s.body.x;
       s.img.setPosition(s.body.x, s.body.y);
     }

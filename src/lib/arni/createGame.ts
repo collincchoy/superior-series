@@ -1,9 +1,11 @@
 import Phaser from "phaser";
 import { VIEW_HEIGHT, VIEW_WIDTH } from "./constants.js";
+import { PHYSICS_FPS } from "./frameTiming.js";
 import { BootScene } from "./scenes/BootScene.js";
 import { HudScene } from "./scenes/HudScene.js";
 import { LevelScene } from "./scenes/LevelScene.js";
 import { PauseScene } from "./scenes/PauseScene.js";
+import { VictoryScene } from "./scenes/VictoryScene.js";
 
 /** Boot the Arni game into `parent`. `baseUrl` is the site's BASE_URL. */
 export function createGame(parent: HTMLElement, baseUrl: string): Phaser.Game {
@@ -22,13 +24,14 @@ export function createGame(parent: HTMLElement, baseUrl: string): Phaser.Game {
     },
     physics: {
       default: "arcade",
-      arcade: { debug: false },
+      // Step at least as often as a 120Hz screen redraws (see frameTiming.ts).
+      arcade: { debug: false, fps: PHYSICS_FPS },
     },
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [new BootScene(baseUrl), LevelScene, HudScene, PauseScene],
+    scene: [new BootScene(baseUrl), LevelScene, HudScene, PauseScene, VictoryScene],
   });
 
   if (import.meta.env.DEV) {

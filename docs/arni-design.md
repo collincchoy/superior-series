@@ -61,7 +61,11 @@ Art direction: **organic prehistoric jungle**, not a block grid — mossy rounde
 2. **Banana Charge** — dashes across arena, slams wall, dizzy → stomp.
 3. **Minion Call** — summons minions + mixes earlier attacks, faster.
 
-3 hits total (one per phase); each phase faster. Victory screen shows coins + eggs found.
+3 hits total (one per phase); each phase faster. Rex can only be hurt while **dizzy** (stars, swirly eyes) — by stomp, whip/sword, fireball or ground pound. Stomping a non-dizzy Rex just bounces Arni off ("Ha! Too slow!"), no damage.
+
+Arena (level text): `|` gate, `K` Rex. Crossing into the arena raises the gate behind Arni, locks the camera, shows the REX bar, and moves the respawn point inside the arena.
+
+Victory screen: three trophies — Beat Rex, All Eggs, 40+ Coins — plus time and Play Again.
 
 ## Controls
 - **Keyboard:** Arrows/WASD move, Space/W/Up jump, Down/S crouch, J/X attack, K/C special (fire roar).
