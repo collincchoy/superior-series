@@ -24,7 +24,9 @@ export type LobbyData = {
 };
 
 export type NetMessage =
-  | { type: "join"; name: string; pid?: PlayerId } // pid present on reconnect
+  // pid: saved seat (reconnect). clientId: stable per-tab id, so the host can
+  // recognise the same tab coming back without guessing from names.
+  | { type: "join"; name: string; pid?: PlayerId; clientId?: string }
   | { type: "welcome"; pid: PlayerId; state: GameState }
   | { type: "lobby"; hostName: string; pendingNames: string[]; bots: Array<{ name: string }> }
   | { type: "action"; action: GameAction }
@@ -65,6 +67,8 @@ export interface JoinFailure extends Error {
   peerId?: string;
   elapsedMs?: number;
   errorType?: string;
+  /** Host refused for now (seat held); trying again later may succeed. */
+  retryable?: boolean;
 }
 
 interface PeerJoinErrorDetails {
@@ -92,8 +96,16 @@ const JOIN_STAGE_TIMEOUT_MS: Record<JoinDiagnosticStage, number> = {
 
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 10_000;
-/** ~1.5 minutes of retries before a client gives up and shows "Reconnect". */
+/** Max reconnect attempts before a client gives up and shows "Reconnect". */
 const CLIENT_MAX_RECONNECT_ATTEMPTS = 12;
+/**
+ * Hard cap on total time spent auto-reconnecting. Attempts can each spend up
+ * to the join stage timeouts (≈40s) on top of backoff, so the attempt count
+ * alone could stretch to several minutes.
+ */
+const CLIENT_RECONNECT_BUDGET_MS = 120_000;
+/** First join: retries while the host says our seat is still held. */
+const JOIN_SEAT_IN_USE_RETRIES = 5;
 /** Client → host ping cadence. */
 const HEARTBEAT_INTERVAL_MS = 4000;
 /** No reply to a ping for this long ⇒ the data channel is dead. */
@@ -124,6 +136,11 @@ const SIGNALING_ERROR_TYPES = new Set([
   "disconnected",
 ]);
 
+/** Names compare case/whitespace-insensitively ("alice " === "Alice"). */
+export function sameName(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 function netLog(...args: unknown[]) {
   console.info("[catan-net]", ...args);
 }
@@ -137,9 +154,11 @@ class CatanJoinFailure extends Error implements JoinFailure {
   peerId?: string;
   elapsedMs?: number;
   errorType?: string;
+  retryable?: boolean;
 
   constructor(details: Omit<JoinFailure, "name">) {
     super(details.message);
+    this.retryable = details.retryable;
     this.stage = details.stage;
     this.hint = details.hint;
     this.source = details.source;
@@ -322,12 +341,19 @@ export class CatanNetwork {
   private destroyed = false;
   private botTurnTimer: ReturnType<typeof setTimeout> | null = null;
   private callbacks: NetworkCallbacks;
-  private pendingJoins: Array<{ conn: DataConnection; name: string }> = [];
+  private pendingJoins: Array<{
+    conn: DataConnection;
+    name: string;
+    clientId?: string;
+  }> = [];
+  /** Host: clientId of the tab bound to each seat. */
+  private seatClientId: Map<PlayerId, string> = new Map();
   private preGameConns: DataConnection[] = [];
   private currentLobbyState: LobbyData | null = null;
   private lastAdminSnapshot: GameState | null = null;
   private connToPid: WeakMap<DataConnection, PlayerId> = new WeakMap();
   private createPeer: () => Peer;
+  private clientId: string | undefined;
 
   // Signaling (PeerJS server) reconnect — used by host and client.
   private signalingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -341,11 +367,14 @@ export class CatanNetwork {
   private reconnectGaveUp = false;
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectStartedAt = 0;
 
   // Liveness.
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private lastHeartbeatTickAt = 0;
   private awaitingPongSince: number | null = null;
+  /** Host has answered a ping on this connection (older hosts never do). */
+  private hostPongSeen = false;
   /** Host: last time any message arrived on each client connection. */
   private clientLastSeen: Map<DataConnection, number> = new Map();
   /** Host: connections that heartbeat (and so are subject to timeouts). */
@@ -356,9 +385,10 @@ export class CatanNetwork {
 
   constructor(
     callbacks: NetworkCallbacks,
-    options: { createPeer?: () => Peer } = {},
+    options: { createPeer?: () => Peer; clientId?: string } = {},
   ) {
     this.callbacks = callbacks;
+    this.clientId = options.clientId;
     this.createPeer = options.createPeer ?? (() => new Peer());
   }
 
@@ -475,19 +505,16 @@ export class CatanNetwork {
   initHostState(state: GameState) {
     this.state = state;
     // Process any joins that arrived before the game state was ready
-    for (const { conn, name } of this.pendingJoins) {
+    for (const { conn, name, clientId } of this.pendingJoins) {
+      // A dead connection must not claim a seat (its owner may have
+      // reconnected on a new one).
+      if (conn.open === false) continue;
       const pid = this.findPendingSlot(name);
       if (!pid) {
         conn.send({ type: "error", msg: "No open slot" } satisfies NetMessage);
         continue;
       }
-      this.connections.set(pid, conn);
-      this.connToPid.set(conn, pid);
-      conn.send({
-        type: "welcome",
-        pid,
-        state: this.state,
-      } satisfies NetMessage);
+      this.bindPlayerConnection(conn, pid, clientId);
       this.callbacks.onPlayerJoined?.(name, pid);
       this.callbacks.onPlayerConnectionChange?.(
         pid,
@@ -533,8 +560,13 @@ export class CatanNetwork {
         // Game not started yet — queue until initHostState is called.
         // A same-named pending join whose connection went quiet is this
         // client's previous (dead) connection: replace it, don't duplicate.
+        // Same tab (clientId) → always its old connection. Otherwise a quiet
+        // same-named join (older client builds send no clientId).
         const prior = this.pendingJoins.find(
-          (j) => j.name === msg.name && j.conn !== conn && this.isHolderStale(j.conn),
+          (j) =>
+            j.conn !== conn &&
+            ((msg.clientId && j.clientId === msg.clientId) ||
+              (!msg.clientId && j.name === msg.name && this.isHolderStale(j.conn))),
         );
         if (prior) {
           this.clientLastSeen.delete(prior.conn);
@@ -545,7 +577,7 @@ export class CatanNetwork {
           }
           this.removePreGameConnection(prior.conn, "Replaced by reconnect");
         }
-        this.pendingJoins.push({ conn, name: msg.name });
+        this.pendingJoins.push({ conn, name: msg.name, clientId: msg.clientId });
         this.preGameConns.push(conn);
         if (this.currentLobbyState) {
           try {
@@ -569,7 +601,7 @@ export class CatanNetwork {
       }
       const rejoinPid = rejoin?.pid;
       if (rejoinPid) {
-        this.bindPlayerConnection(conn, rejoinPid);
+        this.bindPlayerConnection(conn, rejoinPid, msg.clientId);
         this.callbacks.onPlayerJoined?.(msg.name, rejoinPid);
         this.callbacks.onPlayerConnectionChange?.(
           rejoinPid,
@@ -585,7 +617,7 @@ export class CatanNetwork {
         conn.send({ type: "error", msg: "No open slot" } satisfies NetMessage);
         return;
       }
-      this.bindPlayerConnection(conn, pid);
+      this.bindPlayerConnection(conn, pid, msg.clientId);
       this.callbacks.onPlayerJoined?.(msg.name, pid);
       this.callbacks.onPlayerConnectionChange?.(
         pid,
@@ -594,6 +626,15 @@ export class CatanNetwork {
       );
       this.broadcastState();
     } else if (msg.type === "action") {
+      const seat = this.connToPid.get(conn);
+      const actionPid = (msg.action as { pid?: PlayerId }).pid;
+      if (!seat || (actionPid !== undefined && actionPid !== seat)) {
+        conn.send({
+          type: "error",
+          msg: seat ? "That action isn't yours" : "Not seated — rejoining",
+        } satisfies NetMessage);
+        return;
+      }
       if (isAdminAction(msg.action)) {
         conn.send({
           type: "error",
@@ -618,44 +659,55 @@ export class CatanNetwork {
 
   /**
    * Decide which seat a mid-game join reclaims. Returns a pid, a retryable
-   * refusal (seat is held by a live connection), or null (not a rejoin).
-   * A live holder is never kicked — only one that has gone quiet.
+   * refusal (the seat is held and we can't prove the joiner owns it), or null
+   * (not a rejoin — treat as a new join).
+   *
+   * Proof of ownership, strongest first:
+   * 1. same clientId as the tab bound to the seat → take over immediately;
+   * 2. saved pid + matching name → take the seat if unheld or its holder is
+   *    quiet; refuse (retry later) if the holder is live;
+   * 3. name only → only an unheld seat; a held one waits for host timeout.
    */
   private resolveRejoin(
-    msg: { name: string; pid?: PlayerId },
+    msg: { name: string; pid?: PlayerId; clientId?: string },
   ): { pid: PlayerId } | { refuse: string } | null {
     if (!this.state) return null;
-    const holderOf = (pid: PlayerId) => this.connections.get(pid);
-    const takeable = (pid: PlayerId) => {
-      const holder = holderOf(pid);
-      return !holder || this.isHolderStale(holder);
-    };
 
-    if (msg.pid && this.isRemoteHumanSeat(msg.pid)) {
-      // Saved pid: trust it for an unheld/quiet seat, whatever name was typed.
-      if (takeable(msg.pid)) return { pid: msg.pid };
-      // Held by a live connection with the same name: probably our own old
-      // connection the host hasn't timed out yet — ask the client to retry.
-      if (this.state.players[msg.pid]!.name === msg.name) {
-        return { refuse: SEAT_IN_USE_MSG };
+    if (msg.clientId) {
+      for (const [pid, cid] of this.seatClientId) {
+        if (cid === msg.clientId && this.isRemoteHumanSeat(pid)) return { pid };
       }
-      // Otherwise the pid is someone else's (e.g. shared localStorage across
-      // tabs) — fall through to matching by name.
     }
 
-    const sameName = this.state.playerOrder.filter(
+    if (
+      msg.pid &&
+      this.isRemoteHumanSeat(msg.pid) &&
+      sameName(this.state.players[msg.pid]!.name, msg.name)
+    ) {
+      const holder = this.connections.get(msg.pid);
+      if (!holder || this.isHolderStale(holder)) return { pid: msg.pid };
+      return { refuse: SEAT_IN_USE_MSG };
+    }
+
+    const named = this.state.playerOrder.filter(
       (pid) =>
-        this.isRemoteHumanSeat(pid) && this.state!.players[pid]!.name === msg.name,
+        this.isRemoteHumanSeat(pid) &&
+        sameName(this.state!.players[pid]!.name, msg.name),
     );
-    const free =
-      sameName.find((pid) => !holderOf(pid)) ?? sameName.find(takeable);
+    const free = named.find((pid) => !this.connections.has(pid));
     if (free) return { pid: free };
-    if (sameName.length > 0) return { refuse: SEAT_IN_USE_MSG };
+    if (named.length > 0) return { refuse: SEAT_IN_USE_MSG };
     return null;
   }
 
   /** Map `conn` to `pid`, closing any previous connection for that seat. */
-  private bindPlayerConnection(conn: DataConnection, pid: PlayerId) {
+  private bindPlayerConnection(
+    conn: DataConnection,
+    pid: PlayerId,
+    clientId?: string,
+  ) {
+    if (clientId) this.seatClientId.set(pid, clientId);
+    else this.seatClientId.delete(pid);
     const previous = this.connections.get(pid);
     if (previous && previous !== conn) {
       this.clientLastSeen.delete(previous);
@@ -713,7 +765,7 @@ export class CatanNetwork {
       (pid) => this.isRemoteHumanSeat(pid) && !this.connections.has(pid),
     );
     return (
-      free.find((pid) => this.state!.players[pid]!.name === name) ??
+      free.find((pid) => sameName(this.state!.players[pid]!.name, name)) ??
       free[0] ??
       null
     );
@@ -882,11 +934,28 @@ export class CatanNetwork {
     this.isHost = false;
     this.session = { roomCode, name: playerName };
     if (existingPid) this.localPid = existingPid;
-    await this.connectToHost("join");
+    // After a reload the host may still hold our seat on the old (dead)
+    // connection until it times out; it says so with a retryable refusal.
+    for (let attempt = 0; ; attempt++) {
+      const quiet = attempt < JOIN_SEAT_IN_USE_RETRIES;
+      try {
+        await this.connectToHost("join", quiet);
+        break;
+      } catch (e) {
+        if (!quiet || this.destroyed || !isJoinFailureError(e) || !e.retryable) {
+          throw e;
+        }
+        await new Promise((r) => setTimeout(r, reconnectDelayMs(attempt)));
+        if (this.destroyed) throw e;
+      }
+    }
     this.installLifecycleListeners();
   }
 
-  private connectToHost(mode: "join" | "reconnect"): Promise<void> {
+  private connectToHost(
+    mode: "join" | "reconnect",
+    quietRetryable = false,
+  ): Promise<void> {
     const { roomCode, name: playerName } = this.session!;
     const gen = ++this.connGeneration;
     const isCurrent = () => gen === this.connGeneration && !this.destroyed;
@@ -923,6 +992,12 @@ export class CatanNetwork {
       };
       const fail = (failure: JoinFailure) => {
         if (settled) return;
+        // Abandoned attempt (destroyed / superseded): never report into the
+        // store — it would clobber the status of whatever replaced it.
+        if (!isCurrent()) {
+          safeReject(failure);
+          return;
+        }
         this.emitJoinDiagnostic({
           stage: failure.stage,
           status: "error",
@@ -934,7 +1009,12 @@ export class CatanNetwork {
           elapsedMs: failure.elapsedMs,
           errorType: failure.errorType,
         });
-        if (mode === "join") {
+        if (mode === "join" && failure.retryable && quietRetryable) {
+          this.callbacks.onConnectionStatusChange?.(
+            "connecting",
+            "Waiting for your previous connection to close…",
+          );
+        } else if (mode === "join") {
           this.callbacks.onJoinFailure?.(failure);
           this.callbacks.onConnectionStatusChange?.(
             "disconnected",
@@ -1099,9 +1179,9 @@ export class CatanNetwork {
               "Connected to room, waiting for host state",
             );
           }
-          const joinMsg: NetMessage = this.localPid
-            ? { type: "join", name: playerName, pid: this.localPid }
-            : { type: "join", name: playerName };
+          const joinMsg: NetMessage = { type: "join", name: playerName };
+          if (this.localPid) joinMsg.pid = this.localPid;
+          if (this.clientId) joinMsg.clientId = this.clientId;
           hostConn.send(joinMsg);
           const markJoined = (source: string, message: string) => {
             this.emitJoinDiagnostic({
@@ -1125,7 +1205,10 @@ export class CatanNetwork {
             if (!isCurrent()) return;
             this.awaitingPongSince = null;
             const m = msg as NetMessage;
-            if (m.type === "pong") return;
+            if (m.type === "pong") {
+              this.hostPongSeen = true;
+              return;
+            }
             if (m.type === "welcome") {
               this.localPid = m.pid;
               this.state = m.state;
@@ -1139,9 +1222,13 @@ export class CatanNetwork {
               this.state = m.state;
               this.callbacks.onStateUpdate(m.state);
             } else if (m.type === "error") {
-              if (settled || mode === "join") {
+              if (settled) {
                 this.callbacks.onError(m.msg);
-              } else if (!m.retryable) {
+              } else if (m.retryable) {
+                // Seat still held by our old connection: retried quietly.
+              } else if (mode === "join") {
+                this.callbacks.onError(m.msg);
+              } else {
                 // Host refused the seat outright: retrying won't help, so
                 // stop (one toast) instead of repeating it every attempt.
                 this.callbacks.onError(m.msg);
@@ -1152,8 +1239,11 @@ export class CatanNetwork {
                   new CatanJoinFailure({
                     stage: activeStage,
                     message: m.msg,
-                    hint: "The host rejected the join request. Check available lobby slots and try again.",
+                    hint: m.retryable
+                      ? "This seat is still connected on another tab or device. If that was you, close it or wait a few seconds and try again."
+                      : "The host rejected the join request. Check available lobby slots and try again.",
                     source: "message.error",
+                    retryable: m.retryable,
                     roomCode,
                     peerId: peer.id,
                     elapsedMs: elapsedMs(),
@@ -1183,6 +1273,7 @@ export class CatanNetwork {
     netLog("host connection lost:", reason);
     this.reconnecting = true;
     this.reconnectGaveUp = false;
+    this.reconnectStartedAt = Date.now();
     this.teardownClientPeer();
     this.callbacks.onConnectionStatusChange?.(
       "reconnecting",
@@ -1213,7 +1304,10 @@ export class CatanNetwork {
     if (this.destroyed || this.reconnectInFlight) return;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
-    if (this.reconnectAttempt >= CLIENT_MAX_RECONNECT_ATTEMPTS) {
+    if (
+      this.reconnectAttempt >= CLIENT_MAX_RECONNECT_ATTEMPTS ||
+      Date.now() - this.reconnectStartedAt > CLIENT_RECONNECT_BUDGET_MS
+    ) {
       this.reconnecting = false;
       this.reconnectGaveUp = true;
       netLog("giving up reconnect after", this.reconnectAttempt, "attempts");
@@ -1256,6 +1350,7 @@ export class CatanNetwork {
     this.reconnecting = true;
     this.reconnectGaveUp = false;
     this.reconnectAttempt = 0;
+    this.reconnectStartedAt = Date.now();
     this.callbacks.onConnectionStatusChange?.("reconnecting", "Reconnecting…");
     this.scheduleClientReconnect(0);
   }
@@ -1265,6 +1360,7 @@ export class CatanNetwork {
   private startHeartbeat() {
     this.stopHeartbeat();
     this.awaitingPongSince = null;
+    this.hostPongSeen = false;
     this.lastHeartbeatTickAt = Date.now();
     this.heartbeatTimer = setInterval(
       () => this.heartbeatTick(),
@@ -1310,7 +1406,9 @@ export class CatanNetwork {
 
     const conn = this.connections.get("host");
     if (!conn || this.reconnecting) return;
-    if (resumed) this.awaitingPongSince = null;
+    // Only hold the host to the pong deadline once it has shown it answers
+    // pings; a host on an older cached build never will.
+    if (resumed || !this.hostPongSeen) this.awaitingPongSince = null;
     if (this.awaitingPongSince !== null) {
       if (now - this.awaitingPongSince > timeoutMs) {
         this.handleHostLost("Host stopped responding");

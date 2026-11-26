@@ -20,6 +20,12 @@ import type {
 import { createInitialState } from "./game.js";
 import type { BoardPreset } from "./game.js";
 import { CatanNetwork, isJoinFailureError } from "./network.js";
+import {
+  getOrCreateClientId,
+  loadSavedSeat,
+  saveSeat,
+  type SeatStores,
+} from "./seatStorage.js";
 import type { JoinDiagnosticEvent, JoinFailure } from "./network.js";
 import { PLAYER_COLORS } from "./constants.js";
 import { loadCatanProfile, saveBoardPreset } from "./profile.js";
@@ -555,7 +561,8 @@ class CatanStore {
 
   async joinGame(name: string, code: string) {
     const roomCode = code.trim();
-    const savedPid = loadSavedPid(roomCode);
+    const stores = browserSeatStores();
+    const savedPid = stores ? loadSavedSeat(stores, roomCode, name) : null;
 
     this.joiningName = name;
     this.setLobbyStatus("Connecting…");
@@ -566,41 +573,48 @@ class CatanStore {
 
     // A previous attempt (or a dead session) must not keep a PeerJS peer alive.
     this.net?.destroy();
-    const net = new CatanNetwork({
-      onStateUpdate: (state) => {
-        const pid = net.myPid;
-        if (pid && pid !== this.localPid) this.localPid = pid;
-        if (pid) savePid(roomCode, pid);
-        // Rejoining mid-game skips the lobby message, so set it here too.
-        this.roomCode = roomCode;
-        this.applyStateUpdate(state);
+    const net = new CatanNetwork(
+      {
+        onStateUpdate: (state) => {
+          const pid = net.myPid;
+          if (pid && pid !== this.localPid) this.localPid = pid;
+          if (pid && stores) saveSeat(stores, roomCode, pid, name);
+          // Rejoining mid-game skips the lobby message, so set it here too.
+          this.roomCode = roomCode;
+          this.applyStateUpdate(state);
+        },
+        onLobbyUpdate: (data) => {
+          this.hostName = data.hostName;
+          this.pendingHumans = [...data.pendingNames];
+          this.bots = [...data.bots];
+          this.roomCode = roomCode;
+          this.screen = "lobby";
+          this.setLobbyStatus("");
+          this.lastJoinFailure = null;
+        },
+        onError: (msg) => this.showToast(msg, "error"),
+        onConnectionStatusChange: (status, detail) => {
+          this.setConnectionStatus(status, detail, true);
+        },
+        onJoinDiagnostic: (event) => this.recordJoinDiagnostic(event),
+        onJoinFailure: (failure) => {
+          this.lastJoinFailure = failure;
+        },
       },
-      onLobbyUpdate: (data) => {
-        this.hostName = data.hostName;
-        this.pendingHumans = [...data.pendingNames];
-        this.bots = [...data.bots];
-        this.roomCode = roomCode;
-        this.screen = "lobby";
-        this.setLobbyStatus("");
-        this.lastJoinFailure = null;
-      },
-      onError: (msg) => this.showToast(msg, "error"),
-      onConnectionStatusChange: (status, detail) => {
-        this.setConnectionStatus(status, detail, true);
-      },
-      onJoinDiagnostic: (event) => this.recordJoinDiagnostic(event),
-      onJoinFailure: (failure) => {
-        this.lastJoinFailure = failure;
-      },
-    });
+      { clientId: stores ? getOrCreateClientId(stores.session) : undefined },
+    );
     this.net = net;
 
     try {
-      await this.net.joinGame(roomCode, name, savedPid ?? undefined);
+      await net.joinGame(roomCode, name, savedPid ?? undefined);
+      if (this.net !== net) return;
       this.setConnectionStatus("connected", "Connected to host");
       this.lastJoinFailure = null;
     } catch (e: unknown) {
-      if (this.net === net) this.net = null;
+      // A superseded attempt (user tapped Join again) must not clobber the
+      // status of the attempt that replaced it.
+      if (this.net !== net) return;
+      this.net = null;
       const msg = e instanceof Error ? e.message : String(e);
       const hint = isJoinFailureError(e) ? ` ${e.hint}` : "";
       this.setConnectionStatus(
@@ -617,31 +631,13 @@ class CatanStore {
   }
 }
 
-// Seat (pid) per room is kept in localStorage, not sessionStorage: iOS PWAs
-// and discarded tabs lose sessionStorage, which made rejoin land on the wrong
-// seat or fail with "No open slot".
-function pidKey(roomCode: string) {
-  return `catan-pid-${roomCode}`;
-}
-
-function loadSavedPid(roomCode: string): PlayerId | null {
+function browserSeatStores(): SeatStores | null {
   try {
-    // Per-tab value first (accurate when several tabs share a device).
-    return (
-      (sessionStorage.getItem(pidKey(roomCode)) as PlayerId | null) ??
-      (localStorage.getItem(pidKey(roomCode)) as PlayerId | null)
-    );
+    return typeof window === "undefined"
+      ? null
+      : { session: window.sessionStorage, local: window.localStorage };
   } catch {
-    return null;
-  }
-}
-
-function savePid(roomCode: string, pid: PlayerId) {
-  try {
-    sessionStorage.setItem(pidKey(roomCode), pid);
-    localStorage.setItem(pidKey(roomCode), pid);
-  } catch {
-    /* storage unavailable (private mode) — rejoin falls back to name match */
+    return null; // storage access can throw in some privacy modes
   }
 }
 

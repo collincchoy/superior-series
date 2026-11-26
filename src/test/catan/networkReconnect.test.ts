@@ -70,7 +70,10 @@ class FakePeer extends Emitter {
   }
 }
 
-function makeNetwork(callbacks: Partial<ConstructorParameters<typeof CatanNetwork>[0]> = {}) {
+function makeNetwork(
+  callbacks: Partial<ConstructorParameters<typeof CatanNetwork>[0]> = {},
+  options: { clientId?: string } = {},
+) {
   const peers: FakePeer[] = [];
   const status = vi.fn();
   const net = new CatanNetwork(
@@ -86,6 +89,7 @@ function makeNetwork(callbacks: Partial<ConstructorParameters<typeof CatanNetwor
         peers.push(p);
         return p as any;
       },
+      ...options,
     },
   );
   return { net, peers, status };
@@ -241,31 +245,50 @@ describe("host signaling reconnect", () => {
     expect(alice.closed).toBe(false);
   });
 
-  it("rebinds a pid-less rejoin to the human seat with the same name, even if a stale connection holds it", async () => {
+  it("never hands a held seat to a pid-less joiner matched only by name", async () => {
     const { net, peers } = makeNetwork();
     const hosting = net.hostGame("player1");
     peers[0]!.doOpen("room-1");
     await hosting;
     net.initHostState(twoHumanState());
 
-    const stale = new FakeConn("client-old");
-    peers[0]!.emit("connection", stale);
-    stale.doOpen();
-    stale.receive({ type: "join", name: "Guest" });
-    expect(stale.sent[0]).toMatchObject({ type: "welcome", pid: "player2" });
+    const holder = new FakeConn("client-old");
+    peers[0]!.emit("connection", holder);
+    holder.doOpen();
+    holder.receive({ type: "join", name: "Guest" });
 
-    // Client lost sessionStorage (PWA relaunch) and rejoins with no pid while
-    // the host has not yet noticed the old connection died (silent for a while).
-    await vi.advanceTimersByTimeAsync(7000);
+    // Even after the holder goes quiet, a name alone is not proof of identity
+    // (default names collide); the joiner must wait for the host timeout.
+    await vi.advanceTimersByTimeAsync(8000);
+    const other = new FakeConn("client-new");
+    peers[0]!.emit("connection", other);
+    other.doOpen();
+    other.receive({ type: "join", name: "Guest" });
+    expect(other.sent[0]).toMatchObject({ type: "error", retryable: true });
+    expect(holder.closed).toBe(false);
+  });
+
+  it("lets the same tab (clientId) reclaim its seat immediately", async () => {
+    const { net, peers } = makeNetwork();
+    const hosting = net.hostGame("player1");
+    peers[0]!.doOpen("room-1");
+    await hosting;
+    net.initHostState(twoHumanState());
+
+    const old = new FakeConn("client-old");
+    peers[0]!.emit("connection", old);
+    old.doOpen();
+    old.receive({ type: "join", name: "Guest", clientId: "tab-1" });
+    old.receive({ type: "ping" });
+
     const fresh = new FakeConn("client-new");
     peers[0]!.emit("connection", fresh);
     fresh.doOpen();
-    fresh.receive({ type: "join", name: "Guest" });
+    fresh.receive({ type: "join", name: "Guest", clientId: "tab-1" });
     expect(fresh.sent[0]).toMatchObject({ type: "welcome", pid: "player2" });
-    expect(stale.closed).toBe(true);
+    expect(old.closed).toBe(true);
   });
 });
-
 
 // ─── Host seat assignment (review fixes) ─────────────────────────────────────
 
@@ -305,12 +328,86 @@ describe("host seat assignment", () => {
     expect(bob.sent.find((m) => m.type === "welcome")).toMatchObject({ pid: "player3" });
   });
 
-  it("honors a saved pid for an unheld seat even if the typed name differs", async () => {
+  it("honors a saved pid for an unheld seat when the name matches ignoring case", async () => {
     const { net, state, connect } = await hostWithShuffledSeats();
     net.initHostState(state);
     const c = connect("a");
-    c.receive({ type: "join", name: "alice", pid: "player2" });
+    c.receive({ type: "join", name: " alice ", pid: "player2" });
     expect(c.sent[0]).toMatchObject({ type: "welcome", pid: "player2" });
+  });
+
+  it("does not let another player's saved pid claim a quiet seat", async () => {
+    const { net, state, connect } = await hostWithShuffledSeats();
+    net.initHostState(state);
+    const alice = connect("a");
+    alice.receive({ type: "join", name: "Alice", pid: "player2" });
+    await vi.advanceTimersByTimeAsync(8000);
+
+    // New tab, shared localStorage handed it Alice's pid, but it's Bob.
+    const bob = connect("b");
+    bob.receive({ type: "join", name: "Bob", pid: "player2" });
+    expect(bob.sent[0]).toMatchObject({ type: "welcome", pid: "player3" });
+    expect(alice.closed).toBe(false);
+  });
+
+  it("replaces a lobby join from the same tab instead of duplicating it", async () => {
+    const onPendingJoin = vi.fn();
+    const onPendingJoinClosed = vi.fn();
+    const { net, peers } = makeNetwork({ onPendingJoin, onPendingJoinClosed });
+    const hosting = net.hostGame("player1");
+    peers[0]!.doOpen("room-1");
+    await hosting;
+
+    const first = new FakeConn("a");
+    peers[0]!.emit("connection", first);
+    first.doOpen();
+    first.receive({ type: "join", name: "Alice", clientId: "tab-1" });
+    first.receive({ type: "ping" });
+
+    const second = new FakeConn("b");
+    peers[0]!.emit("connection", second);
+    second.doOpen();
+    second.receive({ type: "join", name: "Alice", clientId: "tab-1" });
+
+    expect(onPendingJoinClosed).toHaveBeenCalledTimes(1);
+    expect(first.closed).toBe(true);
+    expect((net as any).pendingJoins).toHaveLength(1);
+  });
+
+  it("skips pending joins whose connection already closed when the game starts", async () => {
+    const { net, state, connect } = await hostWithShuffledSeats();
+    const dead = connect("a");
+    dead.receive({ type: "join", name: "Alice" });
+    dead.open = false;
+    const bob = connect("b");
+    bob.receive({ type: "join", name: "Bob" });
+    net.initHostState(state);
+    expect(dead.sent.some((m) => m.type === "welcome")).toBe(false);
+    expect(bob.sent.find((m) => m.type === "welcome")).toMatchObject({ pid: "player3" });
+  });
+
+  it("rejects actions from unseated connections or for another player's pid", async () => {
+    const onStateUpdate = vi.fn();
+    const { net, peers } = makeNetwork({ onStateUpdate });
+    const hosting = net.hostGame("player1");
+    peers[0]!.doOpen("room-1");
+    await hosting;
+    net.initHostState(twoHumanState());
+    onStateUpdate.mockClear();
+
+    const unseated = new FakeConn("x");
+    peers[0]!.emit("connection", unseated);
+    unseated.doOpen();
+    unseated.receive({ type: "action", action: { type: "END_TURN", pid: "player2" } });
+    expect(unseated.sent[0]).toMatchObject({ type: "error" });
+
+    const guest = new FakeConn("g");
+    peers[0]!.emit("connection", guest);
+    guest.doOpen();
+    guest.receive({ type: "join", name: "Guest" });
+    guest.receive({ type: "action", action: { type: "END_TURN", pid: "player1" } });
+    expect(guest.sent.at(-1)).toMatchObject({ type: "error" });
+    expect(onStateUpdate).not.toHaveBeenCalled();
   });
 
   it("refuses (retryably) to take a seat whose holder is alive", async () => {
@@ -397,7 +494,9 @@ describe("client auto-reconnect", () => {
   it("detects a silently dead data channel via heartbeat and reconnects", async () => {
     const { peers, conn, status } = await joinedClient();
 
-    // Channel looks open but the host never answers pings.
+    // Host answers once (so it supports heartbeats), then goes silent.
+    await vi.advanceTimersByTimeAsync(4000);
+    conn.receive({ type: "pong" });
     await vi.advanceTimersByTimeAsync(20_000);
     expect(conn.sent.some((m) => m.type === "ping")).toBe(true);
     expect(status).toHaveBeenCalledWith("reconnecting", expect.any(String));
@@ -508,6 +607,66 @@ describe("client auto-reconnect", () => {
       expect(peer.reconnect).toHaveBeenCalledTimes(1);
       peer.doOpen("client-a");
     }
+  });
+
+  it("does not enforce the heartbeat against a host that never answers pings (older build)", async () => {
+    const { peers, status } = await joinedClient();
+    status.mockClear();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(status).not.toHaveBeenCalledWith("reconnecting", expect.any(String));
+    expect(peers.length).toBe(1);
+  });
+
+  it("sends its clientId in the join message", async () => {
+    const ctx = makeNetwork({}, { clientId: "tab-1" });
+    void ctx.net.joinGame("room-1", "Guest").catch(() => {});
+    ctx.peers[0]!.doOpen("c");
+    ctx.peers[0]!.conns[0]!.doOpen();
+    expect(ctx.peers[0]!.conns[0]!.sent[0]).toEqual({ type: "join", name: "Guest", clientId: "tab-1" });
+    ctx.net.destroy();
+  });
+
+  it("stays silent about a join attempt that was abandoned via destroy", async () => {
+    const onJoinFailure = vi.fn();
+    const ctx = makeNetwork({ onJoinFailure });
+    const joined = ctx.net.joinGame("room-1", "Guest").catch(() => "rejected");
+    ctx.peers[0]!.doOpen("c");
+    ctx.status.mockClear();
+    ctx.net.destroy();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await joined).toBe("rejected");
+    expect(onJoinFailure).not.toHaveBeenCalled();
+    expect(ctx.status).not.toHaveBeenCalled();
+  });
+
+  it("retries a first join quietly while the host reports the seat is still held", async () => {
+    const onJoinFailure = vi.fn();
+    const onError = vi.fn();
+    const ctx = makeNetwork({ onJoinFailure, onError });
+    const joined = ctx.net.joinGame("room-1", "Guest", "player2");
+    ctx.peers[0]!.doOpen("c1");
+    ctx.peers[0]!.conns[0]!.doOpen();
+    ctx.peers[0]!.conns[0]!.receive({ type: "error", msg: "Seat in use", retryable: true });
+
+    await vi.advanceTimersByTimeAsync(1000);
+    const p2 = ctx.peers[1]!;
+    p2.doOpen("c2");
+    p2.conns[0]!.doOpen();
+    p2.conns[0]!.receive({ type: "welcome", pid: "player2", state: twoHumanState() });
+    await joined;
+    expect(onJoinFailure).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+    expect(ctx.status).toHaveBeenLastCalledWith("connected", expect.any(String));
+  });
+
+  it("gives up reconnecting after a total time cap even if attempts remain", async () => {
+    const { peers, conn, status } = await joinedClient();
+    conn.emit("close");
+    // Attempts never get past peer-open (signaling unreachable) → each waits
+    // for its own timeout; without a cap this would take ~4 minutes.
+    await vi.advanceTimersByTimeAsync(150_000);
+    expect(status).toHaveBeenLastCalledWith("disconnected", expect.any(String));
+    expect(peers.length).toBeLessThan(12);
   });
 
   it("does not auto-reconnect after destroy", async () => {
