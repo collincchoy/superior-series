@@ -7,6 +7,7 @@
  * Numbers are derived from TUNING so retuning the jump re-checks levels.
  */
 import { TILE_SIZE } from "../constants.js";
+import { PLATFORM } from "../platforms.js";
 import { bodyFor } from "../player.js";
 import { TUNING as T } from "../tuning.js";
 import { TILE_PROPS } from "./legend.js";
@@ -23,6 +24,8 @@ export interface JumpReach {
   grabRise: number;
   /** Rows above the standing row where a block can be bonked from below. */
   bonkRise: number;
+  /** Tiles a bounce mushroom launches Arni. */
+  springRise: number;
 }
 
 export function jumpReach(): JumpReach {
@@ -37,7 +40,26 @@ export function jumpReach(): JumpReach {
     across: Math.floor((T.runSpeed * (tUp + tDown)) / TILE_SIZE),
     grabRise: Math.floor(reachH / TILE_SIZE - 0.5),
     bonkRise: Math.floor(reachH / TILE_SIZE),
+    springRise: Math.floor(h(T.springVelocity) / TILE_SIZE),
   };
+}
+
+/**
+ * Cells Arni can stand in while riding a moving platform, anywhere along
+ * its path. The slab's top is the top of its spawn cell, so riders stand
+ * in the row above.
+ */
+function platformCells(level: Level): { tx: number; ty: number }[] {
+  const cells: { tx: number; ty: number }[] = [];
+  for (const s of level.spawns) {
+    if (s.kind === "platformH") {
+      for (let tx = s.tx; tx < s.tx + PLATFORM.widthTiles + PLATFORM.rangeTiles; tx++) cells.push({ tx, ty: s.ty - 1 });
+    } else if (s.kind === "platformV") {
+      for (let ty = s.ty - 1; ty >= s.ty - 1 - PLATFORM.rangeTiles; ty--)
+        for (let tx = s.tx; tx < s.tx + PLATFORM.widthTiles; tx++) cells.push({ tx, ty });
+    }
+  }
+  return cells.filter((c) => c.ty >= 0 && c.tx >= 0 && c.tx < level.width);
 }
 
 const key = (tx: number, ty: number) => `${tx},${ty}`;
@@ -52,16 +74,21 @@ function isStandable(level: Level, tx: number, ty: number): boolean {
 
 /** Standable cells Arni can get to from the player start, as "tx,ty" keys. */
 export function reachableCells(level: Level, reach: JumpReach): Set<string> {
-  const spots: { tx: number; ty: number }[] = [];
+  const spotMap = new Map<string, { tx: number; ty: number }>();
   for (let ty = 0; ty < level.height; ty++)
     for (let tx = 0; tx < level.width; tx++)
-      if (isStandable(level, tx, ty)) spots.push({ tx, ty });
+      if (isStandable(level, tx, ty)) spotMap.set(key(tx, ty), { tx, ty });
+  for (const c of platformCells(level)) spotMap.set(key(c.tx, c.ty), c);
+  const spots = [...spotMap.values()];
+
+  const onSpring = (c: { tx: number; ty: number }) => level.tiles[c.ty + 1]?.[c.tx] === "bounce";
 
   const start = level.playerStart;
   const seen = new Set([key(start.tx, start.ty)]);
   const queue = [start];
   while (queue.length) {
     const a = queue.shift()!;
+    const maxRise = onSpring(a) ? Math.max(reach.springRise, reach.chargedRise) : reach.chargedRise;
     for (const b of spots) {
       const k = key(b.tx, b.ty);
       if (seen.has(k)) continue;
@@ -69,7 +96,7 @@ export function reachableCells(level: Level, reach: JumpReach): Set<string> {
       const rise = a.ty - b.ty;
       const ok =
         rise > 0
-          ? rise <= reach.chargedRise && dx <= reach.across
+          ? rise <= maxRise && dx <= reach.across
           : dx <= reach.across - rise;
       if (ok) {
         seen.add(k);
@@ -103,6 +130,7 @@ export function unreachableThings(level: Level, reach: JumpReach): Unreachable[]
 
   const out: Unreachable[] = [];
   for (const s of level.spawns) {
+    if (s.kind === "platformH" || s.kind === "platformV") continue; // gadgets, not goals
     const ok =
       s.kind === "coin" || !isStandable(level, s.tx, s.ty)
         ? grabbable(s.tx, s.ty)

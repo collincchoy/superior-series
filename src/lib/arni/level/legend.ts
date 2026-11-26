@@ -4,12 +4,16 @@
  */
 
 export const TILE_KINDS = [
-  "ground", // mossy jungle earth / layered rock
+  "ground", // volcanic basalt
   "branch", // tree branch — one-way platform (jump up through it)
-  "boulder", // cracked boulder — breakable (jungle)
+  "boulder", // cracked pumice boulder — breakable (jungle)
   "crate", // Rex's banana crate — breakable (factory)
   "amber", // glowing amber — mystery block, holds goodies
+  "spent", // amber that's been cracked open — just a block now
   "thorns", // bramble — hurts
+  "lava", // lava pool — hurts
+  "bounce", // bouncy lava-mushroom — springs Arni high
+  "crumble", // crumbly rock — falls shortly after being stood on, then regrows
 ] as const;
 export type TileKind = (typeof TILE_KINDS)[number];
 
@@ -18,23 +22,36 @@ export interface TileProps {
   solid: boolean;
   /** Can be stood on from above, passed through from below/sides. */
   oneWay: boolean;
-  /** Something Arni can stand on (thorns hurt, so they don't count). */
+  /** Something Arni can stand on (hazards don't count). */
   standable: boolean;
+  /** Touching it hurts. */
+  hazard: boolean;
+  /** The tail whip smashes it. */
+  breakable: boolean;
 }
 
+const solid = { solid: true, oneWay: false, standable: true, hazard: false, breakable: false };
+
 export const TILE_PROPS: Record<TileKind, TileProps> = {
-  ground: { solid: true, oneWay: false, standable: true },
-  branch: { solid: false, oneWay: true, standable: true },
-  boulder: { solid: true, oneWay: false, standable: true },
-  crate: { solid: true, oneWay: false, standable: true },
-  amber: { solid: true, oneWay: false, standable: true },
-  thorns: { solid: true, oneWay: false, standable: false },
+  ground: solid,
+  branch: { ...solid, solid: false, oneWay: true },
+  boulder: { ...solid, breakable: true },
+  crate: { ...solid, breakable: true },
+  amber: solid,
+  spent: solid,
+  thorns: { ...solid, standable: false, hazard: true },
+  lava: { ...solid, standable: false, hazard: true },
+  bounce: solid,
+  crumble: solid,
 };
 
 export const SPAWN_KINDS = [
   "coin",
   "egg",
   "checkpoint",
+  // Moving stone slabs (2 tiles wide, spawn marks the left tile)
+  "platformH", // slides right and back
+  "platformV", // rises and falls
   // Rex's banana minions, by ripeness
   "bunchling", // green — jittery walker
   "peelback", // ripe yellow — charger
@@ -53,13 +70,19 @@ export const TILE_CHARS: Record<string, TileKind> = {
   R: "boulder",
   X: "crate",
   A: "amber",
+  a: "spent",
   "^": "thorns",
+  "~": "lava",
+  U: "bounce",
+  "%": "crumble",
 };
 
 export const SPAWN_CHARS: Record<string, SpawnKind> = {
   o: "coin",
   E: "egg",
   C: "checkpoint",
+  H: "platformH",
+  V: "platformV",
   g: "bunchling",
   y: "peelback",
   b: "bruiser",

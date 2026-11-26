@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   applyBounce,
   applyHurt,
+  applySpring,
   bodyFor,
   isWhipping,
   initialPlayer,
@@ -30,6 +31,7 @@ class Sim {
   y = 0; // feet height above floor (0 = on floor), positive = up
   floor = true;
   canStand = true;
+  slippery = false;
   events: PlayerEvent[] = [];
   maxHeight = 0;
 
@@ -45,6 +47,7 @@ class Sim {
       const env: PlayerEnv = {
         grounded,
         canStand: this.canStand,
+        slippery: this.slippery,
         vx: this.state.vx,
         vy,
       };
@@ -345,5 +348,34 @@ describe("stomp bounce", () => {
     expect(high.vy).toBe(-T.stompBounceHigh);
     expect(high.rising).toBe(true);
     expect(high.grounded).toBe(false);
+  });
+});
+
+describe("bounce mushroom", () => {
+  it("springs Arni much higher than a jump, higher still holding jump", () => {
+    const s = { ...initialPlayer(), grounded: true };
+    expect(applySpring(s, false).vy).toBe(-T.springVelocity);
+    expect(applySpring(s, true).vy).toBe(-T.springVelocityHigh);
+    expect(T.springVelocity).toBeGreaterThan(T.chargedJumpVelocity);
+    expect(applySpring(s, true).grounded).toBe(false);
+  });
+});
+
+describe("goo (slippery ground)", () => {
+  it("takes longer to get up to speed", () => {
+    const dry = new Sim().step(input({ right: true }), 6);
+    const goo = new Sim();
+    goo.slippery = true;
+    goo.step(input({ right: true }), 6);
+    expect(goo.state.vx).toBeLessThan(dry.state.vx * 0.5);
+  });
+
+  it("slides on after letting go", () => {
+    const dry = new Sim().step(input({ right: true }), 60).step(input(), 10);
+    const goo = new Sim();
+    goo.slippery = true;
+    goo.step(input({ right: true }), 120).step(input(), 10);
+    expect(dry.state.vx).toBe(0);
+    expect(goo.state.vx).toBeGreaterThan(T.runSpeed * 0.6);
   });
 });

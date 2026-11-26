@@ -23,7 +23,7 @@
 </script>
 
 <div class="stage" bind:this={container}></div>
-<p class="hint">← → move · Space jump · X tail whip · ↓ crawl/slide · hold ↓ + jump: super jump</p>
+<p class="hint">← → move · Space jump · X tail whip · ↓ crawl/slide · hold ↓ + jump: super jump · Esc pause</p>
 
 <style>
   .stage {

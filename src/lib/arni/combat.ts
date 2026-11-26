@@ -1,4 +1,5 @@
 /** Hitboxes and who-hits-whom. Pure geometry; the scene supplies rects. */
+import type { MinionKind } from "./enemyAi.js";
 import type { SpawnKind } from "./level/legend.js";
 import { TUNING as T } from "./tuning.js";
 
@@ -14,13 +15,12 @@ export function overlaps(a: Rect, b: Rect): boolean {
   return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 }
 
-/** Arni spins, so the tail sweeps both sides at mid-body height. */
+/** Arni spins, so the tail sweeps both sides over the whole body (and just above the head). */
 export function whipHitbox(body: Rect): Rect {
-  const h = body.bottom - body.top;
   return {
     left: body.left - T.whipReach,
     right: body.right + T.whipReach,
-    top: body.top + h * 0.2,
+    top: body.top - 8,
     bottom: body.bottom - 4,
   };
 }
@@ -45,11 +45,12 @@ export function resolveEnemyContact(c: ContactInput): ContactResult {
 
 // ── Enemies ────────────────────────────────────────────────────────
 
-export type EnemyKind = Extract<SpawnKind, "bunchling" | "peelback" | "bruiser" | "spotter" | "mush">;
-export const ENEMY_KINDS: readonly EnemyKind[] = ["bunchling", "peelback", "bruiser", "spotter", "mush"];
+export type EnemyKind = MinionKind;
+/** Minions that can be placed in a level (mini mushes only come from splits). */
+export const SPAWNABLE_ENEMIES = ["bunchling", "peelback", "bruiser", "spotter", "mush"] as const;
 
-export function isEnemyKind(kind: SpawnKind): kind is EnemyKind {
-  return (ENEMY_KINDS as readonly string[]).includes(kind);
+export function isEnemyKind(kind: SpawnKind): kind is (typeof SPAWNABLE_ENEMIES)[number] {
+  return (SPAWNABLE_ENEMIES as readonly string[]).includes(kind);
 }
 
 export interface Enemy {

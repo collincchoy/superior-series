@@ -39,6 +39,8 @@ export interface PlayerEnv {
   grounded: boolean;
   /** Is there head room to stand up from crouch/slide? */
   canStand: boolean;
+  /** Standing in goo: sluggish to start, slow to stop. */
+  slippery?: boolean;
   vx: number;
   vy: number;
 }
@@ -107,6 +109,19 @@ export function applyHurt(s: PlayerState, fromDir: -1 | 0 | 1): PlayerState {
     slideMs: 0,
     chargeMs: 0,
     pose: s.pose === "slide" ? "crouch" : s.pose,
+  };
+}
+
+/** Launch off a bounce mushroom. Holding jump goes even higher. */
+export function applySpring(s: PlayerState, jumpHeld: boolean): PlayerState {
+  return {
+    ...s,
+    vy: -(jumpHeld ? T.springVelocityHigh : T.springVelocity),
+    grounded: false,
+    rising: false, // springs can't be cut short — the fun is the big launch
+    coyoteMs: 0,
+    jumpBufferMs: 0,
+    chargeMs: 0,
   };
 }
 
@@ -213,6 +228,7 @@ export function stepPlayer(
       ? dir !== 0 ? T.groundAccel : T.groundDecel
       : dir !== 0 ? T.airAccel : T.airDecel;
     if (dir !== 0 && s.vx !== 0 && Math.sign(s.vx) !== dir) accel *= T.turnMult;
+    if (s.grounded && env.slippery) accel *= dir !== 0 ? T.gooAccelMult : T.gooDecelMult;
     s.vx = approach(s.vx, target, accel * dt);
   }
 

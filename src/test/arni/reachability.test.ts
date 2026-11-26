@@ -8,7 +8,7 @@ import {
 } from "../../lib/arni/level/reachability.js";
 import { TEST_LEVEL } from "../../lib/arni/level/levels/testLevel.js";
 
-const REACH: JumpReach = { rise: 2, chargedRise: 4, across: 4, grabRise: 3, bonkRise: 4 };
+const REACH: JumpReach = { rise: 2, chargedRise: 4, across: 4, grabRise: 3, bonkRise: 4, springRise: 6 };
 const key = (tx: number, ty: number) => `${tx},${ty}`;
 
 describe("jumpReach (derived from tuning)", () => {
@@ -17,6 +17,45 @@ describe("jumpReach (derived from tuning)", () => {
     expect(r.rise).toBe(2);
     expect(r.chargedRise).toBe(4);
     expect(r.across).toBeGreaterThanOrEqual(4);
+  });
+
+  it("a bounce mushroom launches higher than a charged jump", () => {
+    expect(jumpReach().springRise).toBeGreaterThan(jumpReach().chargedRise);
+  });
+});
+
+describe("level gadgets", () => {
+  it("bounce mushrooms reach ledges too high to jump", () => {
+    const rows = ["....", "..##", "..##", "..##", "..##", "..##", "PU##", "####"];
+    expect(reachableCells(parseLevel(rows), REACH).has(key(2, 0))).toBe(true);
+    const noMushroom = rows.map((r) => r.replace("U", "#"));
+    noMushroom[6] = "P.##";
+    expect(reachableCells(parseLevel(noMushroom), REACH).has(key(2, 0))).toBe(false);
+  });
+
+  it("a moving platform carries Arni across a wide lava pool", () => {
+    const rows = [
+      "............",
+      "P.H.......E.",
+      "##~~~~~~~~##",
+    ];
+    expect(unreachableThings(parseLevel(rows), REACH)).toEqual([]);
+    const without = rows.map((r) => r.replace("H", "."));
+    expect(unreachableThings(parseLevel(without), REACH)).toEqual([{ what: "egg", tx: 10, ty: 1 }]);
+  });
+
+  it("a rising platform lifts Arni to a high ledge", () => {
+    const rows = [
+      "...E",
+      "...#",
+      "...#",
+      "...#",
+      "...#",
+      "...#",
+      "P.V#",
+      "####",
+    ];
+    expect(unreachableThings(parseLevel(rows), REACH)).toEqual([]);
   });
 });
 

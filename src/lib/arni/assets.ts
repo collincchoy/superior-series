@@ -68,7 +68,11 @@ export const ASSETS = {
   boulder: tile("boulder.svg"),
   crate: tile("crate.svg"),
   amber: tile("amber.svg"),
+  spent: tile("amber-spent.svg"),
   thorns: tile("thorns.svg"),
+  lava: tile("lava.svg"),
+  bounce: tile("bounce.svg"),
+  crumble: tile("crumble.svg"),
 
   // Pickups & markers
   coin: { file: "coin.svg", width: 36, height: 36, originX: 0.5, originY: 0.5 },
@@ -79,6 +83,16 @@ export const ASSETS = {
   // HUD
   "heart-full": { file: "heart-full.svg", width: 44, height: 40, originX: 0, originY: 0 },
   "heart-empty": { file: "heart-empty.svg", width: 44, height: 40, originX: 0, originY: 0 },
+  "hud-coin": { file: "coin.svg", width: 32, height: 32, originX: 0, originY: 0 },
+  "hud-egg": { file: "egg.svg", width: 30, height: 36, originX: 0, originY: 0 },
+  "hud-egg-empty": { file: "egg-empty.svg", width: 30, height: 36, originX: 0, originY: 0 },
+  "pause-button": { file: "pause-button.svg", width: 56, height: 56, originX: 1, originY: 0 },
+
+  // Gadgets & effects
+  platform: { file: "platform.svg", width: 128, height: 28, originX: 0, originY: 0 },
+  peel: { file: "peel.svg", width: 36, height: 28, originX: 0.5, originY: 0.5 },
+  goo: feet("goo.svg", 56, 14),
+  "banana-minimush": feet("banana-mush.svg", 40, 35),
 
   // Backgrounds
   "bg-sky": { file: "bg-sky.svg", width: 1280, height: 720, originX: 0, originY: 0 },
@@ -119,7 +133,11 @@ export function tileTextureKey(kind: TileKind, variant: TileVariant): AssetKey {
     case "boulder":
     case "crate":
     case "amber":
+    case "spent":
     case "thorns":
+    case "lava":
+    case "bounce":
+    case "crumble":
       return kind;
   }
 }
@@ -128,6 +146,8 @@ const SPAWN_TEXTURES: Record<SpawnKind, AssetKey> = {
   coin: "coin",
   egg: "egg",
   checkpoint: "checkpoint",
+  platformH: "platform",
+  platformV: "platform",
   bunchling: "banana-bunchling",
   peelback: "banana-peelback",
   bruiser: "banana-bruiser",

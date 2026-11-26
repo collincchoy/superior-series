@@ -3,6 +3,7 @@ import { VIEW_HEIGHT, VIEW_WIDTH } from "./constants.js";
 import { BootScene } from "./scenes/BootScene.js";
 import { HudScene } from "./scenes/HudScene.js";
 import { LevelScene } from "./scenes/LevelScene.js";
+import { PauseScene } from "./scenes/PauseScene.js";
 
 /** Boot the Arni game into `parent`. `baseUrl` is the site's BASE_URL. */
 export function createGame(parent: HTMLElement, baseUrl: string): Phaser.Game {
@@ -12,6 +13,13 @@ export function createGame(parent: HTMLElement, baseUrl: string): Phaser.Game {
     width: VIEW_WIDTH,
     height: VIEW_HEIGHT,
     backgroundColor: "#5ec8ff",
+    fps: {
+      // Phaser's delta smoothing clamps every frame to 16.7ms while the window
+      // is unfocused and for 120 frames after it regains focus. Below 60fps
+      // that turns into slow motion right when the player starts moving.
+      // Use real frame time instead; our own logic caps dt at 50ms.
+      smoothStep: false,
+    },
     physics: {
       default: "arcade",
       arcade: { debug: false },
@@ -20,7 +28,7 @@ export function createGame(parent: HTMLElement, baseUrl: string): Phaser.Game {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [new BootScene(baseUrl), LevelScene, HudScene],
+    scene: [new BootScene(baseUrl), LevelScene, HudScene, PauseScene],
   });
 
   if (import.meta.env.DEV) {

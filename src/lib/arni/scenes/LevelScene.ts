@@ -1,32 +1,17 @@
 import Phaser from "phaser";
-import { ASSETS, spawnTextureKey, tileTextureKey, type AssetKey } from "../assets.js";
-import {
-  damageEnemy,
-  isEnemyKind,
-  newEnemy,
-  overlaps,
-  resolveEnemyContact,
-  whipHitbox,
-  type Enemy,
-  type Rect,
-} from "../combat.js";
+import { ASSETS } from "../assets.js";
+import { overlaps, whipHitbox, type Rect } from "../combat.js";
 import { TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH } from "../constants.js";
 import { damage, initialHealth, isInvulnerable, respawnHealth, tickHealth, type Health } from "../health.js";
 import { ACTIONS, emptyInput, inputFromPressed, KEYBOARD_BINDINGS, type PlayerInput } from "../input.js";
 import { rectHitsSolid } from "../level/collision.js";
-import { TILE_PROPS } from "../level/legend.js";
 import { TEST_LEVEL } from "../level/levels/testLevel.js";
-import {
-  parseLevel,
-  spawnPoint,
-  tileCenter,
-  tileVariant,
-  type Level,
-  type TilePos,
-} from "../level/parseLevel.js";
+import { parseLevel, spawnPoint, type Level, type TilePos } from "../level/parseLevel.js";
+import { addCoins, collectEgg, initialScore, type Score } from "../pickups.js";
 import {
   applyBounce,
   applyHurt,
+  applySpring,
   bodyFor,
   initialPlayer,
   isWhipping,
@@ -37,7 +22,12 @@ import {
 } from "../player.js";
 import { activateCheckpoint, initialProgress, respawnTile, type Progress } from "../progress.js";
 import { TUNING } from "../tuning.js";
-import { HUD_KEYS } from "./HudScene.js";
+import { bodyRect, centerX, type LevelContext } from "./context.js";
+import { HUD_EVENTS, HUD_KEYS } from "./HudScene.js";
+import { Blocks } from "./systems/Blocks.js";
+import { Enemies } from "./systems/Enemies.js";
+import { Pickups } from "./systems/Pickups.js";
+import { Platforms } from "./systems/Platforms.js";
 
 /** Max simulated frame time, so a hitch doesn't launch Arni through floors. */
 const MAX_DT_MS = 50;
@@ -46,13 +36,6 @@ const CHARGE_TINT = 0xfff27a;
 const HURT_TINT = 0xff4f7b;
 const RESPAWN_DELAY_MS = 900;
 
-interface EnemyEntity {
-  enemy: Enemy;
-  img: Phaser.GameObjects.Image;
-  rect: Rect;
-  idle: Phaser.Tweens.Tween;
-}
-
 interface CheckpointEntity {
   pos: TilePos;
   img: Phaser.GameObjects.Image;
@@ -60,30 +43,33 @@ interface CheckpointEntity {
 }
 
 /**
- * Thin Phaser adapter. Rules live in pure modules (player, health, combat,
- * progress, level/*); this scene builds the world, feeds input and contacts
- * in, and draws the results.
+ * Coordinates one play-through of a level. Rules live in pure modules
+ * (player, health, combat, enemyAi, blocks, …); world pieces live in
+ * systems (Blocks, Pickups, Platforms, Enemies) that share a LevelContext.
  *
  * Arni is two objects: an invisible physics Body (size changes with pose)
  * and a view Image that follows it — so squash/stretch never disturbs collisions.
  */
-export class LevelScene extends Phaser.Scene {
-  private level!: Level;
+export class LevelScene extends Phaser.Scene implements LevelContext {
+  level!: Level;
+  player: PlayerState = initialPlayer();
   private body!: Phaser.Physics.Arcade.Body;
   private view!: Phaser.GameObjects.Image;
   private bg!: Phaser.GameObjects.TileSprite;
-  private dust!: Phaser.GameObjects.Particles.ParticleEmitter;
-  private sparks!: Phaser.GameObjects.Particles.ParticleEmitter;
-  private player: PlayerState = initialPlayer();
+  private dustFx!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private sparkFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private health: Health = initialHealth();
   private progress: Progress = initialProgress();
-  private enemies: EnemyEntity[] = [];
+  private score!: Score;
   private checkpoints: CheckpointEntity[] = [];
-  /** Enemies already hit by the current tail swing (one hit per swing). */
-  private swingHits = new Set<EnemyEntity>();
+  private blocks!: Blocks;
+  private pickups!: Pickups;
+  private platforms!: Platforms;
+  private enemies!: Enemies;
   private dying = false;
   private hurtFlashUntil = 0;
   private lastBottom = 0;
+  private lastSetVy = 0;
   private keys = new Map<string, Phaser.Input.Keyboard.Key>();
   private lookahead = 0;
 
@@ -91,34 +77,102 @@ export class LevelScene extends Phaser.Scene {
     super("level");
   }
 
+  // ── LevelContext ──────────────────────────────────────────────────
+
+  get host(): Phaser.Scene {
+    return this;
+  }
+
+  get arniBody(): Phaser.Physics.Arcade.Body {
+    return this.body;
+  }
+
+  arniRect(): Rect {
+    return bodyRect(this.body);
+  }
+
+  jumpHeld(): boolean {
+    return this.readInput().jump;
+  }
+
+  sparks(x: number, y: number, n: number): void {
+    this.sparkFx.emitParticleAt(x, y, n);
+  }
+
+  dust(x: number, y: number, n: number): void {
+    this.dustFx.emitParticleAt(x, y, n);
+  }
+
+  addCoins(n: number, at: { x: number; y: number }): void {
+    this.score = addCoins(this.score, n);
+    this.registry.set(HUD_KEYS.coins, this.score.coins);
+    for (let i = 0; i < Math.min(n, 5); i++) {
+      const c = this.add.image(at.x, at.y, "coin").setDepth(15);
+      this.tweens.add({
+        targets: c,
+        x: at.x + (i - (n - 1) / 2) * 26,
+        y: at.y - 70 - i * 6,
+        alpha: 0,
+        scale: 1.3,
+        duration: 500,
+        delay: i * 60,
+        ease: "Quad.out",
+        onComplete: () => c.destroy(),
+      });
+    }
+    this.sparks(at.x, at.y, 3 + n);
+  }
+
+  collectEgg(at: { x: number; y: number }): void {
+    this.score = collectEgg(this.score);
+    this.registry.set(HUD_KEYS.eggs, this.score.eggs);
+    this.sparks(at.x, at.y - 20, 30);
+    this.cameras.main.flash(250, 255, 246, 214);
+    const t = this.add
+      .text(at.x, at.y - 70, `Egg found! ${this.score.eggs}/${this.score.eggsTotal}`, {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "30px",
+        fontStyle: "bold",
+        color: "#fff6e0",
+        stroke: "#d68a1f",
+        strokeThickness: 6,
+      })
+      .setOrigin(0.5)
+      .setDepth(30);
+    this.tweens.add({ targets: t, y: t.y - 50, alpha: 0, delay: 700, duration: 700, onComplete: () => t.destroy() });
+  }
+
+  // ── Lifecycle ─────────────────────────────────────────────────────
+
   create(): void {
     this.level = parseLevel(TEST_LEVEL);
     this.player = initialPlayer();
     this.health = initialHealth();
     this.progress = initialProgress();
-    this.enemies = [];
+    this.score = initialScore(this.level);
     this.checkpoints = [];
     this.dying = false;
     // Per-run state must be reset here: scene.restart() reuses this instance,
     // and old Key objects die with the previous run's keyboard plugin.
     this.keys = new Map();
-    this.swingHits = new Set();
     this.lookahead = 0;
     this.hurtFlashUntil = 0;
+
     const worldW = this.level.width * TILE_SIZE;
     const worldH = this.level.height * TILE_SIZE;
-
     this.physics.world.setBounds(0, 0, worldW, worldH + TILE_SIZE * 4);
 
     this.createBackground();
-    const { solids, oneWays, hazards } = this.createTiles();
-    this.createSpawns();
     this.createArni();
     this.createParticles();
+    this.blocks = new Blocks(this);
+    this.pickups = new Pickups(this);
+    this.platforms = new Platforms(this);
+    this.enemies = new Enemies(this, this.blocks);
+    this.createCheckpoints();
 
-    this.physics.add.collider(this.body, solids);
-    this.physics.add.collider(this.body, oneWays, undefined, (_a, b) => this.landsOnOneWay(b));
-    this.physics.add.collider(this.body, hazards, (_a, b) => this.touchHazard(b));
+    this.blocks.addArniColliders((tile) => this.touchHazard(tile.body, (tile.getData("tile") as { kind: string }).kind));
+    this.platforms.addArniCollider();
 
     const cam = this.cameras.main;
     cam.setBounds(0, 0, worldW, worldH);
@@ -126,10 +180,22 @@ export class LevelScene extends Phaser.Scene {
     cam.setDeadzone(60, 140);
 
     this.bindKeyboard();
-    this.events.on(Phaser.Scenes.Events.POST_UPDATE, this.syncView, this);
+    this.events.on(Phaser.Scenes.Events.POST_UPDATE, this.syncViews, this);
+
+    // Pause: HUD button, Esc/P, or the window losing focus.
+    const pause = () => this.openPause();
+    this.game.events.on(HUD_EVENTS.pause, pause);
+    this.game.events.on(Phaser.Core.Events.BLUR, pause);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off(HUD_EVENTS.pause, pause);
+      this.game.events.off(Phaser.Core.Events.BLUR, pause);
+    });
 
     this.registry.set(HUD_KEYS.maxHearts, this.health.maxHearts);
     this.registry.set(HUD_KEYS.hearts, this.health.hearts);
+    this.registry.set(HUD_KEYS.coins, 0);
+    this.registry.set(HUD_KEYS.eggs, 0);
+    this.registry.set(HUD_KEYS.eggsTotal, this.score.eggsTotal);
     this.scene.launch("hud");
   }
 
@@ -137,13 +203,44 @@ export class LevelScene extends Phaser.Scene {
     const dt = Math.min(delta, MAX_DT_MS);
     this.bg.tilePositionX = this.cameras.main.scrollX * 0.3;
     this.health = tickHealth(this.health, dt);
+
+    this.platforms.update(dt);
     this.updateArni(this.dying ? emptyInput() : this.readInput(), dt);
+    this.enemies.update(dt);
+
     if (!this.dying) {
-      this.checkEnemies();
+      const whip = isWhipping(this.player) ? whipHitbox(this.arniRect()) : null;
+      if (whip) this.blocks.whip(whip);
+      if (this.enemies.contact(whip, this.lastBottom) === "stomp") {
+        this.player = applyBounce(this.player, this.jumpHeld());
+        this.body.setVelocityY(this.player.vy);
+        this.squashView(0.8, 1.2);
+      }
+      this.pickups.update();
       this.checkCheckpoints();
     }
+
     this.updateCamera();
     this.lastBottom = this.body.bottom;
+  }
+
+  // ── Pause menu hooks ──────────────────────────────────────────────
+
+  openPause(): void {
+    if (!this.sys.isActive() || this.scene.isActive("pause")) return;
+    this.scene.pause();
+    this.scene.launch("pause");
+  }
+
+  /** Called by the pause menu when it closes. */
+  resumeFromPause(): void {
+    this.input.keyboard?.resetKeys();
+    this.scene.resume();
+  }
+
+  /** "Back to Checkpoint": full hearts, last checkpoint, keep coins & eggs. */
+  restartFromCheckpoint(): void {
+    this.respawn(true);
   }
 
   // ── Dev helpers (exposed via window.__arni in dev builds) ─────────
@@ -154,9 +251,12 @@ export class LevelScene extends Phaser.Scene {
       hearts: this.health.hearts,
       invulnMs: this.health.invulnMs,
       checkpoint: this.progress.checkpoint,
-      enemiesLeft: this.enemies.filter((e) => !e.enemy.defeated).length,
+      coins: this.score.coins,
+      eggs: this.score.eggs,
+      enemiesLeft: this.enemies.aliveCount,
       tx: Math.floor(this.body.center.x / TILE_SIZE),
       ty: Math.floor((this.body.bottom - 1) / TILE_SIZE),
+      paused: !this.sys.isActive(),
     };
   }
 
@@ -175,70 +275,12 @@ export class LevelScene extends Phaser.Scene {
       .setScrollFactor(0);
   }
 
-  private createTiles() {
-    const solids = this.physics.add.staticGroup();
-    const oneWays = this.physics.add.staticGroup();
-    const hazards = this.physics.add.staticGroup();
-    this.level.tiles.forEach((row, ty) =>
-      row.forEach((kind, tx) => {
-        if (!kind) return;
-        const { x, y } = tileCenter(tx, ty);
-        const key = tileTextureKey(kind, tileVariant(this.level, tx, ty));
-        if (TILE_PROPS[kind].oneWay) {
-          const plat = oneWays.create(x, y, key) as Phaser.Physics.Arcade.Sprite;
-          // Only the top sliver of a branch is standable.
-          (plat.body as Phaser.Physics.Arcade.StaticBody).setSize(TILE_SIZE, 20).setOffset(0, 2);
-        } else if (kind === "thorns") {
-          const t = hazards.create(x, y, key) as Phaser.Physics.Arcade.Sprite;
-          // Hurt zone hugs the bramble, not the whole tile.
-          (t.body as Phaser.Physics.Arcade.StaticBody).setSize(TILE_SIZE, 34).setOffset(0, 30);
-        } else {
-          solids.create(x, y, key);
-        }
-      }),
-    );
-    return { solids, oneWays, hazards };
-  }
-
-  /** Branches only catch Arni when falling onto them from above. */
-  private landsOnOneWay(platform: unknown): boolean {
-    const plat = platform as { body: Phaser.Physics.Arcade.StaticBody };
-    const prevBottom = this.body.prev.y + this.body.height;
-    return this.body.velocity.y >= 0 && prevBottom <= plat.body.top + 6;
-  }
-
-  private createSpawns(): void {
-    for (const spawn of this.level.spawns) {
-      const key = spawnTextureKey(spawn.kind);
-      const { x, y } = spawnPoint(spawn.tx, spawn.ty);
-      const img = this.placeImage(key, x, y);
-
-      if (spawn.kind === "coin") {
-        img.setY(y - TILE_SIZE / 2);
-        this.tweens.add({ targets: img, y: img.y - 6, duration: 700, yoyo: true, repeat: -1, ease: "Sine.inOut" });
-      } else if (spawn.kind === "egg") {
-        this.tweens.add({ targets: img, angle: { from: -6, to: 6 }, duration: 600, yoyo: true, repeat: -1, ease: "Sine.inOut" });
-      } else if (spawn.kind === "checkpoint") {
-        this.checkpoints.push({ pos: { tx: spawn.tx, ty: spawn.ty }, img, rect: feetRect(x, y, 48, 112) });
-      } else if (isEnemyKind(spawn.kind)) {
-        // Banana minions stand still until AI arrives in Milestone 5.
-        const a = ASSETS[key];
-        const idle = this.tweens.add({
-          targets: img,
-          scaleY: 0.9,
-          scaleX: 1.08,
-          duration: 380 + Math.random() * 200,
-          yoyo: true,
-          repeat: -1,
-          ease: "Sine.inOut",
-        });
-        this.enemies.push({
-          enemy: newEnemy(spawn.kind),
-          img,
-          idle,
-          rect: feetRect(x, y, a.width * 0.72, a.height * 0.86),
-        });
-      }
+  private createCheckpoints(): void {
+    for (const s of this.level.spawns) {
+      if (s.kind !== "checkpoint") continue;
+      const { x, y } = spawnPoint(s.tx, s.ty);
+      const img = this.add.image(x, y, "checkpoint").setOrigin(0.5, 1);
+      this.checkpoints.push({ pos: { tx: s.tx, ty: s.ty }, img, rect: { left: x - 24, right: x + 24, top: y - 112, bottom: y } });
     }
   }
 
@@ -253,11 +295,13 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private createParticles(): void {
-    const g = this.add.graphics();
-    g.fillStyle(0xffffff, 1).fillCircle(8, 8, 8);
-    g.generateTexture("dust", 16, 16);
-    g.destroy();
-    this.dust = this.add.particles(0, 0, "dust", {
+    if (!this.textures.exists("dust")) {
+      const g = this.add.graphics();
+      g.fillStyle(0xffffff, 1).fillCircle(8, 8, 8);
+      g.generateTexture("dust", 16, 16);
+      g.destroy();
+    }
+    this.dustFx = this.add.particles(0, 0, "dust", {
       lifespan: 350,
       speed: { min: 40, max: 140 },
       angle: { min: 200, max: 340 },
@@ -266,8 +310,8 @@ export class LevelScene extends Phaser.Scene {
       tint: 0xf3e2c0,
       emitting: false,
     });
-    this.dust.setDepth(11);
-    this.sparks = this.add.particles(0, 0, "dust", {
+    this.dustFx.setDepth(11);
+    this.sparkFx = this.add.particles(0, 0, "dust", {
       lifespan: 450,
       speed: { min: 120, max: 320 },
       angle: { min: 0, max: 360 },
@@ -275,12 +319,7 @@ export class LevelScene extends Phaser.Scene {
       tint: [0xffd36a, 0xff7a2e, 0xfff8d8, 0x3ef0d0],
       emitting: false,
     });
-    this.sparks.setDepth(12);
-  }
-
-  private placeImage(key: AssetKey, x: number, y: number): Phaser.GameObjects.Image {
-    const a = ASSETS[key];
-    return this.add.image(x, y, key).setOrigin(a.originX, a.originY);
+    this.sparkFx.setDepth(12);
   }
 
   // ── Input ─────────────────────────────────────────────────────────
@@ -293,6 +332,8 @@ export class LevelScene extends Phaser.Scene {
         if (!this.keys.has(name)) this.keys.set(name, kb.addKey(name));
       }
     }
+    kb.on("keydown-ESC", () => this.openPause());
+    kb.on("keydown-P", () => this.openPause());
   }
 
   private readInput(): PlayerInput {
@@ -300,11 +341,6 @@ export class LevelScene extends Phaser.Scene {
   }
 
   // ── Arni ──────────────────────────────────────────────────────────
-
-  private arniRect(): Rect {
-    const b = this.body;
-    return { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
-  }
 
   private canStand(): boolean {
     const { width, height } = bodyFor("stand");
@@ -316,20 +352,44 @@ export class LevelScene extends Phaser.Scene {
   private updateArni(input: PlayerInput, dtMs: number): void {
     const b = this.body;
     const prevPose = this.player.pose;
+    const ride = this.platforms.glue(b, this.player.rising || this.player.vy < -200);
+    if (ride) {
+      // Ride exactly on the surface, carried sideways by however far the slab moved.
+      b.y = ride.body.top - b.height;
+      b.x += ride.movedX;
+    }
+    const grounded = !!ride || b.blocked.down || b.touching.down;
+
+    // Head bumped a block while rising (amber cracks open).
+    if (b.blocked.up && this.lastSetVy < 0) this.blocks.bonk(this.lastSetVy);
+
     const { state, events } = stepPlayer(
       this.player,
       input,
       {
-        grounded: b.blocked.down || b.touching.down,
+        grounded,
         canStand: this.canStand(),
+        slippery: grounded && this.enemies.onGoo(this.arniRect()),
         vx: b.velocity.x,
         vy: b.velocity.y,
       },
       dtMs,
     );
     this.player = state;
-    if (state.pose !== prevPose) this.resizeBody(state.pose);
-    b.setVelocity(state.vx, state.vy);
+
+    if (this.blocks.springHit) {
+      this.player = applySpring(this.player, input.jump || input.up);
+      this.blocks.bounceFx(this.blocks.springHit);
+      this.blocks.springHit = null;
+      this.squashView(0.7, 1.35, 120);
+    } else if (ride && this.player.grounded) {
+      // Keep pace with a slab moving up or down.
+      this.player = { ...this.player, vy: ride.body.velocity.y + TUNING.groundStick };
+    }
+
+    if (this.player.pose !== prevPose) this.resizeBody(this.player.pose);
+    b.setVelocity(this.player.vx, this.player.vy);
+    this.lastSetVy = this.player.vy;
 
     if (!this.dying && b.top > this.level.height * TILE_SIZE + TILE_SIZE) this.fellOut();
 
@@ -354,79 +414,23 @@ export class LevelScene extends Phaser.Scene {
     this.lastBottom = this.body.bottom;
   }
 
-  // ── Combat & damage ───────────────────────────────────────────────
+  // ── Damage & respawn ──────────────────────────────────────────────
 
-  private checkEnemies(): void {
-    const arni = this.arniRect();
-    const whip = isWhipping(this.player) ? whipHitbox(arni) : null;
-    // Feet at the end of last frame (robust even if physics took several steps this frame).
-    const prevBottom = this.lastBottom;
-
-    for (const e of this.enemies) {
-      if (e.enemy.defeated) continue;
-      const result = resolveEnemyContact({
-        arni,
-        arniPrevBottom: prevBottom,
-        arniVy: this.body.velocity.y,
-        whip: whip && !this.swingHits.has(e) ? whip : null,
-        enemy: e.rect,
-      });
-      if (result === "whip") {
-        this.swingHits.add(e);
-        this.hitEnemy(e, "whip");
-      } else if (result === "stomp") {
-        this.hitEnemy(e, "stomp");
-        this.player = applyBounce(this.player, this.readInput().jump);
-        this.body.setVelocityY(this.player.vy);
-        this.squashView(0.8, 1.2);
-      } else if (result === "hurt") {
-        const dir = Math.sign(centerX(e.rect) - centerX(arni)) as -1 | 0 | 1;
-        this.hurtArni(dir || 1);
-      }
-    }
-  }
-
-  private hitEnemy(e: EnemyEntity, how: "whip" | "stomp"): void {
-    e.enemy = damageEnemy(e.enemy);
-    const img = e.img;
-    this.sparks.emitParticleAt(centerX(e.rect), (e.rect.top + e.rect.bottom) / 2, 10);
-    this.cameras.main.shake(70, 0.004);
-
-    if (!e.enemy.defeated) {
-      // Tough minion survived: flash and wobble.
-      img.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
-      this.time.delayedCall(90, () => img.clearTint());
-      this.tweens.add({ targets: img, angle: { from: -14, to: 0 }, duration: 260, ease: "Back.out" });
+  private touchHazard(tile: Phaser.Physics.Arcade.StaticBody, kind: string): void {
+    if (kind === "lava") {
+      // Lava works like a pit (one heart, back to the checkpoint) — never a
+      // floor you can get stuck standing in while hearts drain away.
+      if (this.dying) return;
+      this.sparks(this.body.center.x, tile.top, 20);
+      this.cameras.main.shake(150, 0.008);
+      this.fellOut();
       return;
     }
-
-    e.idle.stop();
-    if (how === "stomp") {
-      this.tweens.add({ targets: img, scaleY: 0.25, scaleX: 1.4, duration: 90, ease: "Quad.out" });
-      this.tweens.add({ targets: img, alpha: 0, delay: 350, duration: 250, onComplete: () => img.setVisible(false) });
-    } else {
-      const away = Math.sign(centerX(e.rect) - this.body.center.x) || 1;
-      this.tweens.add({
-        targets: img,
-        x: img.x + away * 220,
-        y: img.y - 160,
-        angle: away * 540,
-        alpha: 0,
-        duration: 600,
-        ease: "Quad.out",
-        onComplete: () => img.setVisible(false),
-      });
-    }
+    const fromAbove = this.body.bottom <= tile.top + 8;
+    this.hurtArni(fromAbove ? 0 : (Math.sign(tile.center.x - this.body.center.x) as -1 | 1));
   }
 
-  private touchHazard(tile: unknown): void {
-    const t = tile as { body: Phaser.Physics.Arcade.StaticBody };
-    const dx = t.body.center.x - this.body.center.x;
-    const fromAbove = this.body.bottom <= t.body.top + 8;
-    this.hurtArni(fromAbove ? 0 : (Math.sign(dx) as -1 | 1));
-  }
-
-  private hurtArni(fromDir: -1 | 0 | 1): void {
+  hurtArni(fromDir: -1 | 0 | 1): void {
     if (this.dying) return;
     const { health, result } = damage(this.health);
     if (result === "ignored") return;
@@ -449,11 +453,8 @@ export class LevelScene extends Phaser.Scene {
     const { health, result } = damage({ ...this.health, invulnMs: 0 });
     this.health = health;
     this.registry.set(HUD_KEYS.hearts, health.hearts);
-    if (result === "dead") {
-      this.die();
-    } else {
-      this.respawn(false);
-    }
+    if (result === "dead") this.die();
+    else this.respawn(false);
   }
 
   private die(): void {
@@ -484,7 +485,7 @@ export class LevelScene extends Phaser.Scene {
       this.progress = progress;
       for (const other of this.checkpoints) other.img.setTexture("checkpoint");
       c.img.setTexture("checkpoint-on");
-      this.sparks.emitParticleAt(centerX(c.rect), c.rect.top + 20, 24);
+      this.sparks(centerX(c.rect), c.rect.top + 20, 24);
       this.tweens.add({ targets: c.img, scaleY: { from: 1.25, to: 1 }, duration: 350, ease: "Back.out" });
     }
   }
@@ -498,7 +499,7 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private playEvents(events: PlayerEvent[]): void {
-    const puff = (n: number) => this.dust.emitParticleAt(this.body.center.x, this.body.bottom, n);
+    const puff = (n: number) => this.dust(this.body.center.x, this.body.bottom, n);
     for (const e of events) {
       switch (e) {
         case "jump":
@@ -521,7 +522,7 @@ export class LevelScene extends Phaser.Scene {
           this.squashView(1.12, 0.9, 60);
           break;
         case "whip":
-          this.swingHits.clear();
+          this.enemies.newSwing();
           this.whipSwoosh();
           break;
         default:
@@ -547,8 +548,11 @@ export class LevelScene extends Phaser.Scene {
     });
   }
 
-  /** Runs after physics so the view sits exactly on the body. */
-  private syncView(): void {
+  /** Runs after physics so every view sits exactly on its body. */
+  private syncViews(): void {
+    this.platforms.syncViews();
+    this.enemies.syncViews();
+
     const p = this.player;
     const v = this.view;
     v.setPosition(this.body.center.x, this.body.bottom);
@@ -557,14 +561,12 @@ export class LevelScene extends Phaser.Scene {
     v.setTexture(p.pose === "stand" ? "arni-idle" : "arni-crouch");
 
     if (isWhipping(p)) {
-      // Spin attack: one full turn over the whip.
       v.setAngle((1 - p.attackMs / TUNING.whipMs) * 360 * p.facing);
     } else {
       const lean = p.pose === "slide" ? 10 * p.facing : (p.vx / TUNING.runSpeed) * 4;
       v.setAngle(lean);
     }
 
-    // Blink while invulnerable; red flash when hit; glow while a charged jump is ready.
     const now = this.time.now;
     v.setAlpha(isInvulnerable(this.health) && Math.floor(now / 80) % 2 === 0 ? 0.35 : 1);
     if (now < this.hurtFlashUntil) {
@@ -582,12 +584,4 @@ export class LevelScene extends Phaser.Scene {
     this.lookahead += (target - this.lookahead) * 0.04;
     this.cameras.main.setFollowOffset(-this.lookahead, 40);
   }
-}
-
-function feetRect(x: number, bottom: number, w: number, h: number): Rect {
-  return { left: x - w / 2, right: x + w / 2, top: bottom - h, bottom };
-}
-
-function centerX(r: Rect): number {
-  return (r.left + r.right) / 2;
 }

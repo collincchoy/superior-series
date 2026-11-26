@@ -35,9 +35,12 @@ describe("whipHitbox (spin attack)", () => {
     expect(hb.right).toBe(body.right + T.whipReach);
   });
 
-  it("stays within the body's height band", () => {
-    expect(hb.top).toBeGreaterThanOrEqual(body.top);
+  it("sweeps Arni's whole height, reaching just above the head", () => {
+    // So a block at head height (e.g. a crate wall) gets hit too.
+    expect(hb.top).toBeLessThan(body.top);
+    expect(hb.top).toBeGreaterThanOrEqual(body.top - 12);
     expect(hb.bottom).toBeLessThanOrEqual(body.bottom);
+    expect(hb.bottom).toBeGreaterThan(body.bottom - 8);
   });
 });
 
