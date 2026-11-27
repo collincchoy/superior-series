@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Steel with a glowing banana porthole -->
+  <rect y="0" width="64" height="64" fill="#3f7fa6"/>
+  <rect y="26" width="64" height="30" fill="#356c8f"/>
+  <path d="M0 26 H64" stroke="#1f3f57" stroke-width="2"/>
+  <path d="M32 0 V64" stroke="#1f3f57" stroke-width="2" opacity="0.6"/>
+  <circle cx="6" cy="6" r="2.2" fill="#a9d6ee"/>
+  <circle cx="6" cy="32" r="2.2" fill="#a9d6ee"/>
+  <circle cx="26" cy="6" r="2.2" fill="#a9d6ee"/>
+  <circle cx="26" cy="32" r="2.2" fill="#a9d6ee"/>
+  <circle cx="38" cy="6" r="2.2" fill="#a9d6ee"/>
+  <circle cx="38" cy="32" r="2.2" fill="#a9d6ee"/>
+  <circle cx="58" cy="6" r="2.2" fill="#a9d6ee"/>
+  <circle cx="58" cy="32" r="2.2" fill="#a9d6ee"/>
+  <circle cx="32" cy="34" r="15" fill="#1f3f57" stroke="#a9d6ee" stroke-width="4"/>
+  <circle cx="32" cy="34" r="11" fill="#ffd36a" opacity="0.9"/>
+  <path d="M26 28 Q24 38 31 43 Q36 44 38 41 Q31 38 30 28 Z" fill="#c49a00"/>
+  <circle cx="27" cy="29" r="2.5" fill="#fff8d8"/>
+</svg>

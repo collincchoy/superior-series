@@ -4,6 +4,7 @@ import { PHYSICS_FPS } from "./frameTiming.js";
 import { BootScene } from "./scenes/BootScene.js";
 import { HudScene } from "./scenes/HudScene.js";
 import { LevelScene } from "./scenes/LevelScene.js";
+import { LevelSelectScene } from "./scenes/LevelSelectScene.js";
 import { PauseScene } from "./scenes/PauseScene.js";
 import { VictoryScene } from "./scenes/VictoryScene.js";
 
@@ -15,6 +16,10 @@ export function createGame(parent: HTMLElement, baseUrl: string): Phaser.Game {
     width: VIEW_WIDTH,
     height: VIEW_HEIGHT,
     backgroundColor: "#5ec8ff",
+    // No sound yet. Without this Phaser opens an AudioContext anyway, and its
+    // focus/blur handlers threw "closed AudioContext" errors around navigation.
+    // Remove when adding sound (and make sure the game is destroyed cleanly).
+    audio: { noAudio: true },
     fps: {
       // Phaser's delta smoothing clamps every frame to 16.7ms while the window
       // is unfocused and for 120 frames after it regains focus. Below 60fps
@@ -31,7 +36,7 @@ export function createGame(parent: HTMLElement, baseUrl: string): Phaser.Game {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [new BootScene(baseUrl), LevelScene, HudScene, PauseScene, VictoryScene],
+    scene: [new BootScene(baseUrl), LevelSelectScene, LevelScene, HudScene, PauseScene, VictoryScene],
   });
 
   if (import.meta.env.DEV) {

@@ -5,7 +5,7 @@
  */
 import { TILE_SIZE as T } from "./constants.js";
 
-export type MinionKind = "bunchling" | "peelback" | "bruiser" | "spotter" | "mush" | "miniMush";
+export type MinionKind = "bunchling" | "peelback" | "bruiser" | "spotter" | "mush" | "miniMush" | "crownie";
 export type Facing = 1 | -1;
 export type AiMode =
   | "walk"
@@ -16,7 +16,8 @@ export type AiMode =
   | "angry" // bruiser
   | "rage"
   | "sleep" // spotter
-  | "awake";
+  | "awake"
+  | "aim"; // crownie: glowing, about to fire
 
 export const AI = {
   bunchling: { speed: 90, decideMs: 700, panicChance: 0.35, panicMs: 450 },
@@ -33,6 +34,17 @@ export const AI = {
   spotter: { wakeTiles: 8, wakeDyTiles: 6, firstThrowMs: 600, throwEveryMs: 1800, sleepAfterMs: 2500 },
   mush: { speed: 45, gooSpacing: 40 },
   miniMush: { speed: 85 },
+  crownie: {
+    speed: 70,
+    turnEveryMs: 2200,
+    sightTiles: 8,
+    sightDyTiles: 6,
+    firstShotMs: 900,
+    /** Telegraph: the crown glows and holds still this long before firing. */
+    aimMs: 500,
+    shootEveryMs: 2400,
+    shotSpeed: 300,
+  },
 } as const;
 
 export interface AiState {
@@ -56,13 +68,15 @@ export interface AiSense {
   arniDy: number;
 }
 
-export type AiEvent = "turn" | "panic" | "spotted" | "charge" | "dizzy" | "wake" | "sleep" | "throw";
+export type AiEvent = "turn" | "panic" | "spotted" | "charge" | "dizzy" | "wake" | "sleep" | "throw" | "aim" | "fire";
 
 export interface AiOutput {
   state: AiState;
   vx: number;
   /** Lob a peel at this offset (spotter). */
   throwAt: { dx: number; dy: number } | null;
+  /** Shoot a straight fireball at this offset (crownie). */
+  fireAt: { dx: number; dy: number } | null;
   dropGoo: boolean;
   events: AiEvent[];
 }
@@ -71,8 +85,9 @@ const EPS = 1e-6;
 
 export function initialAi(kind: MinionKind, facing: Facing = -1): AiState {
   const mode: AiMode = kind === "spotter" ? "sleep" : "walk";
-  const timerMs = kind === "bunchling" ? AI.bunchling.decideMs : 0;
-  return { kind, facing, mode, timerMs, throwMs: 0, gooDist: 0 };
+  const timerMs = kind === "bunchling" ? AI.bunchling.decideMs : kind === "crownie" ? AI.crownie.turnEveryMs : 0;
+  const throwMs = kind === "crownie" ? AI.crownie.firstShotMs : 0;
+  return { kind, facing, mode, timerMs, throwMs, gooDist: 0 };
 }
 
 /** React to being hit but not defeated. */
@@ -93,7 +108,7 @@ export function lobVelocity(dx: number, dy: number, flightMs: number, g: number)
 
 export function stepAi(prev: AiState, sense: AiSense, dtMs: number, rand: () => number = Math.random): AiOutput {
   const s: AiState = { ...prev, timerMs: prev.timerMs - dtMs };
-  const out: AiOutput = { state: s, vx: 0, throwAt: null, dropGoo: false, events: [] };
+  const out: AiOutput = { state: s, vx: 0, throwAt: null, fireAt: null, dropGoo: false, events: [] };
   const turn = () => {
     s.facing = (s.facing * -1) as Facing;
     out.events.push("turn");
@@ -220,6 +235,38 @@ export function stepAi(prev: AiState, sense: AiSense, dtMs: number, rand: () => 
     case "miniMush":
       patrol(AI.miniMush.speed, true);
       break;
+
+    case "crownie": {
+      // Flies: hovers back and forth, and when Arni is near, glows then fires.
+      const A = AI.crownie;
+      if (s.mode === "aim") {
+        if (s.timerMs <= EPS) {
+          out.fireAt = { dx: sense.arniDx, dy: sense.arniDy };
+          out.events.push("fire");
+          s.mode = "walk";
+          s.timerMs = A.turnEveryMs;
+          s.throwMs = A.shootEveryMs;
+        }
+        break;
+      }
+      if (sense.wallAhead || s.timerMs <= EPS) {
+        turn();
+        s.timerMs = A.turnEveryMs;
+      }
+      out.vx = s.facing * A.speed;
+      const inSight = Math.abs(sense.arniDx) <= A.sightTiles * T && Math.abs(sense.arniDy) <= A.sightDyTiles * T;
+      if (inSight) {
+        s.throwMs -= dtMs;
+        if (s.throwMs <= EPS) {
+          s.mode = "aim";
+          s.timerMs = A.aimMs;
+          if (sense.arniDx !== 0) s.facing = Math.sign(sense.arniDx) as Facing;
+          out.vx = 0;
+          out.events.push("aim");
+        }
+      }
+      break;
+    }
   }
   return out;
 }

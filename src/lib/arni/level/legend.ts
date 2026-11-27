@@ -61,6 +61,7 @@ export const SPAWN_KINDS = [
   "bruiser", // bruised — tough, 2 HP
   "spotter", // brown — lobs peels
   "mush", // rotten — goo trail, splits
+  "crownie", // flying crown — hovers and shoots fireballs (later levels)
 ] as const;
 export type SpawnKind = (typeof SPAWN_KINDS)[number];
 
@@ -104,4 +105,5 @@ export const SPAWN_CHARS: Record<string, SpawnKind> = {
   b: "bruiser",
   s: "spotter",
   m: "mush",
+  c: "crownie",
 };

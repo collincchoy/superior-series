@@ -5,6 +5,7 @@ import {
   ASSETS,
   ASSET_DIR,
   powerUpTextureKey,
+  themed,
   tileTextureKey,
   spawnTextureKey,
 } from "../../lib/arni/assets.js";
@@ -48,6 +49,33 @@ describe("asset manifest", () => {
       expect(keys.size, kind).toBe(4);
     }
     expect(tileTextureKey("ground", "fill")).not.toBe(tileTextureKey("ground", "fillAccent"));
+  });
+
+  it("factory levels have their own look for terrain, gadgets and backdrop", () => {
+    const swapped = [
+      ...(["top", "topLeft", "topRight", "topSolo", "fill", "fillAccent", "fillCrack"] as const).map((v) =>
+        tileTextureKey("ground", v),
+      ),
+      ...(["top", "topLeft", "topRight", "topSolo"] as const).map((v) => tileTextureKey("branch", v)),
+      tileTextureKey("lava", "single"),
+      tileTextureKey("thorns", "single"),
+      tileTextureKey("bounce", "single"),
+      tileTextureKey("crumble", "single"),
+      "platform",
+      "bg-sky",
+      "bg-jungle",
+    ] as const;
+    for (const key of swapped) {
+      const f = themed(key, "factory");
+      expect(f, key).not.toBe(key);
+      expect(ASSETS[f], `${key} → ${f}`).toBeDefined();
+    }
+  });
+
+  it("volcano levels use the original art, and unthemed things look the same everywhere", () => {
+    expect(themed("ground-top", "volcano")).toBe("ground-top");
+    expect(themed("coin", "factory")).toBe("coin");
+    expect(themed("arni-idle", "factory")).toBe("arni-idle");
   });
 
   it("every power-up has a pickup texture", () => {

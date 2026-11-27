@@ -59,13 +59,14 @@ describe("parseLevel", () => {
   });
 
   it("parses every banana minion variant", () => {
-    const { spawns } = parseLevel(["Pgybsm", "######"]);
+    const { spawns } = parseLevel(["Pgybsmc", "#######"]);
     expect(spawns.map((s) => s.kind)).toEqual([
       "bunchling",
       "peelback",
       "bruiser",
       "spotter",
       "mush",
+      "crownie",
     ]);
   });
 

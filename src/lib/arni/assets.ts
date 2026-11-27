@@ -98,6 +98,7 @@ export const ASSETS = {
   "rex-dizzy": feet("rex-dizzy.svg", 128, 160),
   "rex-defeated": feet("rex-defeated.svg", 128, 160),
   gate: tile("gate.svg"),
+  throne: feet("throne.svg", 180, 220),
   "hud-coin": { file: "coin.svg", width: 32, height: 32, originX: 0, originY: 0 },
   "hud-egg": { file: "egg.svg", width: 30, height: 36, originX: 0, originY: 0 },
   "hud-egg-empty": { file: "egg-empty.svg", width: 30, height: 36, originX: 0, originY: 0 },
@@ -108,10 +109,32 @@ export const ASSETS = {
   peel: { file: "peel.svg", width: 36, height: 28, originX: 0.5, originY: 0.5 },
   goo: feet("goo.svg", 56, 14),
   "banana-minimush": feet("banana-mush.svg", 40, 35),
+  crownie: { file: "crownie.svg", width: 80, height: 56, originX: 0.5, originY: 1 },
+  "enemy-fire": { file: "enemy-fire.svg", width: 32, height: 32, originX: 0.5, originY: 0.5 },
 
   // Backgrounds
   "bg-sky": { file: "bg-sky.svg", width: 1280, height: 720, originX: 0, originY: 0 },
   "bg-jungle": { file: "bg-jungle.svg", width: 1280, height: 420, originX: 0, originY: 1 },
+
+  // Rex's Banana Factory (levels 6–10) — swapped in by themed()
+  "f-ground-top": tile("f-ground-top.svg"),
+  "f-ground-top-left": tile("f-ground-top-left.svg"),
+  "f-ground-top-right": tile("f-ground-top-right.svg"),
+  "f-ground-top-solo": tile("f-ground-top-solo.svg"),
+  "f-ground-fill": tile("f-ground-fill.svg"),
+  "f-ground-accent": tile("f-ground-accent.svg"),
+  "f-ground-vent": tile("f-ground-vent.svg"),
+  "f-girder-mid": tile("f-girder-mid.svg"),
+  "f-girder-left": tile("f-girder-left.svg"),
+  "f-girder-right": tile("f-girder-right.svg"),
+  "f-girder-solo": tile("f-girder-solo.svg"),
+  "f-goo": tile("f-goo.svg"),
+  "f-shredder": tile("f-shredder.svg"),
+  "f-spring": tile("f-spring.svg"),
+  "f-grate": tile("f-grate.svg"),
+  "f-platform": { file: "f-platform.svg", width: 128, height: 28, originX: 0, originY: 0 },
+  "bg-factory-wall": { file: "bg-factory-wall.svg", width: 1280, height: 720, originX: 0, originY: 0 },
+  "bg-factory": { file: "bg-factory.svg", width: 1280, height: 420, originX: 0, originY: 1 },
 } satisfies Record<string, AssetDef>;
 
 export type AssetKey = keyof typeof ASSETS;
@@ -170,6 +193,7 @@ const SPAWN_TEXTURES: Record<SpawnKind, AssetKey> = {
   bruiser: "banana-bruiser",
   spotter: "banana-spotter",
   mush: "banana-mush",
+  crownie: "crownie",
 };
 
 export function spawnTextureKey(kind: SpawnKind): AssetKey {
@@ -178,4 +202,34 @@ export function spawnTextureKey(kind: SpawnKind): AssetKey {
 
 export function powerUpTextureKey(kind: PowerUpKind): AssetKey {
   return `powerup-${kind}`;
+}
+
+export type Theme = "volcano" | "factory";
+
+/** Factory replacements for volcano art (same size and anchor, so physics is unchanged). */
+const FACTORY: Partial<Record<AssetKey, AssetKey>> = {
+  "ground-top": "f-ground-top",
+  "ground-top-left": "f-ground-top-left",
+  "ground-top-right": "f-ground-top-right",
+  "ground-top-solo": "f-ground-top-solo",
+  "ground-fill": "f-ground-fill",
+  "ground-crystal": "f-ground-accent",
+  "ground-crack": "f-ground-vent",
+  "branch-mid": "f-girder-mid",
+  "branch-left": "f-girder-left",
+  "branch-right": "f-girder-right",
+  "branch-solo": "f-girder-solo",
+  boulder: "crate",
+  lava: "f-goo",
+  thorns: "f-shredder",
+  bounce: "f-spring",
+  crumble: "f-grate",
+  platform: "f-platform",
+  "bg-sky": "bg-factory-wall",
+  "bg-jungle": "bg-factory",
+};
+
+/** The texture to draw for `key` in a level of the given theme. */
+export function themed(key: AssetKey, theme: Theme): AssetKey {
+  return theme === "factory" ? (FACTORY[key] ?? key) : key;
 }

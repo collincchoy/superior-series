@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { ASSETS } from "../assets.js";
+import { ASSETS, themed, type Theme } from "../assets.js";
 import { overlaps, whipHitbox, type Rect } from "../combat.js";
 import { TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH } from "../constants.js";
 import { damage, heal, initialHealth, isInvulnerable, respawnHealth, tickHealth, type Health } from "../health.js";
@@ -17,7 +17,9 @@ import {
   type Powers,
   type TimedPower,
 } from "../powerups.js";
+import { LEVELS, type LevelDef } from "../level/levels/index.js";
 import { TEST_LEVEL } from "../level/levels/testLevel.js";
+import { loadSave, recordWin, storeSave } from "../save.js";
 import { parseLevel, spawnPoint, type Level, type TilePos } from "../level/parseLevel.js";
 import { addCoins, collectEgg, initialScore, type Score } from "../pickups.js";
 import {
@@ -71,8 +73,16 @@ interface CheckpointEntity {
  * Arni is two objects: an invisible physics Body (size changes with pose)
  * and a view Image that follows it — so squash/stretch never disturbs collisions.
  */
+/** Passed to scene.start("level", …). */
+export interface LevelStartData {
+  /** Index into LEVELS; -1 = the sandbox test level (dev). */
+  levelIndex?: number;
+}
+
 export class LevelScene extends Phaser.Scene implements LevelContext {
   level!: Level;
+  theme: Theme = "volcano";
+  private levelIndex = 0;
   player: PlayerState = initialPlayer();
   private body!: Phaser.Physics.Arcade.Body;
   private view!: Phaser.GameObjects.Image;
@@ -205,6 +215,26 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     this.tweens.add({ targets: t, y: t.y - 50, alpha: 0, delay: 1300, duration: 700, onComplete: () => t.destroy() });
   }
 
+  /** "Level 3 · Thorny Trail" across the screen at the start. */
+  private levelBanner(def: LevelDef): void {
+    const style = { fontFamily: "system-ui, sans-serif", fontStyle: "bold", stroke: "#271f40", align: "center" };
+    const top = this.add
+      .text(VIEW_WIDTH / 2, VIEW_HEIGHT / 2 - 50, `Level ${def.number}`, { ...style, fontSize: "36px", color: "#ffd36a", strokeThickness: 7 })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(40);
+    const name = this.add
+      .text(VIEW_WIDTH / 2, VIEW_HEIGHT / 2 + 4, def.name, { ...style, fontSize: "60px", color: "#ffffff", strokeThickness: 10 })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(40);
+    for (const [i, t] of [top, name].entries()) {
+      t.setAlpha(0).setScale(0.7);
+      this.tweens.add({ targets: t, alpha: 1, scale: 1, delay: i * 120, duration: 350, ease: "Back.out" });
+      this.tweens.add({ targets: t, alpha: 0, y: t.y - 30, delay: 1800 + i * 80, duration: 500, onComplete: () => t.destroy() });
+    }
+  }
+
   private tryFireRoar(input: PlayerInput): void {
     if (!input.special || this.specialHeld) return;
     const { powers, fired } = tryFire(this.powers);
@@ -218,8 +248,12 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
 
   // ── Lifecycle ─────────────────────────────────────────────────────
 
-  create(): void {
-    this.level = parseLevel(TEST_LEVEL);
+  create(data: LevelStartData = {}): void {
+    // -1 = the sandbox test level (dev only); otherwise an index into LEVELS.
+    this.levelIndex = data.levelIndex ?? 0;
+    const def = this.levelIndex >= 0 ? LEVELS[this.levelIndex] : undefined;
+    this.theme = def?.theme ?? "volcano";
+    this.level = parseLevel(def?.rows ?? TEST_LEVEL);
     this.player = initialPlayer();
     this.health = initialHealth();
     this.powers = initialPowers();
@@ -248,8 +282,11 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     this.pickups = new Pickups(this);
     this.platforms = new Platforms(this);
     this.enemies = new Enemies(this, this.blocks);
-    this.boss = new Boss(this, this.blocks, this.enemies);
-    this.boss.onHits = (n) => this.registry.set(HUD_KEYS.bossHits, n);
+    this.boss = new Boss(this, this.blocks, this.enemies, def?.difficulty ?? 3, def?.rexOnThrone ?? false);
+    this.boss.onHits = (n) => {
+      this.registry.set(HUD_KEYS.bossMaxHits, this.boss.maxHits);
+      this.registry.set(HUD_KEYS.bossHits, n);
+    };
     this.boss.onStart = (arena) => {
       // Respawn inside the arena once the gate has closed.
       this.progress = activateCheckpoint(this.progress, { tx: arena.leftTx, ty: arena.floorTy }).progress;
@@ -272,10 +309,17 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     const pause = () => this.openPause();
     this.game.events.on(HUD_EVENTS.pause, pause);
     this.game.events.on(Phaser.Core.Events.BLUR, pause);
+    // The scene instance (and its emitters) survive restarts, so every
+    // listener added in create() must be removed on shutdown.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off(HUD_EVENTS.pause, pause);
       this.game.events.off(Phaser.Core.Events.BLUR, pause);
+      this.events.off(Phaser.Scenes.Events.POST_UPDATE, this.syncViews, this);
+      this.input.keyboard?.off("keydown-ESC");
+      this.input.keyboard?.off("keydown-P");
     });
+
+    if (def) this.levelBanner(def);
 
     this.registry.set(HUD_KEYS.maxHearts, this.health.maxHearts);
     this.registry.set(HUD_KEYS.hearts, this.health.hearts);
@@ -333,10 +377,20 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
   private win(): void {
     if (this.won) return;
     this.won = true;
+    const earned = trophies(this.score, COIN_TROPHY);
+    if (this.levelIndex >= 0) {
+      const save = recordWin(loadSave(localStorage, LEVELS.length), this.levelIndex, {
+        eggs: this.score.eggs,
+        coins: this.score.coins,
+        trophies: earned,
+      });
+      storeSave(localStorage, save);
+    }
     const data: VictoryData = {
       score: { ...this.score },
       timeMs: this.time.now - this.startedAt,
-      trophies: trophies(this.score, COIN_TROPHY),
+      trophies: earned,
+      levelIndex: this.levelIndex,
     };
     this.scene.pause();
     this.scene.launch("victory", data);
@@ -383,10 +437,10 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
   // ── World building ────────────────────────────────────────────────
 
   private createBackground(): void {
-    this.add.image(0, 0, "bg-sky").setOrigin(0).setScrollFactor(0).setDisplaySize(VIEW_WIDTH, VIEW_HEIGHT);
-    const jungle = ASSETS["bg-jungle"];
+    this.add.image(0, 0, themed("bg-sky", this.theme)).setOrigin(0).setScrollFactor(0).setDisplaySize(VIEW_WIDTH, VIEW_HEIGHT);
+    const farKey = themed("bg-jungle", this.theme);
     this.bg = this.add
-      .tileSprite(0, VIEW_HEIGHT, VIEW_WIDTH, jungle.height, "bg-jungle")
+      .tileSprite(0, VIEW_HEIGHT, VIEW_WIDTH, ASSETS[farKey].height, farKey)
       .setOrigin(0, 1)
       .setScrollFactor(0);
   }

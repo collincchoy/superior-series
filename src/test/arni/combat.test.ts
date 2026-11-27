@@ -99,7 +99,7 @@ describe("resolveEnemyContact", () => {
 describe("enemies", () => {
   it("bruisers take 2 hits, everyone else 1", () => {
     expect(enemyMaxHp("bruiser")).toBe(2);
-    for (const k of ["bunchling", "peelback", "spotter", "mush"] as const) {
+    for (const k of ["bunchling", "peelback", "spotter", "mush", "crownie"] as const) {
       expect(enemyMaxHp(k)).toBe(1);
     }
   });

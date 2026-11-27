@@ -47,7 +47,7 @@ export function resolveEnemyContact(c: ContactInput): ContactResult {
 
 export type EnemyKind = MinionKind;
 /** Minions that can be placed in a level (mini mushes only come from splits). */
-export const SPAWNABLE_ENEMIES = ["bunchling", "peelback", "bruiser", "spotter", "mush"] as const;
+export const SPAWNABLE_ENEMIES = ["bunchling", "peelback", "bruiser", "spotter", "mush", "crownie"] as const;
 
 export function isEnemyKind(kind: SpawnKind): kind is (typeof SPAWNABLE_ENEMIES)[number] {
   return (SPAWNABLE_ENEMIES as readonly string[]).includes(kind);

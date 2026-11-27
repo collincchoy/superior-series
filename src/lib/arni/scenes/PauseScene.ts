@@ -4,7 +4,7 @@ import { moveSelection, PAUSE_OPTIONS, type PauseOptionId } from "../menu.js";
 import type { LevelScene } from "./LevelScene.js";
 
 const BUTTON_W = 440;
-const BUTTON_H = 76;
+const BUTTON_H = 64;
 
 /** Big, kid-friendly pause menu. Keyboard (↑/↓ + Enter/Space, Esc to resume) or tap. */
 export class PauseScene extends Phaser.Scene {
@@ -21,7 +21,7 @@ export class PauseScene extends Phaser.Scene {
     const cx = VIEW_WIDTH / 2;
 
     this.add.rectangle(0, 0, VIEW_WIDTH, VIEW_HEIGHT, 0x1b1433, 0.6).setOrigin(0).setInteractive(); // eat clicks
-    this.add.rectangle(cx, VIEW_HEIGHT / 2, BUTTON_W + 80, 420, 0x3a2f66, 0.95).setStrokeStyle(6, 0xffd36a);
+    this.add.rectangle(cx, VIEW_HEIGHT / 2 + 16, BUTTON_W + 80, 480, 0x3a2f66, 0.95).setStrokeStyle(6, 0xffd36a);
     this.add
       .text(cx, VIEW_HEIGHT / 2 - 150, "Paused", {
         fontFamily: "system-ui, sans-serif",
@@ -34,7 +34,7 @@ export class PauseScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     PAUSE_OPTIONS.forEach((opt, i) => {
-      const y = VIEW_HEIGHT / 2 - 50 + i * (BUTTON_H + 18);
+      const y = VIEW_HEIGHT / 2 - 64 + i * (BUTTON_H + 14);
       const bg = this.add
         .rectangle(cx, y, BUTTON_W, BUTTON_H, 0x4b3e74)
         .setStrokeStyle(4, 0xffffff)
@@ -81,6 +81,12 @@ export class PauseScene extends Phaser.Scene {
     if (id === "restart") {
       this.scene.stop("hud");
       level.scene.restart();
+      return;
+    }
+    if (id === "levels") {
+      this.scene.stop("hud");
+      this.scene.stop("level");
+      this.scene.start("select");
       return;
     }
     if (id === "checkpoint") level.restartFromCheckpoint();

@@ -1,4 +1,5 @@
 import type Phaser from "phaser";
+import { themed } from "../../assets.js";
 import { TILE_SIZE } from "../../constants.js";
 import { PLATFORM, platformOffset, platformVelocity, type PlatformKind } from "../../platforms.js";
 import { landsOnMovingTop, type LevelContext } from "../context.js";
@@ -39,7 +40,7 @@ export class Platforms {
       if (s.kind !== "platformH" && s.kind !== "platformV") continue;
       const x0 = s.tx * TILE_SIZE;
       const y0 = s.ty * TILE_SIZE;
-      const img = scene.add.image(x0, y0, "platform").setOrigin(0, 0).setDepth(5);
+      const img = scene.add.image(x0, y0, themed("platform", ctx.theme)).setOrigin(0, 0).setDepth(5);
       const body = scene.physics.add.body(x0, y0, W, PLATFORM.heightPx);
       body.setAllowGravity(false).setImmovable(true);
       body.pushable = false;

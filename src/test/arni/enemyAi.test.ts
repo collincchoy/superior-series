@@ -125,7 +125,7 @@ describe("Spotter (brown, sleepy peel-lobber)", () => {
     expect(r.outs.every((o) => o.vx === 0 && o.throwAt === null)).toBe(true);
   });
 
-  it("wakes when Arni comes close and faces him", () => {
+  it("wakes when Arni comes close and turns to face Arni", () => {
     const r = run(initialAi("spotter", -1), { arniDx: 5 * T, arniDy: 2 * T }, 1);
     expect(r.events).toContain("wake");
     expect(r.state.facing).toBe(1);
@@ -173,6 +173,52 @@ describe("Mush (rotten, gooey)", () => {
     expect(r.last.vx).toBe(AI.miniMush.speed);
     expect(AI.miniMush.speed).toBeGreaterThan(AI.mush.speed);
     expect(r.outs.some((o) => o.dropGoo)).toBe(false);
+  });
+});
+
+describe("Crownie (flying crown, shoots fireballs)", () => {
+  const AIR: Partial<AiSense> = { grounded: false, groundAhead: false };
+
+  it("hovers back and forth on its own — no ground needed", () => {
+    const r = run(initialAi("crownie", -1), AIR, Math.ceil((AI.crownie.turnEveryMs * 2.5) / DT));
+    const dirs = new Set(r.outs.map((o) => Math.sign(o.vx)));
+    expect(dirs.has(1)).toBe(true);
+    expect(dirs.has(-1)).toBe(true);
+    expect(r.outs.every((o) => Math.abs(o.vx) === AI.crownie.speed || o.vx === 0)).toBe(true);
+  });
+
+  it("turns at walls", () => {
+    const r = run(initialAi("crownie", -1), { ...AIR, wallAhead: true }, 1);
+    expect(r.events).toContain("turn");
+    expect(r.last.vx).toBeGreaterThan(0);
+  });
+
+  it("ignores Arni when far away", () => {
+    const r = run(initialAi("crownie", -1), AIR, 400);
+    expect(r.outs.some((o) => o.fireAt)).toBe(false);
+  });
+
+  it("when Arni is in range: glows (aims) holding still, then fires straight at Arni", () => {
+    const sense = { ...AIR, arniDx: -5 * T, arniDy: 3 * T };
+    const r = run(initialAi("crownie", -1), sense, Math.ceil((AI.crownie.firstShotMs + AI.crownie.aimMs) / DT) + 3);
+    expect(r.events).toContain("aim");
+    const aimIdx = r.outs.findIndex((o) => o.events.includes("aim"));
+    const fireIdx = r.outs.findIndex((o) => o.fireAt);
+    expect(fireIdx).toBeGreaterThan(aimIdx);
+    expect(r.outs.slice(aimIdx, fireIdx).every((o) => o.vx === 0)).toBe(true);
+    expect(r.outs[fireIdx].fireAt).toEqual({ dx: -5 * T, dy: 3 * T });
+    expect(r.outs[fireIdx].events).toContain("fire");
+  });
+
+  it("waits between shots (kid-friendly pace)", () => {
+    const sense = { ...AIR, arniDx: -5 * T, arniDy: 3 * T };
+    const r = run(initialAi("crownie", -1), sense, Math.ceil((AI.crownie.firstShotMs + AI.crownie.aimMs + AI.crownie.shootEveryMs) / DT));
+    expect(r.outs.filter((o) => o.fireAt)).toHaveLength(1);
+    expect(AI.crownie.shootEveryMs).toBeGreaterThanOrEqual(2000);
+  });
+
+  it("is a regular one-hit minion that never splits", () => {
+    expect(splitOnDefeat("crownie")).toEqual([]);
   });
 });
 

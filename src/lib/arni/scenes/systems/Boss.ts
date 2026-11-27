@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { findArena, type Arena } from "../../arena.js";
 import { withTile } from "../../blocks.js";
-import { BOSS, bossHit, initialBoss, stepBoss, type BossEvent, type BossState } from "../../boss.js";
+import { BOSS, bossConfig, bossHit, initialBoss, stepBoss, throneCleared, type BossEvent, type BossState } from "../../boss.js";
 import { overlaps, resolveEnemyContact, type Rect } from "../../combat.js";
 import { TILE_SIZE } from "../../constants.js";
 import { spawnPoint, tileCenter } from "../../level/parseLevel.js";
@@ -10,6 +10,9 @@ import type { Blocks } from "./Blocks.js";
 import type { Enemies } from "./Enemies.js";
 
 const GRAVITY = 1800;
+
+/** What Rex shouts from the throne while the guards fight. */
+const THRONE_TAUNTS = ["Guards! Get that dino!", "Ha! You'll never reach my throne!", "More bananas! Attack!", "Peel that dino!"];
 
 export type BossContact = "stomp" | "bounce" | "none";
 
@@ -27,6 +30,7 @@ export class Boss {
   private gate: Phaser.GameObjects.Image[] = [];
   private gateBodies: Phaser.Physics.Arcade.StaticBody[] = [];
   private hitThisSwing = false;
+  private tauntIndex = 0;
   /** Called once Rex has been defeated and has flown off. */
   onDefeated: (() => void) | null = null;
   /** Called when the fight starts / Rex's hits change (for the HUD). */
@@ -38,7 +42,12 @@ export class Boss {
     private ctx: LevelContext,
     blocks: Blocks,
     private enemies: Enemies,
+    /** 1–10: how tough Rex is in this level. */
+    difficulty = 3,
+    /** Final level: Rex starts on the throne behind the arena's guards. */
+    throne = false,
   ) {
+    this.state = initialBoss(bossConfig(difficulty), { throne });
     this.arena = findArena(ctx.level);
     const a = this.arena;
     if (!a) return;
@@ -47,6 +56,10 @@ export class Boss {
     this.body = scene.physics.add.body(x - BOSS.width / 2, y - BOSS.height, BOSS.width, BOSS.height);
     this.body.setGravityY(GRAVITY).setMaxVelocityY(1200);
     blocks.addWalkerColliders(this.body);
+    if (throne) {
+      // Rex lounges in front of the golden throne until the guards are beaten.
+      scene.add.image(x + 6, y, "throne").setOrigin(0.5, 1).setDepth(7);
+    }
     this.view = scene.add.image(x, y, "rex").setOrigin(0.5, 1).setDepth(8);
     scene.tweens.add({ targets: this.view, scaleY: 0.96, duration: 600, yoyo: true, repeat: -1, ease: "Sine.inOut" });
     enemies.extraFireTarget = (r) => this.fireHit(r);
@@ -61,6 +74,11 @@ export class Boss {
 
   get active(): boolean {
     return this.started && this.state.mode !== "defeated";
+  }
+
+  /** Total hits needed to beat Rex in this level. */
+  get maxHits(): number {
+    return this.state.cfg.hits;
   }
 
   get hitsLeft(): number {
@@ -78,6 +96,11 @@ export class Boss {
       else return;
     }
     if (this.state.mode === "defeated") return;
+
+    // Throne: once every guard in the arena is beaten, Rex leaps into the fight.
+    if (this.state.mode === "throne" && this.enemies.aliveBetween(a.leftTx * TILE_SIZE, (a.rightTx + 1) * TILE_SIZE) === 0) {
+      this.state = throneCleared(this.state);
+    }
 
     const b = this.body;
     const facing = this.state.facing;
@@ -163,7 +186,8 @@ export class Boss {
       this.tryHit();
       return wasDizzy ? "stomp" : "bounce";
     }
-    if (result === "hurt" && this.state.mode !== "dizzy" && this.state.mode !== "hurt" && this.state.mode !== "intro") {
+    const harmless = ["dizzy", "hurt", "intro", "throne"].includes(this.state.mode);
+    if (result === "hurt" && !harmless) {
       this.ctx.hurtArni((Math.sign(centerX(rex) - centerX(this.ctx.arniRect())) || 1) as -1 | 1);
     }
     return "none";
@@ -195,7 +219,8 @@ export class Boss {
     const v = this.view!;
     if (result === "immune") {
       // Not dizzy: a cheeky "ha!" so kids learn to wait for the stars.
-      if (this.state.mode !== "hurt" && this.state.mode !== "intro") this.say("Ha! Too slow!", "#ffd36a", 700);
+      if (this.state.mode === "throne") this.say("Beat my guards first!", "#ffd36a", 900);
+      else if (this.state.mode !== "hurt" && this.state.mode !== "intro") this.say("Ha! Too slow!", "#ffd36a", 700);
       return;
     }
     this.state = state;
@@ -241,7 +266,15 @@ export class Boss {
     for (const e of events) {
       switch (e) {
         case "taunt":
-          this.say("Ha! You'll never catch me, dino!", "#ffd36a", 1500);
+          if (!events.includes("rise")) this.say("Ha! You'll never catch me, dino!", "#ffd36a", 1500);
+          break;
+        case "throneTaunt":
+          this.say(THRONE_TAUNTS[this.tauntIndex++ % THRONE_TAUNTS.length], "#ffd36a", 1600);
+          break;
+        case "rise":
+          this.say("Fine! I'll squash you myself!", "#ff7a2e", 1800);
+          scene.cameras.main.shake(300, 0.01);
+          this.ctx.dust(b.center.x, b.bottom, 14);
           break;
         case "charge":
           this.say("BANANA CHARGE!", "#ff7a2e", 700);
@@ -277,6 +310,10 @@ export class Boss {
       })
       .setOrigin(0.5, 1)
       .setDepth(25);
+    // Keep the whole line on screen even when Rex is near the arena wall.
+    const cam = scene.cameras.main;
+    const half = t.width / 2 + 12;
+    t.x = Phaser.Math.Clamp(t.x, cam.scrollX + half, cam.scrollX + cam.width - half);
     scene.tweens.add({ targets: t, y: t.y - 30, alpha: 0, delay: ms * 0.6, duration: ms * 0.4, onComplete: () => t.destroy() });
   }
 }

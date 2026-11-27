@@ -11,6 +11,7 @@ import {
 } from "../../combat.js";
 import { TILE_SIZE, VIEW_WIDTH } from "../../constants.js";
 import {
+  AI,
   aiOnHit,
   initialAi,
   lobVelocity,
@@ -52,6 +53,14 @@ interface Peel {
   dead: boolean;
 }
 
+interface MagicShot {
+  img: Phaser.GameObjects.Image;
+  vx: number;
+  vy: number;
+  age: number;
+  dead: boolean;
+}
+
 interface Fireball {
   img: Phaser.GameObjects.Image;
   dir: 1 | -1;
@@ -77,6 +86,7 @@ export class Enemies {
   private peels: Peel[] = [];
   private goo: Goo[] = [];
   private fireballs: Fireball[] = [];
+  private magic: MagicShot[] = [];
   /** Minions already hit by the current tail swing. */
   private swingHits = new Set<Minion>();
 
@@ -95,6 +105,11 @@ export class Enemies {
     return this.minions.filter((m) => !m.gone).length;
   }
 
+  /** Minions still standing between x0 and x1 (e.g. Rex's throne guards, incl. mini mushes they split into). */
+  aliveBetween(x0: number, x1: number): number {
+    return this.minions.filter((m) => !m.gone && !m.enemy.defeated && m.body.center.x >= x0 && m.body.center.x <= x1).length;
+  }
+
   private spawn(kind: MinionKind, x: number, feetY: number, facing: Facing, active: boolean): Minion {
     const { host: scene } = this.ctx;
     const tex = textureFor(kind);
@@ -102,9 +117,14 @@ export class Enemies {
     const w = a.width * 0.72;
     const h = a.height * 0.86;
     const body = scene.physics.add.body(x - w / 2, feetY - h, w, h);
-    body.setGravityY(GRAVITY).setMaxVelocityY(1000);
     body.enable = active;
-    this.blocks.addWalkerColliders(body);
+    if (kind === "crownie") {
+      // Flying: hovers in place with no gravity and passes over terrain.
+      body.setAllowGravity(false);
+    } else {
+      body.setGravityY(GRAVITY).setMaxVelocityY(1000);
+      this.blocks.addWalkerColliders(body);
+    }
     const view = scene.add.image(x, feetY, tex).setOrigin(0.5, 1).setDepth(8);
     const idle = scene.tweens.add({
       targets: view,
@@ -154,6 +174,7 @@ export class Enemies {
       m.ai = out.state;
       b.setVelocityX(out.vx);
       if (out.throwAt) this.throwPeel(m, out.throwAt);
+      if (out.fireAt) this.shootMagic(m, arni);
       if (out.dropGoo) this.dropGoo(b.center.x, b.bottom);
       this.playEvents(m, out.events);
 
@@ -162,16 +183,62 @@ export class Enemies {
 
     this.updatePeels(dtMs, arni);
     this.updateFireballs(dtMs);
+    this.updateMagic(dtMs, arni);
     this.updateGoo(dtMs);
   }
 
   syncViews(): void {
+    const now = this.ctx.host.time.now;
     for (const m of this.minions) {
       if (m.gone || m.enemy.defeated) continue;
-      m.view.setPosition(m.body.center.x, m.body.bottom);
+      // Flying crowns bob gently in the air (view only — the body flies level).
+      const bob = m.kind === "crownie" ? Math.sin(now / 280 + m.body.x * 0.01) * 8 : 0;
+      m.view.setPosition(m.body.center.x, m.body.bottom + bob);
       m.view.setFlipX(m.ai.facing > 0);
     }
     for (const p of this.peels) p.img.setPosition(p.body.center.x, p.body.center.y);
+  }
+
+  // ── Crownie magic fireballs ────────────────────────────────────
+
+  /** A straight, slow-ish magic shot from the crown toward Arni's middle. */
+  private shootMagic(m: Minion, arni: Rect): void {
+    const { host: scene } = this.ctx;
+    const x = m.body.center.x;
+    const y = m.body.center.y + 6;
+    const dx = centerX(arni) - x;
+    const dy = (arni.top + arni.bottom) / 2 - y;
+    const len = Math.hypot(dx, dy) || 1;
+    const speed = AI.crownie.shotSpeed;
+    const img = scene.add.image(x, y, "enemy-fire").setDepth(13).setScale(0.4);
+    scene.tweens.add({ targets: img, scale: 1, duration: 150, ease: "Back.out" });
+    scene.tweens.add({ targets: img, angle: 360, duration: 600, repeat: -1 });
+    this.magic.push({ img, vx: (dx / len) * speed, vy: (dy / len) * speed, age: 0, dead: false });
+    scene.tweens.add({ targets: m.view, scaleX: 1.25, scaleY: 0.85, duration: 90, yoyo: true });
+  }
+
+  private updateMagic(dtMs: number, arni: Rect): void {
+    for (const s of this.magic) {
+      if (s.dead) continue;
+      s.age += dtMs;
+      s.img.x += (s.vx * dtMs) / 1000;
+      s.img.y += (s.vy * dtMs) / 1000;
+      const r = { left: s.img.x - 11, right: s.img.x + 11, top: s.img.y - 11, bottom: s.img.y + 11 };
+      if (overlaps(r, arni)) {
+        this.ctx.hurtArni((Math.sign(s.vx) * -1 || 1) as -1 | 1);
+        this.killMagic(s);
+      } else if (s.age > 4000 || rectHitsSolid(this.ctx.level, r.left, r.top, r.right, r.bottom)) {
+        this.killMagic(s);
+      }
+    }
+    this.magic = this.magic.filter((s) => !s.dead);
+  }
+
+  private killMagic(s: MagicShot): void {
+    s.dead = true;
+    this.ctx.sparks(s.img.x, s.img.y, 6);
+    this.ctx.host.tweens.killTweensOf(s.img);
+    s.img.destroy();
   }
 
   // ── Contact with Arni ──────────────────────────────────────────
@@ -232,7 +299,10 @@ export class Enemies {
     m.idle.stop();
     m.body.enable = false;
     const v = m.view;
-    if (how === "stomp") {
+    if (m.kind === "crownie") {
+      // A beaten crown tumbles out of the sky.
+      scene.tweens.add({ targets: v, y: v.y + 260, angle: 400, alpha: 0, duration: 800, ease: "Quad.in", onComplete: () => this.remove(m) });
+    } else if (how === "stomp") {
       scene.tweens.add({ targets: v, scaleY: 0.25, scaleX: 1.4, duration: 90, ease: "Quad.out" });
       scene.tweens.add({ targets: v, alpha: 0, delay: 350, duration: 250, onComplete: () => this.remove(m) });
     } else {
@@ -373,6 +443,11 @@ export class Enemies {
         this.killPeel(p);
       }
     }
+    // The tail swats Crownie magic shots out of the air too.
+    for (const s of this.magic) {
+      const r = { left: s.img.x - 11, right: s.img.x + 11, top: s.img.y - 11, bottom: s.img.y + 11 };
+      if (!s.dead && overlaps(whip, r)) this.killMagic(s);
+    }
   }
 
   private killPeel(p: Peel): void {
@@ -415,6 +490,13 @@ export class Enemies {
           break;
         case "wake":
           this.popText(m, "!", "#ffd36a");
+          break;
+        case "aim":
+          // Telegraph: the crown glows red and shivers before it fires.
+          m.view.setTint(0xff6b6b);
+          scene.tweens.add({ targets: m.view, angle: { from: -8, to: 8 }, duration: 60, yoyo: true, repeat: 3, onComplete: () => m.view.setAngle(0) });
+          this.popText(m, "!", "#ff7a7a");
+          scene.time.delayedCall(AI.crownie.aimMs, () => m.view.clearTint());
           break;
         case "charge":
           this.ctx.dust(m.body.center.x, m.body.bottom, 6);

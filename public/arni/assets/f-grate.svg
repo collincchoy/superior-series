@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Factory crumbly floor (crumble swap): a rusty, cracked grate. -->
+  <rect x="2" y="2" width="60" height="22" rx="3" fill="#c4743a" stroke="#5c2f10" stroke-width="3"/>
+  <path d="M10 6 V20 M20 6 V20 M30 6 V20 M40 6 V20 M50 6 V20" stroke="#5c2f10" stroke-width="3"/>
+  <path d="M24 2 l4 8 l-6 6 l5 8 M44 4 l-3 7 l5 6" fill="none" stroke="#2b1708" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#e8a36a"><circle cx="6" cy="6" r="1.8"/><circle cx="58" cy="6" r="1.8"/></g>
+  <g fill="#8f4a1e"><circle cx="14" cy="30" r="2"/><circle cx="38" cy="32" r="1.6"/><circle cx="52" cy="29" r="1.4"/></g>
+</svg>

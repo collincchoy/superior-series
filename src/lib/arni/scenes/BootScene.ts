@@ -1,6 +1,8 @@
 import Phaser from "phaser";
 import { ASSETS, ASSET_DIR, ASSET_KEYS } from "../assets.js";
 import { VIEW_HEIGHT, VIEW_WIDTH } from "../constants.js";
+import { LEVELS } from "../level/levels/index.js";
+import type { LevelStartData } from "./LevelScene.js";
 
 /** Loads every asset in the manifest, then starts the level. */
 export class BootScene extends Phaser.Scene {
@@ -34,6 +36,13 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.scene.start("level");
+    // Dev shortcut: ?level=3 jumps straight into level 3, ?level=test into the sandbox level.
+    const param = import.meta.env.DEV ? new URLSearchParams(location.search).get("level") : null;
+    if (param) {
+      const levelIndex = param === "test" ? -1 : Phaser.Math.Clamp(Number(param) - 1, 0, LEVELS.length - 1);
+      this.scene.start("level", { levelIndex } satisfies LevelStartData);
+      return;
+    }
+    this.scene.start("select");
   }
 }

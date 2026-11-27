@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { tileTextureKey } from "../../assets.js";
+import { themed, tileTextureKey } from "../../assets.js";
 import { hitAmber, breakTile, bonkTile, whipTargets, withTile, type TileHit } from "../../blocks.js";
 import type { Rect } from "../../combat.js";
 import { TILE_SIZE } from "../../constants.js";
@@ -37,7 +37,7 @@ export class Blocks {
 
   private createTile(kind: TileKind, tx: number, ty: number): void {
     const { x, y } = tileCenter(tx, ty);
-    const tex = tileTextureKey(kind, tileVariant(this.ctx.level, tx, ty));
+    const tex = themed(tileTextureKey(kind, tileVariant(this.ctx.level, tx, ty)), this.ctx.theme);
     const props = TILE_PROPS[kind];
     const group = props.oneWay ? this.oneWays : props.hazard ? this.hazards : this.solids;
     const s = group.create(x, y, tex) as TileSprite;

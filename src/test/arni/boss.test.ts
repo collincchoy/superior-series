@@ -4,6 +4,7 @@ import {
   bossHit,
   initialBoss,
   stepBoss,
+  throneCleared,
   type BossOutput,
   type BossSense,
   type BossState,
@@ -166,5 +167,45 @@ describe("Rex — phase 3: minion call", () => {
     expect(r.state.hitsLeft).toBe(0);
     const after = run(r.state, 60);
     expect(after.outs.every((o) => o.vx === 0 && o.throws.length === 0)).toBe(true);
+  });
+});
+
+describe("Rex on the throne (final level)", () => {
+  const throned = () => initialBoss(BOSS, { throne: true });
+
+  it("starts seated on the throne", () => {
+    expect(throned().mode).toBe("throne");
+    expect(initialBoss().mode).toBe("intro"); // normal levels are unchanged
+  });
+
+  it("stays seated — no moving, no attacks — however long the guards hold out", () => {
+    const r = run(throned(), 60 * 20);
+    expect(r.state.mode).toBe("throne");
+    expect(r.outs.every((o) => o.vx === 0 && o.jump === 0 && o.throws.length === 0 && o.summon === 0)).toBe(true);
+  });
+
+  it("taunts from the throne now and then", () => {
+    const r = run(throned(), frames(BOSS.throneTauntMs * 2));
+    expect(r.events.filter((e) => e === "throneTaunt").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("can't be hurt while seated", () => {
+    expect(bossHit(throned()).result).toBe("immune");
+  });
+
+  it("when the guards are cleared, Rex leaps off the throne and the fight begins", () => {
+    const risen = throneCleared(throned());
+    expect(risen.mode).toBe("intro");
+    const first = stepBoss(risen, SENSE, DT);
+    expect(first.events).toContain("rise");
+    expect(first.jump).toBeLessThan(0);
+    expect(first.vx).toBeLessThan(0); // leaps toward Arni (who is to the left)
+    const r = run(first.state, frames(BOSS.introMs));
+    expect(r.state.mode).toBe("barrage");
+  });
+
+  it("clearing the throne only matters while Rex is on it", () => {
+    const fighting = run(initialBoss(), frames(BOSS.introMs)).state;
+    expect(throneCleared(fighting)).toBe(fighting);
   });
 });

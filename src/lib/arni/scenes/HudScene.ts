@@ -13,6 +13,8 @@ export const HUD_KEYS = {
   powers: "powers",
   /** Rex hits left in the boss fight; -1 hides the boss bar. */
   bossHits: "bossHits",
+  /** How many hits Rex takes in this level (bar segments). */
+  bossMaxHits: "bossMaxHits",
 } as const;
 
 /** Game-wide events the HUD emits. */
@@ -108,7 +110,8 @@ export class HudScene extends Phaser.Scene {
     if (!this.bossBar) {
       const cx = VIEW_WIDTH / 2;
       const label = this.add.text(0, 0, "REX", { ...TEXT_STYLE, fontSize: "28px", color: "#ffd36a" }).setOrigin(1, 0.5);
-      this.bossPips = [0, 1, 2].map((i) =>
+      const max = (this.registry.get(HUD_KEYS.bossMaxHits) as number | undefined) ?? 3;
+      this.bossPips = Array.from({ length: max }, (_, i) => i).map((i) =>
         this.add.rectangle(16 + i * 62, 0, 56, 22, 0xffe14d).setOrigin(0, 0.5).setStrokeStyle(4, 0x271f40),
       );
       this.bossBar = this.add.container(cx - 90, 34, [label, ...this.bossPips]);

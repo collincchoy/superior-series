@@ -1,4 +1,5 @@
 import type Phaser from "phaser";
+import type { Theme } from "../assets.js";
 import type { Rect } from "../combat.js";
 import type { PowerUpKind } from "../level/legend.js";
 import type { Level } from "../level/parseLevel.js";
@@ -10,6 +11,8 @@ import type { PlayerState } from "../player.js";
  */
 export interface LevelContext {
   host: Phaser.Scene;
+  /** Visual theme of the current level (volcano or factory). */
+  theme: Theme;
   /** Current level grid — replaced (not mutated) when tiles change. */
   level: Level;
   arniBody: Phaser.Physics.Arcade.Body;
