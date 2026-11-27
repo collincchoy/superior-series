@@ -20,6 +20,12 @@ import type {
 import { createInitialState } from "./game.js";
 import type { BoardPreset } from "./game.js";
 import { CatanNetwork, isJoinFailureError } from "./network.js";
+import {
+  getOrCreateClientId,
+  loadSavedSeat,
+  saveSeat,
+  type SeatStores,
+} from "./seatStorage.js";
 import type { JoinDiagnosticEvent, JoinFailure } from "./network.js";
 import { PLAYER_COLORS } from "./constants.js";
 import { loadCatanProfile, saveBoardPreset } from "./profile.js";
@@ -403,6 +409,11 @@ class CatanStore {
     this.pendingAdminAction = null;
   }
 
+  /** Manual reconnect from the in-game connection chip. */
+  retryConnection() {
+    this.net?.retryConnection();
+  }
+
   setPendingAction(pa: PendingAction | null) {
     this.pendingAction = pa;
   }
@@ -550,8 +561,8 @@ class CatanStore {
 
   async joinGame(name: string, code: string) {
     const roomCode = code.trim();
-    const sessionKey = `catan-pid-${roomCode}`;
-    const savedPid = sessionStorage.getItem(sessionKey) as PlayerId | null;
+    const stores = browserSeatStores();
+    const savedPid = stores ? loadSavedSeat(stores, roomCode, name) : null;
 
     this.joiningName = name;
     this.setLobbyStatus("Connecting…");
@@ -560,38 +571,53 @@ class CatanStore {
     this.lastStateUpdateAt = null;
     this.lastStateVersion = null;
 
-    this.net = new CatanNetwork({
-      onStateUpdate: (state) => {
-        if (!this.localPid) {
-          this.localPid = this.net!.myPid;
-          if (this.localPid) sessionStorage.setItem(sessionKey, this.localPid);
-        }
-        this.applyStateUpdate(state);
+    // A previous attempt (or a dead session) must not keep a PeerJS peer alive.
+    this.net?.destroy();
+    let savedSeatPid: PlayerId | null = savedPid;
+    const net = new CatanNetwork(
+      {
+        onStateUpdate: (state) => {
+          const pid = net.myPid;
+          if (pid && pid !== this.localPid) this.localPid = pid;
+          if (pid && stores && pid !== savedSeatPid) {
+            saveSeat(stores, roomCode, pid, name);
+            savedSeatPid = pid;
+          }
+          // Rejoining mid-game skips the lobby message, so set it here too.
+          this.roomCode = roomCode;
+          this.applyStateUpdate(state);
+        },
+        onLobbyUpdate: (data) => {
+          this.hostName = data.hostName;
+          this.pendingHumans = [...data.pendingNames];
+          this.bots = [...data.bots];
+          this.roomCode = roomCode;
+          this.screen = "lobby";
+          this.setLobbyStatus("");
+          this.lastJoinFailure = null;
+        },
+        onError: (msg) => this.showToast(msg, "error"),
+        onConnectionStatusChange: (status, detail) => {
+          this.setConnectionStatus(status, detail, true);
+        },
+        onJoinDiagnostic: (event) => this.recordJoinDiagnostic(event),
+        onJoinFailure: (failure) => {
+          this.lastJoinFailure = failure;
+        },
       },
-      onLobbyUpdate: (data) => {
-        this.hostName = data.hostName;
-        this.pendingHumans = [...data.pendingNames];
-        this.bots = [...data.bots];
-        this.roomCode = roomCode;
-        this.screen = "lobby";
-        this.setLobbyStatus("");
-        this.lastJoinFailure = null;
-      },
-      onError: (msg) => this.showToast(msg, "error"),
-      onConnectionStatusChange: (status, detail) => {
-        this.setConnectionStatus(status, detail, true);
-      },
-      onJoinDiagnostic: (event) => this.recordJoinDiagnostic(event),
-      onJoinFailure: (failure) => {
-        this.lastJoinFailure = failure;
-      },
-    });
+      { clientId: stores ? getOrCreateClientId(stores.session) : undefined },
+    );
+    this.net = net;
 
     try {
-      await this.net.joinGame(roomCode, name, savedPid ?? undefined);
+      await net.joinGame(roomCode, name, savedPid ?? undefined);
+      if (this.net !== net) return;
       this.setConnectionStatus("connected", "Connected to host");
       this.lastJoinFailure = null;
     } catch (e: unknown) {
+      // A superseded attempt (user tapped Join again) must not clobber the
+      // status of the attempt that replaced it.
+      if (this.net !== net) return;
       this.net = null;
       const msg = e instanceof Error ? e.message : String(e);
       const hint = isJoinFailureError(e) ? ` ${e.hint}` : "";
@@ -609,4 +635,19 @@ class CatanStore {
   }
 }
 
+function browserSeatStores(): SeatStores | null {
+  try {
+    return typeof window === "undefined"
+      ? null
+      : { session: window.sessionStorage, local: window.localStorage };
+  } catch {
+    return null; // storage access can throw in some privacy modes
+  }
+}
+
 export const store = new CatanStore();
+
+// Dev-only hook for poking at networking from the browser console.
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as { __catan: unknown }).__catan = store;
+}
