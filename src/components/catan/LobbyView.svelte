@@ -99,7 +99,18 @@
       <button class="btn-secondary" onclick={() => store.addBot()}>+ Add Bot</button>
     {/if}
     {#if !isHost}
-      <p class="waiting-hint">Waiting for the host to start the game…</p>
+      {#if store.connectionStatus === "disconnected"}
+        <p class="waiting-hint conn-lost">
+          Lost connection to host.
+          <button class="btn-secondary" onclick={() => store.retryConnection()}>
+            Reconnect
+          </button>
+        </p>
+      {:else if store.connectionStatus === "reconnecting"}
+        <p class="waiting-hint">Reconnecting to host…</p>
+      {:else}
+        <p class="waiting-hint">Waiting for the host to start the game…</p>
+      {/if}
     {/if}
   </div>
   {#if isHost && store.lobbyConnectionEvents.length > 0}
@@ -143,6 +154,14 @@
 {/if}
 
 <style>
+  .conn-lost {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    color: #ffb4b4;
+  }
+
   .lobby {
     max-width: 480px;
     margin: 0 auto;
