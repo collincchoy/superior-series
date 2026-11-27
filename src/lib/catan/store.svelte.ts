@@ -573,12 +573,16 @@ class CatanStore {
 
     // A previous attempt (or a dead session) must not keep a PeerJS peer alive.
     this.net?.destroy();
+    let savedSeatPid: PlayerId | null = savedPid;
     const net = new CatanNetwork(
       {
         onStateUpdate: (state) => {
           const pid = net.myPid;
           if (pid && pid !== this.localPid) this.localPid = pid;
-          if (pid && stores) saveSeat(stores, roomCode, pid, name);
+          if (pid && stores && pid !== savedSeatPid) {
+            saveSeat(stores, roomCode, pid, name);
+            savedSeatPid = pid;
+          }
           // Rejoining mid-game skips the lobby message, so set it here too.
           this.roomCode = roomCode;
           this.applyStateUpdate(state);

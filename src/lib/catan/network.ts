@@ -31,7 +31,13 @@ export type NetMessage =
   | { type: "lobby"; hostName: string; pendingNames: string[]; bots: Array<{ name: string }> }
   | { type: "action"; action: GameAction }
   | { type: "state"; state: GameState }
-  | { type: "error"; msg: string; retryable?: boolean }
+  | {
+      type: "error";
+      msg: string;
+      retryable?: boolean;
+      /** "not-seated": host has no seat bound to this connection — rejoin. */
+      code?: "not-seated";
+    }
   | { type: "ping" }
   | { type: "pong" };
 
@@ -112,13 +118,23 @@ const HEARTBEAT_INTERVAL_MS = 4000;
 const HEARTBEAT_TIMEOUT_MS = 10_000;
 /** Faster probe right after the page becomes visible again. */
 const RESUME_PROBE_TIMEOUT_MS = 3000;
-/** Host drops a client that has pinged before but has been silent this long. */
-const HOST_CLIENT_TIMEOUT_MS = 15_000;
+/**
+ * Host drops a client that has pinged before but has been silent this long.
+ * Must exceed Chrome's intensive throttling of hidden tabs (timers ~1/min),
+ * or backgrounded players flap. Quick rejoins don't wait for this: a quiet
+ * seat (REJOIN_STALE_MS) can be reclaimed by its owner.
+ */
+const HOST_CLIENT_TIMEOUT_MS = 90_000;
 /**
  * A seat holder silent this long (> one missed ping) may be replaced by a
  * rejoining client. A live client pings every HEARTBEAT_INTERVAL_MS.
  */
 const REJOIN_STALE_MS = 6000;
+/**
+ * A lobby player whose connection closes is kept listed this long, so a
+ * quick reconnect (phone lock, app switch) swaps in without "left lobby".
+ */
+const LOBBY_LEAVE_GRACE_MS = 10_000;
 const SEAT_IN_USE_MSG = "That seat is in use on another device";
 
 /** Exponential backoff: 1s, 2s, 4s, 8s, then capped at 10s. */
@@ -139,6 +155,21 @@ const SIGNALING_ERROR_TYPES = new Set([
 /** Names compare case/whitespace-insensitively ("alice " === "Alice"). */
 export function sameName(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/** The player an action is performed by (trade actions use from/to). */
+export function actionActorPid(action: GameAction): PlayerId | undefined {
+  switch (action.type) {
+    case "TRADE_OFFER":
+    case "TRADE_CONFIRM":
+    case "TRADE_CANCEL":
+      return action.from;
+    case "TRADE_ACCEPT":
+    case "TRADE_REJECT":
+      return action.to;
+    default:
+      return (action as { pid?: PlayerId }).pid;
+  }
 }
 
 function netLog(...args: unknown[]) {
@@ -380,6 +411,9 @@ export class CatanNetwork {
   /** Host: connections that heartbeat (and so are subject to timeouts). */
   private heartbeatConns: WeakSet<DataConnection> = new WeakSet();
   private resumeProbeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Host: pending removals of closed lobby connections (grace period). */
+  private lobbyLeaveTimers: Map<DataConnection, ReturnType<typeof setTimeout>> =
+    new Map();
 
   private removeLifecycleListeners: (() => void) | null = null;
 
@@ -524,6 +558,8 @@ export class CatanNetwork {
     }
     this.pendingJoins = [];
     this.preGameConns = [];
+    for (const t of this.lobbyLeaveTimers.values()) clearTimeout(t);
+    this.lobbyLeaveTimers.clear();
     this.currentLobbyState = null;
     if (this.connections.size > 0) this.broadcastState();
     this.callbacks.onReady?.();
@@ -560,22 +596,47 @@ export class CatanNetwork {
         // Game not started yet — queue until initHostState is called.
         // A same-named pending join whose connection went quiet is this
         // client's previous (dead) connection: replace it, don't duplicate.
-        // Same tab (clientId) → always its old connection. Otherwise a quiet
-        // same-named join (older client builds send no clientId).
+        // Same tab (clientId), or for older clients a same-named join, is a
+        // reconnect of an existing lobby entry.
         const prior = this.pendingJoins.find(
           (j) =>
             j.conn !== conn &&
-            ((msg.clientId && j.clientId === msg.clientId) ||
-              (!msg.clientId && j.name === msg.name && this.isHolderStale(j.conn))),
+            (msg.clientId
+              ? j.clientId === msg.clientId
+              : !j.clientId && sameName(j.name, msg.name) && this.isHolderStale(j.conn)),
         );
         if (prior) {
+          if (!this.isHolderStale(prior.conn)) {
+            // Still live → a duplicated tab (copied sessionStorage). Don't
+            // let the two fight; the real reconnect retries until quiet.
+            conn.send({
+              type: "error",
+              msg: SEAT_IN_USE_MSG,
+              retryable: true,
+            } satisfies NetMessage);
+            return;
+          }
+          // Swap in the new connection silently: same player, same name in
+          // the lobby list, so no "left lobby" / "waiting to join" churn.
           this.clientLastSeen.delete(prior.conn);
+          const graceTimer = this.lobbyLeaveTimers.get(prior.conn);
+          if (graceTimer) clearTimeout(graceTimer);
+          this.lobbyLeaveTimers.delete(prior.conn);
+          this.pendingJoins = this.pendingJoins.filter((j) => j !== prior);
+          this.preGameConns = this.preGameConns.filter((c) => c !== prior.conn);
           try {
             prior.conn.close();
           } catch {
             /* ignore */
           }
-          this.removePreGameConnection(prior.conn, "Replaced by reconnect");
+          this.pendingJoins.push({ conn, name: prior.name, clientId: msg.clientId });
+          this.preGameConns.push(conn);
+          if (this.currentLobbyState) {
+            try {
+              conn.send({ type: "lobby", ...this.currentLobbyState } satisfies NetMessage);
+            } catch { /* ignore */ }
+          }
+          return;
         }
         this.pendingJoins.push({ conn, name: msg.name, clientId: msg.clientId });
         this.preGameConns.push(conn);
@@ -627,12 +688,17 @@ export class CatanNetwork {
       this.broadcastState();
     } else if (msg.type === "action") {
       const seat = this.connToPid.get(conn);
-      const actionPid = (msg.action as { pid?: PlayerId }).pid;
-      if (!seat || (actionPid !== undefined && actionPid !== seat)) {
+      const actor = actionActorPid(msg.action);
+      if (!seat) {
         conn.send({
           type: "error",
-          msg: seat ? "That action isn't yours" : "Not seated — rejoining",
+          msg: "Not seated — rejoining",
+          code: "not-seated",
         } satisfies NetMessage);
+        return;
+      }
+      if (actor !== undefined && actor !== seat) {
+        conn.send({ type: "error", msg: "That action isn't yours" } satisfies NetMessage);
         return;
       }
       if (isAdminAction(msg.action)) {
@@ -663,7 +729,8 @@ export class CatanNetwork {
    * (not a rejoin — treat as a new join).
    *
    * Proof of ownership, strongest first:
-   * 1. same clientId as the tab bound to the seat → take over immediately;
+   * 1. same clientId as the tab bound to the seat → take over once the old
+   *    connection is closed or quiet (a live one is a duplicated tab);
    * 2. saved pid + matching name → take the seat if unheld or its holder is
    *    quiet; refuse (retry later) if the holder is live;
    * 3. name only → only an unheld seat; a held one waits for host timeout.
@@ -675,7 +742,13 @@ export class CatanNetwork {
 
     if (msg.clientId) {
       for (const [pid, cid] of this.seatClientId) {
-        if (cid === msg.clientId && this.isRemoteHumanSeat(pid)) return { pid };
+        if (cid !== msg.clientId || !this.isRemoteHumanSeat(pid)) continue;
+        const holder = this.connections.get(pid);
+        // A live holder with our clientId is a duplicated tab, not us.
+        if (holder && !this.isHolderStale(holder)) {
+          return { refuse: SEAT_IN_USE_MSG };
+        }
+        return { pid };
       }
     }
 
@@ -730,6 +803,20 @@ export class CatanNetwork {
     this.clientLastSeen.delete(conn);
     const pid = this.connToPid.get(conn);
     if (!pid) {
+      const pending = this.pendingJoins.find((j) => j.conn === conn);
+      // Tabs that identify themselves get a grace period to come back.
+      if (pending?.clientId && detail !== "Timed out" && !this.destroyed) {
+        if (!this.lobbyLeaveTimers.has(conn)) {
+          this.lobbyLeaveTimers.set(
+            conn,
+            setTimeout(() => {
+              this.lobbyLeaveTimers.delete(conn);
+              this.removePreGameConnection(conn, detail);
+            }, LOBBY_LEAVE_GRACE_MS),
+          );
+        }
+        return;
+      }
       this.removePreGameConnection(conn, detail);
       return;
     }
@@ -1222,7 +1309,10 @@ export class CatanNetwork {
               this.state = m.state;
               this.callbacks.onStateUpdate(m.state);
             } else if (m.type === "error") {
-              if (settled) {
+              if (settled && m.code === "not-seated") {
+                this.handleHostLost("Host lost track of this seat");
+                return;
+              } else if (settled) {
                 this.callbacks.onError(m.msg);
               } else if (m.retryable) {
                 // Seat still held by our old connection: retried quietly.
@@ -1285,6 +1375,10 @@ export class CatanNetwork {
   private teardownClientPeer() {
     this.connGeneration++; // ignore late events from the old peer/conn
     this.stopHeartbeat();
+    // The old peer's signaling retry must not block the next peer's.
+    if (this.signalingTimer) clearTimeout(this.signalingTimer);
+    this.signalingTimer = null;
+    this.signalingAttempt = 0;
     const conn = this.connections.get("host");
     this.connections.delete("host");
     try {
@@ -1530,6 +1624,8 @@ export class CatanNetwork {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
     this.stopHeartbeat();
+    for (const t of this.lobbyLeaveTimers.values()) clearTimeout(t);
+    this.lobbyLeaveTimers.clear();
     this.removeLifecycleListeners?.();
     this.removeLifecycleListeners = null;
     this.connGeneration++;

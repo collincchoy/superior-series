@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createInitialState } from "../../lib/catan/game.js";
-import { CatanNetwork, type NetMessage } from "../../lib/catan/network.js";
+import {
+  CatanNetwork,
+  actionActorPid,
+  type NetMessage,
+} from "../../lib/catan/network.js";
 
 // ─── Fake PeerJS ──────────────────────────────────────────────────────────────
 
@@ -198,7 +202,11 @@ describe("host signaling reconnect", () => {
     pinger.receive({ type: "join", name: "Guest" });
     pinger.receive({ type: "ping" });
 
-    await vi.advanceTimersByTimeAsync(20_000);
+    // A throttled background tab pings ~once a minute: must not be dropped.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onPlayerConnectionChange).not.toHaveBeenCalledWith("player2", "disconnected", "Timed out");
+
+    await vi.advanceTimersByTimeAsync(40_000);
     expect(onPlayerConnectionChange).toHaveBeenCalledWith("player2", "disconnected", "Timed out");
   });
 
@@ -268,7 +276,7 @@ describe("host signaling reconnect", () => {
     expect(holder.closed).toBe(false);
   });
 
-  it("lets the same tab (clientId) reclaim its seat immediately", async () => {
+  it("lets the same tab (clientId) reclaim its seat once the old connection is quiet", async () => {
     const { net, peers } = makeNetwork();
     const hosting = net.hostGame("player1");
     peers[0]!.doOpen("room-1");
@@ -281,6 +289,15 @@ describe("host signaling reconnect", () => {
     old.receive({ type: "join", name: "Guest", clientId: "tab-1" });
     old.receive({ type: "ping" });
 
+    // Live holder with the same clientId = a duplicated tab: refuse.
+    const dup = new FakeConn("client-dup");
+    peers[0]!.emit("connection", dup);
+    dup.doOpen();
+    dup.receive({ type: "join", name: "Guest", clientId: "tab-1" });
+    expect(dup.sent[0]).toMatchObject({ type: "error", retryable: true });
+    expect(old.closed).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(7000);
     const fresh = new FakeConn("client-new");
     peers[0]!.emit("connection", fresh);
     fresh.doOpen();
@@ -364,14 +381,120 @@ describe("host seat assignment", () => {
     first.receive({ type: "join", name: "Alice", clientId: "tab-1" });
     first.receive({ type: "ping" });
 
+    // Duplicated tab while the first is live: refused, first untouched.
+    const dup = new FakeConn("dup");
+    peers[0]!.emit("connection", dup);
+    dup.doOpen();
+    dup.receive({ type: "join", name: "Alice", clientId: "tab-1" });
+    expect(dup.sent.at(-1)).toMatchObject({ type: "error", retryable: true });
+    expect(first.closed).toBe(false);
+
+    // Reconnect after the old connection went quiet: replaced silently
+    // (no false "left lobby"), no duplicate entry.
+    await vi.advanceTimersByTimeAsync(7000);
     const second = new FakeConn("b");
     peers[0]!.emit("connection", second);
     second.doOpen();
     second.receive({ type: "join", name: "Alice", clientId: "tab-1" });
 
-    expect(onPendingJoinClosed).toHaveBeenCalledTimes(1);
+    expect(onPendingJoinClosed).not.toHaveBeenCalled();
+    expect(onPendingJoin).toHaveBeenCalledTimes(1);
     expect(first.closed).toBe(true);
     expect((net as any).pendingJoins).toHaveLength(1);
+    expect((net as any).pendingJoins[0].conn).toBe(second);
+  });
+
+  it("gives a closed lobby connection a grace period so a quick reconnect is silent", async () => {
+    const onPendingJoin = vi.fn();
+    const onPendingJoinClosed = vi.fn();
+    const { net, peers } = makeNetwork({ onPendingJoin, onPendingJoinClosed });
+    const hosting = net.hostGame("player1");
+    peers[0]!.doOpen("room-1");
+    await hosting;
+
+    const first = new FakeConn("a");
+    peers[0]!.emit("connection", first);
+    first.doOpen();
+    first.receive({ type: "join", name: "Alice", clientId: "tab-1" });
+    first.open = false;
+    first.emit("close");
+
+    await vi.advanceTimersByTimeAsync(2000);
+    const second = new FakeConn("b");
+    peers[0]!.emit("connection", second);
+    second.doOpen();
+    second.receive({ type: "join", name: "Alice", clientId: "tab-1" });
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(onPendingJoinClosed).not.toHaveBeenCalled();
+    expect(onPendingJoin).toHaveBeenCalledTimes(1);
+    expect((net as any).pendingJoins).toHaveLength(1);
+  });
+
+  it("removes a closed lobby connection after the grace period if nobody returns", async () => {
+    const onPendingJoinClosed = vi.fn();
+    const { net, peers } = makeNetwork({ onPendingJoinClosed });
+    const hosting = net.hostGame("player1");
+    peers[0]!.doOpen("room-1");
+    await hosting;
+    const c = new FakeConn("a");
+    peers[0]!.emit("connection", c);
+    c.doOpen();
+    c.receive({ type: "join", name: "Alice", clientId: "tab-1" });
+    c.open = false;
+    c.emit("close");
+    expect(onPendingJoinClosed).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(11_000);
+    expect(onPendingJoinClosed).toHaveBeenCalledWith("Alice", "Connection closed");
+  });
+
+  it("replaces a quiet lobby join from an older client by name, ignoring case", async () => {
+    const onPendingJoin = vi.fn();
+    const { net, peers } = makeNetwork({ onPendingJoin });
+    const hosting = net.hostGame("player1");
+    peers[0]!.doOpen("room-1");
+    await hosting;
+    const a = new FakeConn("a");
+    peers[0]!.emit("connection", a);
+    a.doOpen();
+    a.receive({ type: "join", name: "Alice" });
+    await vi.advanceTimersByTimeAsync(7000);
+    const b = new FakeConn("b");
+    peers[0]!.emit("connection", b);
+    b.doOpen();
+    b.receive({ type: "join", name: "alice " });
+    expect((net as any).pendingJoins).toHaveLength(1);
+    expect(a.closed).toBe(true);
+  });
+
+  it("checks the acting player of trade actions against the seat", async () => {
+    const onStateUpdate = vi.fn();
+    const { net, peers } = makeNetwork({ onStateUpdate });
+    const hosting = net.hostGame("player1");
+    peers[0]!.doOpen("room-1");
+    await hosting;
+    net.initHostState(twoHumanState());
+    onStateUpdate.mockClear();
+
+    const guest = new FakeConn("g");
+    peers[0]!.emit("connection", guest);
+    guest.doOpen();
+    guest.receive({ type: "join", name: "Guest" });
+    // player2 tries to cancel player1's offer and to accept on player3's behalf.
+    guest.receive({ type: "action", action: { type: "TRADE_CANCEL", from: "player1", to: "player2" } });
+    expect(guest.sent.at(-1)).toMatchObject({ type: "error" });
+    guest.receive({ type: "action", action: { type: "TRADE_ACCEPT", from: "player1", to: "player3" } });
+    expect(guest.sent.at(-1)).toMatchObject({ type: "error" });
+    expect(onStateUpdate).not.toHaveBeenCalled();
+  });
+
+  it("identifies the acting player for every action shape", () => {
+    expect(actionActorPid({ type: "END_TURN", pid: "player2" })).toBe("player2");
+    expect(actionActorPid({ type: "TRADE_OFFER", from: "player1", to: ["player2"], offer: {}, want: {} })).toBe("player1");
+    expect(actionActorPid({ type: "TRADE_ACCEPT", from: "player1", to: "player2" })).toBe("player2");
+    expect(actionActorPid({ type: "TRADE_REJECT", from: "player1", to: "player2" })).toBe("player2");
+    expect(actionActorPid({ type: "TRADE_CONFIRM", from: "player1", to: "player2" })).toBe("player1");
+    expect(actionActorPid({ type: "TRADE_CANCEL", from: "player1", to: "player2" })).toBe("player1");
   });
 
   it("skips pending joins whose connection already closed when the game starts", async () => {
@@ -463,7 +586,9 @@ describe("host seat assignment", () => {
     c.doOpen();
     c.receive({ type: "join", name: "Alice" });
     c.receive({ type: "ping" });
-    await vi.advanceTimersByTimeAsync(20_000);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onPendingJoinClosed).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(40_000);
     expect(onPendingJoinClosed).toHaveBeenCalledWith("Alice", "Timed out");
   });
 });
@@ -667,6 +792,29 @@ describe("client auto-reconnect", () => {
     await vi.advanceTimersByTimeAsync(150_000);
     expect(status).toHaveBeenLastCalledWith("disconnected", expect.any(String));
     expect(peers.length).toBeLessThan(12);
+  });
+
+  it("reconnects when the host says this connection is not seated", async () => {
+    const { conn, status } = await joinedClient();
+    conn.receive({ type: "error", msg: "Not seated", code: "not-seated" });
+    expect(status).toHaveBeenLastCalledWith("reconnecting", expect.any(String));
+  });
+
+  it("re-registers the new peer with signaling even if the old peer had a pending retry", async () => {
+    const { net, peers, peer, conn } = await joinedClient();
+    (net as any).signalingAttempt = 4; // old peer's retry would wait 10s
+    peer.dropSignaling();
+    conn.emit("close");
+    await vi.advanceTimersByTimeAsync(1000);
+    const p2 = peers[1]!;
+    p2.doOpen("client-b");
+    p2.conns[0]!.doOpen();
+    p2.conns[0]!.receive({ type: "welcome", pid: "player2", state: twoHumanState() });
+    await vi.advanceTimersByTimeAsync(0);
+
+    p2.dropSignaling();
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(p2.reconnect).toHaveBeenCalled();
   });
 
   it("does not auto-reconnect after destroy", async () => {
