@@ -6,6 +6,7 @@ import { TILE_SIZE } from "../../constants.js";
 import { TILE_PROPS, type TileKind } from "../../level/legend.js";
 import { tileCenter, tileVariant } from "../../level/parseLevel.js";
 import { landsOnTop, type LevelContext } from "../context.js";
+import { sound } from "../sound.js";
 
 const CRUMBLE_DELAY_MS = 450;
 const CRUMBLE_REGROW_MS = 3000;
@@ -123,6 +124,7 @@ export class Blocks {
       sprite.setTexture(tileTextureKey("spent", "single"));
       sprite.setData("tile", { ...t, kind: "spent" });
       this.ctx.host.tweens.add({ targets: sprite, y: sprite.y - 10, duration: 80, yoyo: true });
+      sound(this.ctx.host).play("amber");
       const at = { x: sprite.x, y: sprite.y - TILE_SIZE / 2 };
       if ("powerUp" in reward) this.ctx.releasePowerUp(reward.powerUp, at);
       else this.ctx.addCoins(reward.coins, at);
@@ -132,6 +134,7 @@ export class Blocks {
       this.ctx.level = breakTile(this.ctx.level, t.tx, t.ty);
       this.sprites.delete(key(t.tx, t.ty));
       this.shatter(sprite, t.kind === "crate" ? 0xd9a35a : 0xe8b47a);
+      sound(this.ctx.host).play("break");
       sprite.destroy();
       this.ctx.host.cameras.main.shake(60, 0.003);
     }
@@ -163,6 +166,7 @@ export class Blocks {
     const k = key(tx, ty);
     if (this.crumbling.has(k)) return;
     this.crumbling.add(k);
+    sound(this.ctx.host).play("crumble");
     const { host: scene } = this.ctx;
     const x0 = sprite.x;
     scene.tweens.add({ targets: sprite, x: x0 + 3, duration: 50, yoyo: true, repeat: Math.floor(CRUMBLE_DELAY_MS / 100) });

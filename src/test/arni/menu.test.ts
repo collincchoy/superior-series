@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { PAUSE_OPTIONS, moveSelection } from "../../lib/arni/menu.js";
 
 describe("pause menu", () => {
-  it("offers resume, restart from checkpoint, restart level, and the level map — resume first", () => {
-    expect(PAUSE_OPTIONS.map((o) => o.id)).toEqual(["resume", "checkpoint", "restart", "levels"]);
+  it("offers resume, checkpoint, restart, level map, then music & sound toggles — resume first", () => {
+    expect(PAUSE_OPTIONS.map((o) => o.id)).toEqual(["resume", "checkpoint", "restart", "levels", "music", "sfx"]);
   });
 
   it("moves selection and wraps around", () => {

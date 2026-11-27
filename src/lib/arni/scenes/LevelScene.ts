@@ -37,9 +37,11 @@ import {
 import { activateCheckpoint, initialProgress, respawnTile, type Progress } from "../progress.js";
 import { COIN_TROPHY, trophies } from "../victory.js";
 import type { VictoryData } from "./VictoryScene.js";
+import { songForLevel } from "../audio/music.js";
 import { TUNING } from "../tuning.js";
 import { bodyRect, centerX, type LevelContext } from "./context.js";
 import { HUD_EVENTS, HUD_KEYS } from "./HudScene.js";
+import { sound } from "./sound.js";
 import { Blocks } from "./systems/Blocks.js";
 import { Boss } from "./systems/Boss.js";
 import { Enemies } from "./systems/Enemies.js";
@@ -143,6 +145,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
   }
 
   addCoins(n: number, at: { x: number; y: number }): void {
+    sound(this).play("coin");
     this.score = addCoins(this.score, n);
     this.registry.set(HUD_KEYS.coins, this.score.coins);
     for (let i = 0; i < Math.min(n, 5); i++) {
@@ -163,6 +166,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
   }
 
   collectEgg(at: { x: number; y: number }): void {
+    sound(this).play("egg");
     this.score = collectEgg(this.score);
     this.registry.set(HUD_KEYS.eggs, this.score.eggs);
     this.sparks(at.x, at.y - 20, 30);
@@ -186,6 +190,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
   }
 
   collectPowerUp(kind: PowerUpKind, at: { x: number; y: number }): void {
+    sound(this).play(kind === "heart" ? "heal" : "powerUp");
     if (kind === "heart") {
       this.health = heal(this.health);
       this.registry.set(HUD_KEYS.hearts, this.health.hearts);
@@ -243,6 +248,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     const p = this.player;
     const y = p.pose === "stand" ? this.body.top + 22 : this.body.top + 14;
     this.enemies.shootFireball(this.body.center.x, y, p.facing);
+    sound(this).play("fireball");
     this.squashView(1.15, 0.92, 60);
   }
 
@@ -320,6 +326,8 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     });
 
     if (def) this.levelBanner(def);
+    sound(this).playMusic(songForLevel(this.theme));
+    sound(this).duck(false);
 
     this.registry.set(HUD_KEYS.maxHearts, this.health.maxHearts);
     this.registry.set(HUD_KEYS.hearts, this.health.hearts);
@@ -358,6 +366,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
       const enemyHit = this.enemies.contact(whip, this.lastBottom, sword ? POWER.swordDamage : 1);
       const bossHit = this.boss.contact(whip, this.lastBottom);
       if (enemyHit === "stomp" || bossHit !== "none") {
+        sound(this).play("stomp");
         this.player = applyBounce(this.player, this.jumpHeld());
         this.body.setVelocityY(this.player.vy);
         this.squashView(0.8, 1.2);
@@ -393,6 +402,8 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
       levelIndex: this.levelIndex,
     };
     this.scene.pause();
+    sound(this).stopMusic();
+    sound(this).play("victory");
     this.scene.launch("victory", data);
   }
 
@@ -400,10 +411,13 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     if (this.won || !this.sys.isActive() || this.scene.isActive("pause")) return;
     this.scene.pause();
     this.scene.launch("pause");
+    sound(this).play("pause");
+    sound(this).duck(true);
   }
 
   /** Called by the pause menu when it closes. */
   resumeFromPause(): void {
+    sound(this).duck(false);
     this.input.keyboard?.resetKeys();
     this.scene.resume();
   }
@@ -552,6 +566,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     if (this.blocks.springHit) {
       this.player = applySpring(this.player, input.jump || input.up);
       this.blocks.bounceFx(this.blocks.springHit);
+      sound(this).play("bounce");
       this.blocks.springHit = null;
       this.squashView(0.7, 1.35, 120);
     } else if (ride && this.player.grounded) {
@@ -617,6 +632,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     this.resizeBody(this.player.pose);
     this.body.setVelocity(this.player.vx, this.player.vy);
     this.cameras.main.shake(120, 0.006);
+    sound(this).play("hurt");
     this.hurtFlashUntil = this.time.now + 140;
   }
 
@@ -630,6 +646,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
   }
 
   private die(): void {
+    sound(this).play("death");
     this.dying = true;
     // Running out of hearts loses any power-ups (falling in a pit doesn't).
     this.powers = initialPowers();
@@ -640,6 +657,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
   }
 
   private respawn(refill: boolean): void {
+    sound(this).play("respawn");
     this.placeArniAt(respawnTile(this.level, this.progress));
     this.health = refill ? respawnHealth(this.health) : { ...this.health, invulnMs: TUNING.invulnMs };
     this.registry.set(HUD_KEYS.hearts, this.health.hearts);
@@ -659,6 +677,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
       this.progress = progress;
       for (const other of this.checkpoints) other.img.setTexture("checkpoint");
       c.img.setTexture("checkpoint-on");
+      sound(this).play("checkpoint");
       this.sparks(centerX(c.rect), c.rect.top + 20, 24);
       this.tweens.add({ targets: c.img, scaleY: { from: 1.25, to: 1 }, duration: 350, ease: "Back.out" });
     }
@@ -677,25 +696,31 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     for (const e of events) {
       switch (e) {
         case "jump":
+          sound(this).play("jump");
           this.squashView(0.82, 1.2);
           puff(4);
           break;
         case "chargedJump":
+          sound(this).play("chargedJump");
           this.squashView(0.7, 1.35, 120);
           puff(10);
           this.cameras.main.shake(80, 0.003);
           break;
         case "land":
+          sound(this).play("land");
           this.squashView(1.25, 0.78);
           puff(5);
           break;
         case "slideStart":
+          sound(this).play("slide");
           puff(6);
           break;
         case "chargeReady":
+          sound(this).play("chargeReady");
           this.squashView(1.12, 0.9, 60);
           break;
         case "whip":
+          sound(this).play(hasPower(this.powers, "sword") ? "sword" : "whip");
           this.enemies.newSwing();
           this.boss.newSwing();
           this.whipSwoosh();
@@ -704,6 +729,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
           this.squashView(0.8, 1.2, 80);
           break;
         case "poundLand":
+          sound(this).play("pound");
           this.poundImpact();
           break;
         default:

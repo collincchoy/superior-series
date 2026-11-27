@@ -1,11 +1,13 @@
 import Phaser from "phaser";
 import { VIEW_HEIGHT, VIEW_WIDTH } from "./constants.js";
+import { SoundBank } from "./audio/SoundBank.js";
 import { PHYSICS_FPS } from "./frameTiming.js";
 import { BootScene } from "./scenes/BootScene.js";
 import { HudScene } from "./scenes/HudScene.js";
 import { LevelScene } from "./scenes/LevelScene.js";
 import { LevelSelectScene } from "./scenes/LevelSelectScene.js";
 import { PauseScene } from "./scenes/PauseScene.js";
+import { SOUND_KEY } from "./scenes/sound.js";
 import { VictoryScene } from "./scenes/VictoryScene.js";
 
 /** Boot the Arni game into `parent`. `baseUrl` is the site's BASE_URL. */
@@ -16,9 +18,9 @@ export function createGame(parent: HTMLElement, baseUrl: string): Phaser.Game {
     width: VIEW_WIDTH,
     height: VIEW_HEIGHT,
     backgroundColor: "#5ec8ff",
-    // No sound yet. Without this Phaser opens an AudioContext anyway, and its
-    // focus/blur handlers threw "closed AudioContext" errors around navigation.
-    // Remove when adding sound (and make sure the game is destroyed cleanly).
+    // We synthesize our own audio (audio/SoundBank.ts). Phaser's sound manager
+    // stays off: it opened a second AudioContext whose focus/blur handlers threw
+    // "closed AudioContext" errors around navigation.
     audio: { noAudio: true },
     fps: {
       // Phaser's delta smoothing clamps every frame to 16.7ms while the window
@@ -38,6 +40,11 @@ export function createGame(parent: HTMLElement, baseUrl: string): Phaser.Game {
     },
     scene: [new BootScene(baseUrl), LevelSelectScene, LevelScene, HudScene, PauseScene, VictoryScene],
   });
+
+  // Our own synthesized audio (Phaser's is off). Closed with the game.
+  const sounds = new SoundBank(localStorage);
+  game.registry.set(SOUND_KEY, sounds);
+  game.events.once(Phaser.Core.Events.DESTROY, () => sounds.destroy());
 
   if (import.meta.env.DEV) {
     // Dev-only handle for poking at the game from the browser console:

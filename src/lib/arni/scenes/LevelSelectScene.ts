@@ -3,6 +3,7 @@ import { VIEW_HEIGHT, VIEW_WIDTH } from "../constants.js";
 import { LEVELS } from "../level/levels/index.js";
 import { isUnlocked, loadSave, type SaveData } from "../save.js";
 import type { LevelStartData } from "./LevelScene.js";
+import { sound, soundBank } from "./sound.js";
 
 const FONT = "system-ui, sans-serif";
 const NODE_R = 46;
@@ -67,6 +68,8 @@ export class LevelSelectScene extends Phaser.Scene {
 
     LEVELS.forEach((def, i) => this.makeNode(i, def.name));
 
+    sound(this).playMusic("volcano");
+    this.addSoundToggles();
     this.marker = this.add.image(0, 0, "arni-idle").setScale(0.6).setDepth(10);
     this.tweens.add({ targets: this.marker, y: "-=10", duration: 450, yoyo: true, repeat: -1, ease: "Sine.inOut" });
     this.select(this.selected, false);
@@ -134,12 +137,31 @@ export class LevelSelectScene extends Phaser.Scene {
     this.nodes.push({ index: i, x, y, circle });
   }
 
+  /** Small Music / Sounds switches in the top-left corner. */
+  private addSoundToggles(): void {
+    const bank = soundBank(this);
+    if (!bank) return;
+    const make = (which: "music" | "sfx", x: number) => {
+      const text = () => `${which === "music" ? "♪ Music" : "Sounds"}: ${bank.settings[which] ? "On" : "Off"}`;
+      const bg = this.add.rectangle(x, 34, 150, 44, 0x3a2f66, 0.9).setStrokeStyle(3, 0xffffff).setInteractive({ useHandCursor: true });
+      const label = this.add.text(x, 34, text(), { fontFamily: FONT, fontSize: "20px", fontStyle: "bold", color: "#ffffff" }).setOrigin(0.5);
+      bg.on("pointerdown", () => {
+        bank.toggle(which);
+        sound(this).play("menuSelect");
+        label.setText(text());
+      });
+    };
+    make("music", 95);
+    make("sfx", 255);
+  }
+
   private step(delta: number): void {
     const target = Phaser.Math.Clamp(this.selected + delta, 0, LEVELS.length - 1);
     if (isUnlocked(this.save, target)) this.select(target);
   }
 
   private select(i: number, animate = true): void {
+    if (animate && i !== this.selected) sound(this).play("menuMove");
     this.selected = i;
     const n = this.nodes[i];
     for (const other of this.nodes) other.circle.setScale(other.index === i ? 1.15 : 1);
@@ -154,6 +176,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
   private play(i: number): void {
     if (!isUnlocked(this.save, i)) return;
+    sound(this).play("menuSelect");
     this.scene.start("level", { levelIndex: i } satisfies LevelStartData);
   }
 }

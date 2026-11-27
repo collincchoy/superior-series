@@ -75,6 +75,13 @@ Arena (level text): `|` gate, `K` Rex. Crossing into the arena raises the gate b
 
 Victory screen: three trophies — Beat Rex, All Eggs, 40+ Coins — plus time and Play Again.
 
+## Sound & Music
+All synthesized in code (no audio files), chiptune style:
+- **Sound effects** are recipes in `src/lib/arni/audio/sfx.ts` (wave, pitch sweep, arpeggio, noise, layers), rendered by the pure, tested `audio/synth.ts`. ~35 sounds: Arni's moves, hits, pickups, minions, Rex, menus, victory. Frequent sounds get slight random pitch so they don't grate.
+- **Music** is written as note patterns in `audio/music.ts` (`"C5 . E5 G5 - ."`): a bouncy volcano tune (levels 1–5 + level map), a clanky factory tune (6–10), and a fast boss theme when the arena gate closes. Ducks while paused; stops for the victory jingle.
+- **Music / Sounds switches** in the pause menu and on the level map, saved in localStorage.
+- Runtime: `audio/SoundBank.ts` (Web Audio). Starts on the first tap/key (browser autoplay rules), suspends while the tab is hidden, closes cleanly with the game. Phaser's own audio is off.
+
 ## Controls
 - **Keyboard:** Arrows/WASD move, Space/W/Up jump, Down/S crouch, J/X attack, K/C special (fire roar).
 - **Touch:** on-screen D-pad + Jump + Attack buttons (iPad-friendly).

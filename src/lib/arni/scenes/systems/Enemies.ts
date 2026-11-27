@@ -26,6 +26,7 @@ import { groundAhead, rectHitsSolid, wallAhead } from "../../level/collision.js"
 import { POWER } from "../../powerups.js";
 import { spawnPoint } from "../../level/parseLevel.js";
 import { bodyRect, centerX, type LevelContext } from "../context.js";
+import { sound } from "../sound.js";
 import type { Blocks } from "./Blocks.js";
 
 const GRAVITY = 1800;
@@ -214,6 +215,7 @@ export class Enemies {
     scene.tweens.add({ targets: img, scale: 1, duration: 150, ease: "Back.out" });
     scene.tweens.add({ targets: img, angle: 360, duration: 600, repeat: -1 });
     this.magic.push({ img, vx: (dx / len) * speed, vy: (dy / len) * speed, age: 0, dead: false });
+    sound(scene).play("magicShot");
     scene.tweens.add({ targets: m.view, scaleX: 1.25, scaleY: 0.85, duration: 90, yoyo: true });
   }
 
@@ -284,6 +286,7 @@ export class Enemies {
   private hit(m: Minion, how: "whip" | "stomp" | "fire" | "pound", amount = 1): void {
     const { host: scene } = this.ctx;
     m.enemy = damageEnemy(m.enemy, amount);
+    sound(this.ctx.host).play(m.enemy.defeated ? "enemyDefeat" : "enemyHit");
     this.ctx.sparks(m.body.center.x, m.body.center.y, 10);
     scene.cameras.main.shake(70, 0.004);
 
@@ -396,6 +399,7 @@ export class Enemies {
     const y = m.body.top + 10;
     // `at` is relative to the thrower's feet; aim a bit above Arni's feet.
     this.lobPeel(m.body.center.x, y, at.dx, at.dy + (m.body.bottom - y) - 30);
+    sound(this.ctx.host).play("peelThrow");
     this.ctx.host.tweens.add({ targets: m.view, scaleY: 1.2, duration: 90, yoyo: true });
   }
 
@@ -485,6 +489,7 @@ export class Enemies {
     for (const e of events) {
       switch (e) {
         case "spotted":
+          sound(scene).play("minionAlert");
           this.popText(m, "!", "#ffd36a");
           scene.tweens.add({ targets: m.view, scaleY: 1.25, duration: 120, yoyo: true });
           break;
@@ -492,6 +497,7 @@ export class Enemies {
           this.popText(m, "!", "#ffd36a");
           break;
         case "aim":
+          sound(scene).play("crownAim");
           // Telegraph: the crown glows red and shivers before it fires.
           m.view.setTint(0xff6b6b);
           scene.tweens.add({ targets: m.view, angle: { from: -8, to: 8 }, duration: 60, yoyo: true, repeat: 3, onComplete: () => m.view.setAngle(0) });

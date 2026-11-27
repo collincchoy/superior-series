@@ -4,6 +4,7 @@ import type { Score } from "../pickups.js";
 import { COIN_TROPHY, type Trophies } from "../victory.js";
 import { LEVELS } from "../level/levels/index.js";
 import type { LevelScene, LevelStartData } from "./LevelScene.js";
+import { sound } from "./sound.js";
 
 export interface VictoryData {
   score: Score;
@@ -94,7 +95,10 @@ export class VictoryScene extends Phaser.Scene {
       panel.add([rect, label]);
       rect.on("pointerover", () => rect.setScale(1.05));
       rect.on("pointerout", () => rect.setScale(1));
-      rect.on("pointerdown", b.go);
+      rect.on("pointerdown", () => {
+        sound(this).play("menuSelect");
+        b.go();
+      });
     });
     const main = buttons.find((b) => b.main) ?? buttons[0];
     const kb = this.input.keyboard;

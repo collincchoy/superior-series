@@ -6,6 +6,7 @@ import { overlaps, resolveEnemyContact, type Rect } from "../../combat.js";
 import { TILE_SIZE } from "../../constants.js";
 import { spawnPoint, tileCenter } from "../../level/parseLevel.js";
 import { bodyRect, centerX, type LevelContext } from "../context.js";
+import { sound } from "../sound.js";
 import type { Blocks } from "./Blocks.js";
 import type { Enemies } from "./Enemies.js";
 
@@ -121,6 +122,7 @@ export class Boss {
       const hy = b.top + 20;
       // t.dx is relative to Rex (Arni's position plus a little spread).
       this.enemies.lobPeel(hx, hy, b.center.x + t.dx - hx, arni.top + 20 - hy);
+      sound(this.ctx.host).play("peelThrow");
     }
     for (let i = 0; i < out.summon; i++) {
       const sx = (a.leftTx + 2 + i * (a.rightTx - a.leftTx - 4)) * TILE_SIZE;
@@ -152,6 +154,8 @@ export class Boss {
       this.ctx.level = withTile(this.ctx.level, a.gateTx, ty, "ground");
     });
     scene.cameras.main.shake(300, 0.006);
+    sound(scene).play("gateClose");
+    sound(scene).playMusic("boss");
     // Lock the camera to the arena.
     const cam = scene.cameras.main;
     cam.setBounds(a.gateTx * TILE_SIZE, 0, (a.rightTx - a.gateTx + 1) * TILE_SIZE, this.ctx.level.height * TILE_SIZE);
@@ -230,6 +234,7 @@ export class Boss {
     v.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
     scene.time.delayedCall(120, () => v.clearTint().setTintMode(Phaser.TintModes.MULTIPLY));
     if (result === "hit") {
+      sound(scene).play("rexHit");
       this.say(state.hitsLeft === 2 ? "OUCH! My peel!" : "Grr! Get them, minions!", "#ff4f7b", 1200);
       return;
     }
@@ -237,6 +242,8 @@ export class Boss {
   }
 
   private defeat(): void {
+    sound(this.ctx.host).stopMusic();
+    sound(this.ctx.host).play("rexDefeat");
     const { host: scene } = this.ctx;
     const v = this.view!;
     const b = this.body!;
@@ -266,21 +273,26 @@ export class Boss {
     for (const e of events) {
       switch (e) {
         case "taunt":
+          if (!events.includes("rise")) sound(scene).play("rexTaunt");
           if (!events.includes("rise")) this.say("Ha! You'll never catch me, dino!", "#ffd36a", 1500);
           break;
         case "throneTaunt":
+          sound(scene).play("rexTaunt");
           this.say(THRONE_TAUNTS[this.tauntIndex++ % THRONE_TAUNTS.length], "#ffd36a", 1600);
           break;
         case "rise":
+          sound(scene).play("rexCharge");
           this.say("Fine! I'll squash you myself!", "#ff7a2e", 1800);
           scene.cameras.main.shake(300, 0.01);
           this.ctx.dust(b.center.x, b.bottom, 14);
           break;
         case "charge":
+          sound(scene).play("rexCharge");
           this.say("BANANA CHARGE!", "#ff7a2e", 700);
           this.ctx.dust(b.center.x, b.bottom, 10);
           break;
         case "slam":
+          sound(scene).play("rexSlam");
           scene.cameras.main.shake(250, 0.012);
           this.ctx.dust(b.center.x + this.state.facing * 40, b.bottom - 40, 16);
           break;
