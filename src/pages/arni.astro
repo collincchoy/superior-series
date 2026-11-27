@@ -1,7 +1,3 @@
----
-import ArniApp from "../components/arni/ArniApp.svelte";
----
-
 <!doctype html>
 <html lang="en">
   <head>
@@ -48,12 +44,150 @@ import ArniApp from "../components/arni/ArniApp.svelte";
         padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
       }
+
+      /* Plain CSS for Safari 12: no inset, flex gap or space-separated rgb(). */
+      #boot-error {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        max-height: 100%;
+        overflow: auto;
+        padding: 16px;
+        background: #8b1e1e;
+        color: #fff;
+        font: 14px/1.4 ui-monospace, Menlo, monospace;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      #boot-error[hidden] {
+        display: none;
+      }
+
+      .rotate {
+        display: none;
+      }
+
+      /* Touch screens: the on-screen buttons replace the keyboard hint. */
+      @media (pointer: coarse) {
+        .hint {
+          display: none;
+        }
+      }
+
+      @media (pointer: coarse) and (orientation: portrait) {
+        .rotate {
+          position: fixed;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          left: 0;
+          z-index: 10;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background: #3a2f66;
+          color: #fff;
+          font: 700 24px system-ui, -apple-system, sans-serif;
+          text-align: center;
+          padding: 24px;
+        }
+
+        .phone {
+          margin-bottom: 16px;
+          font-size: 72px;
+          animation: tilt 1.6s ease-in-out infinite;
+        }
+      }
+
+      @keyframes tilt {
+        0%,
+        30% {
+          transform: rotate(0deg);
+        }
+        60%,
+        100% {
+          transform: rotate(-90deg);
+        }
+      }
+
+      .stage {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+      }
+
+      .hint {
+        position: fixed;
+        left: 50%;
+        bottom: 10px;
+        transform: translateX(-50%);
+        padding: 4px 12px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.35);
+        color: #fff;
+        font: 600 14px system-ui, -apple-system, sans-serif;
+        pointer-events: none;
+      }
     </style>
   </head>
   <body>
+    <!--
+      Startup error overlay. Old iPads have no easy dev tools, so anything that
+      stops the game shows here. Plain ES5 inline script: it must run even when
+      the game bundle can't be parsed.
+    -->
+    <div id="boot-error" hidden></div>
+    <script is:inline>
+      (function () {
+        var box = document.getElementById("boot-error");
+        var lines = [];
+        function show(msg) {
+          lines.push(msg);
+          box.textContent =
+            "Arni hit a problem. Send a photo of this screen:\n\n" + lines.join("\n\n") + "\n\n" + navigator.userAgent;
+          box.hidden = false;
+        }
+        window.addEventListener("error", function (e) {
+          var where = e.filename ? "\n" + e.filename + ":" + e.lineno + ":" + e.colno : "";
+          var stack = e.error && e.error.stack ? "\n" + e.error.stack : "";
+          show((e.message || "Error") + where + stack);
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          var r = e.reason;
+          show("Unhandled rejection: " + ((r && (r.stack || r.message)) || String(r)));
+        });
+        window.addEventListener("load", function () {
+          setTimeout(function () {
+            if (!document.querySelector(".stage canvas")) show("The game didn't start (no canvas after 8s).");
+          }, 8000);
+        });
+        box.addEventListener("click", function () {
+          box.hidden = true;
+        });
+      })();
+    </script>
     <div id="app">
-      <ArniApp client:only="svelte" />
+      <div class="stage"></div>
+      <p class="hint">← → move · Space jump · X tail whip · ↓ crawl/slide · hold ↓ + jump: super jump · Esc pause</p>
+      <!-- Phones held upright: the game is wide, so ask to turn sideways (CSS only shows this on touch + portrait). -->
+      <div class="rotate" aria-live="polite">
+        <div class="phone">📱</div>
+        <p>Turn your device sideways to play!</p>
+      </div>
     </div>
+    <script>
+      // A plain script, not a Svelte island: Astro's island loader and the
+      // Svelte runtime need Safari 13.1+, and old iPads run Safari 12.
+      import { createGame } from "../lib/arni/createGame.js";
+
+      const stage = document.querySelector<HTMLElement>(".stage");
+      if (stage) createGame(stage, import.meta.env.BASE_URL);
+    </script>
     <script>
       if ("serviceWorker" in navigator) {
         const base = import.meta.env.BASE_URL;
