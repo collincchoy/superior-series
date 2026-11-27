@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="volcano" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffcf5a"/>
+      <stop offset="1" stop-color="#ff6b3d"/>
+    </linearGradient>
+    <linearGradient id="factory" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7b55d6"/>
+      <stop offset="1" stop-color="#3a2f66"/>
+    </linearGradient>
+    <radialGradient id="glowL" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff6c4" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#fff6c4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowR" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff7ad9" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ff7ad9" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Factory side (right) fills the tile; volcano side (left) is drawn over it. -->
+  <rect width="512" height="512" fill="url(#factory)"/>
+  <g fill="#2a2150" opacity="0.55">
+    <circle cx="470" cy="470" r="70"/>
+    <g transform="translate(470 470)">
+      <rect x="-14" y="-96" width="28" height="40" rx="6"/>
+      <rect x="-14" y="-96" width="28" height="40" rx="6" transform="rotate(45)"/>
+      <rect x="-14" y="-96" width="28" height="40" rx="6" transform="rotate(90)"/>
+      <rect x="-14" y="-96" width="28" height="40" rx="6" transform="rotate(-45)"/>
+      <rect x="-14" y="-96" width="28" height="40" rx="6" transform="rotate(-90)"/>
+    </g>
+    <rect x="400" y="0" width="34" height="120"/>
+    <rect x="452" y="0" width="34" height="80"/>
+  </g>
+  <path d="M0 0 300 0 L276 150 L318 170 L236 330 L276 344 L212 512 L0 512 Z" fill="url(#volcano)"/>
+  <path d="M-20 512 L70 380 Q90 360 110 380 L200 512 Z" fill="#c2452a" opacity="0.6"/>
+  <path d="M70 380 Q90 360 110 380 L100 400 L90 388 L80 402 Z" fill="#ffe27a" opacity="0.8"/>
+
+  <ellipse cx="160" cy="280" rx="120" ry="120" fill="url(#glowL)"/>
+  <ellipse cx="360" cy="260" rx="125" ry="125" fill="url(#glowR)"/>
+
+  <!-- Clash line -->
+  <path d="M300 0 L276 150 L318 170 L236 330 L276 344 L212 512" fill="none" stroke="#271f40" stroke-width="22" stroke-linejoin="round"/>
+  <path d="M300 0 L276 150 L318 170 L236 330 L276 344 L212 512" fill="none" stroke="#fff" stroke-width="10" stroke-linejoin="round"/>
+
+  <!-- Arni, facing right toward Rex -->
+  <g transform="translate(50 166) scale(2.1)">
+  <!-- Arni: friendly green dino, facing right. Feet touch the bottom edge. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7ee04a"/>
+      <stop offset="1" stop-color="#3fae2a"/>
+    </linearGradient>
+  </defs>
+  <g stroke="#1f5c14" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M30 62 Q8 60 4 44 Q16 54 34 50 Z" fill="url(#body)"/>
+    <path d="M30 40 l5 -9 l5 9 M40 33 l5 -9 l5 9 M50 30 l5 -9 l4 9" fill="#ff8a3d"/>
+    <rect x="34" y="72" width="14" height="22" rx="6" fill="#3fae2a"/>
+    <rect x="56" y="72" width="14" height="22" rx="6" fill="#3fae2a"/>
+    <ellipse cx="50" cy="60" rx="24" ry="20" fill="url(#body)"/>
+    <ellipse cx="56" cy="66" rx="13" ry="11" fill="#fff3a8" stroke="none"/>
+    <path d="M52 44 Q50 18 74 16 Q94 16 92 34 Q92 46 76 46 Q64 50 52 44 Z" fill="url(#body)"/>
+    <path d="M66 58 q8 2 10 8" fill="none"/>
+  </g>
+  <ellipse cx="76" cy="27" rx="7" ry="8" fill="#fff" stroke="#1f5c14" stroke-width="2.5"/>
+  <circle cx="78" cy="28" r="3.6" fill="#1b1b1b"/>
+  <circle cx="79.4" cy="26.4" r="1.3" fill="#fff"/>
+  <path d="M74 40 Q82 44 89 37" fill="none" stroke="#1f5c14" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="88" cy="25" r="1.4" fill="#1f5c14"/>
+  <ellipse cx="68" cy="36" rx="4" ry="2.5" fill="#ff7aa8" opacity="0.7"/>
+</g>
+  <!-- Rex, facing left toward Arni -->
+  <g transform="translate(266 124) scale(1.42)">
+  <!-- Rex the Banana: big, smug, crowned villain. Feet at the bottom edge. Faces left. -->
+  <g stroke="#7a5200" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+    <!-- cape -->
+    <path d="M86 52 Q120 70 118 150 L86 140 Z" fill="#a0124e" stroke="#5c0a2c"/>
+    <!-- feet -->
+    <ellipse cx="46" cy="153" rx="16" ry="7" fill="#6b4320" stroke="#3d2814"/>
+    <ellipse cx="80" cy="153" rx="16" ry="7" fill="#6b4320" stroke="#3d2814"/>
+    <!-- body: a big curved banana -->
+    <path d="M70 26 C26 44 18 104 40 138 C52 154 82 154 100 140 C74 124 66 82 80 30 Z" fill="#ffe14d"/>
+    <path d="M70 34 C40 54 36 100 52 130" fill="none" stroke="#fff3a0" stroke-width="6"/>
+    <g fill="#c49a00" stroke="none"><circle cx="44" cy="70" r="3"/><circle cx="40" cy="104" r="3.5"/><circle cx="60" cy="128" r="2.5"/></g>
+    <!-- stem -->
+    <path d="M70 26 Q72 14 82 10 L86 18 Q78 20 78 30 Z" fill="#6b4423" stroke="#3d2814"/>
+    <!-- crown -->
+    <path d="M52 22 L56 4 L64 16 L72 0 L78 16 L88 4 L88 24 Q70 30 52 22 Z" fill="#ffd36a" stroke="#a36b00"/>
+    <g fill="#3ef0d0" stroke="none"><circle cx="64" cy="20" r="3"/><circle cx="78" cy="20" r="3"/></g>
+    <!-- arm with a peel, raised -->
+    <path d="M36 84 Q14 76 12 60" fill="none" stroke="#c49a00" stroke-width="6"/>
+  </g>
+  <!-- smug face -->
+  <path d="M38 58 l14 4 M58 62 l14 -2" stroke="#4d3600" stroke-width="4" stroke-linecap="round"/>
+  <ellipse cx="46" cy="68" rx="6" ry="6.5" fill="#fff" stroke="#4d3600" stroke-width="2.5"/>
+  <ellipse cx="64" cy="68" rx="6" ry="6.5" fill="#fff" stroke="#4d3600" stroke-width="2.5"/>
+  <circle cx="44" cy="69" r="3" fill="#1b1b1b"/><circle cx="62" cy="69" r="3" fill="#1b1b1b"/>
+  <path d="M42 86 Q54 96 68 84" fill="#7a2a1a" stroke="#4d3600" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M46 87 h4 v4 h-4 Z M56 88 h4 v4 h-4 Z" fill="#fff"/>
+  <!-- mustache -->
+  <path d="M38 80 Q46 74 54 80 Q62 74 70 80 Q62 84 54 82 Q46 84 38 80 Z" fill="#6b4423"/>
+</g>
+
+  <!-- VS badge -->
+  <g transform="translate(256 392) rotate(-8)">
+    <circle r="50" fill="#271f40"/>
+    <circle r="42" fill="#ff3d6e" stroke="#fff" stroke-width="6"/>
+    <text y="16" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900"
+      font-size="44" fill="#fff" stroke="#271f40" stroke-width="3" paint-order="stroke">VS</text>
+  </g>
+</svg>

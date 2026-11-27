@@ -87,6 +87,13 @@ All synthesized in code (no audio files), chiptune style:
 - **Touch:** big semi-transparent buttons (layout in `src/lib/arni/touch.ts`, tested): ◀ ▶ and ▼ for the left thumb; JUMP (biggest), WHIP, and FIRE (only while the fire roar is active) for the right. Multi-touch (hold ▼ + JUMP for the super jump), and a thumb can slide between ◀ and ▶ without lifting. Shown on touch devices from the start, or after the first real touch. Phones held upright get a "turn your device sideways" screen; the keyboard hint is hidden on touch screens. Pause, menus, the level map and the victory screen are all tappable.
 - Gamepad + local multiplayer: future; input is abstracted per player so this slots in later.
 
+## Installable app (PWA)
+Arni is its own home-screen app, separate from Catan. Everything lives in `public/arni/`:
+- `manifest.webmanifest`: scope and start URL `/superior-series/arni/`, full screen, landscape.
+- `icons/`: the split-tile icon, Arni (volcano side) vs. Rex (factory side) with a VS badge. `icon.svg` is the source, built from the game's own sprites. `icon-192.png`, `icon-512.png` (also used as maskable, with the faces inside the round safe zone) and the 180px `apple-touch-icon.png` for iPhone/iPad.
+- `sw.js`: an offline cache scoped to `/arni/`. Pages are network first; hashed `/_astro/` bundles are cache first; sprites are served from cache and refreshed in the background. On a first visit the page sends the worker its loaded files so the game also works offline from the next launch.
+- Catan's worker only clears `catan-` caches and Arni's only clears `arni-` caches, so neither wipes the other's offline copy. Tested in `src/test/arni/pwa.test.ts`.
+
 ## Tech
 - **Phaser** (arcade physics, tilemaps, cameras, tweens) inside a Svelte wrapper component on an Astro page.
 - **Pure-logic modules** (enemy AI state machines, boss phases, player state machine, damage/health, power-up timers) in `src/lib/arni/`, unit-tested with Vitest per repo TDD rules. Phaser scenes are thin adapters.

@@ -1,0 +1,40 @@
+{
+  "id": "/superior-series/arni/",
+  "name": "Arni vs. Rex",
+  "short_name": "Arni vs. Rex",
+  "description": "Help Arni the dinosaur stomp, whip and roar through 10 levels to beat Rex the Banana!",
+  "start_url": "/superior-series/arni/",
+  "scope": "/superior-series/arni/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#3a2f66",
+  "theme_color": "#3a2f66",
+  "categories": ["games", "kids"],
+  "icons": [
+    {
+      "src": "/superior-series/arni/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/superior-series/arni/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/superior-series/arni/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/superior-series/arni/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
