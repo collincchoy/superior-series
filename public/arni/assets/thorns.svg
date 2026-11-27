@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Bright magenta thorn bramble (hazard) — high contrast against dark basalt. Vines meet tile edges at the same heights. -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M0 52 Q16 34 32 48 T64 52" stroke="#a0124e" stroke-width="8"/>
+    <path d="M0 40 Q20 58 36 38 T64 40" stroke="#e0336e" stroke-width="6"/>
+    <path d="M0 52 Q16 34 32 48 T64 52" stroke="#ff6fa0" stroke-width="2.5"/>
+  </g>
+  <g fill="#fff4d6" stroke="#a0124e" stroke-width="1.5" stroke-linejoin="round">
+    <path d="M8 44 l-3 -13 l8 9 Z"/><path d="M22 38 l2 -15 l5 13 Z"/><path d="M38 44 l6 -13 l1 13 Z"/>
+    <path d="M52 46 l4 -14 l3 14 Z"/><path d="M16 56 l-4 7 l9 -3 Z"/><path d="M46 56 l6 7 l-1 -8 Z"/>
+  </g>
+  <rect y="58" width="64" height="6" fill="#3a2f66"/>
+</svg>

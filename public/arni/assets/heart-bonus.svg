@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="44" height="40" viewBox="0 0 44 40">
+  <!-- Golden bonus heart (from an extra-heart pickup at full health). -->
+  <path d="M22 37 C10 28 3 21 3 12.5 C3 6.5 7.5 3 12.5 3 C16.5 3 19.6 5.2 22 8.6 C24.4 5.2 27.5 3 31.5 3 C36.5 3 41 6.5 41 12.5 C41 21 34 28 22 37 Z" fill="#ffd36a" stroke="#a36b00" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M10 10 Q12 7 16 7.5" fill="none" stroke="#fff8d8" stroke-width="3" stroke-linecap="round"/>
+  <path d="M30 14 l1.5 3.5 l3.5 1.5 l-3.5 1.5 l-1.5 3.5 l-1.5 -3.5 l-3.5 -1.5 l3.5 -1.5 Z" fill="#fff"/>
+</svg>

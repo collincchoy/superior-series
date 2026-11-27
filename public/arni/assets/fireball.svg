@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="44" height="28" viewBox="0 0 44 28">
+  <!-- Arni's roar fireball, flying right (flipped for left). -->
+  <path d="M2 14 Q14 2 30 4 Q42 6 42 14 Q42 22 30 24 Q14 26 2 14 Z" fill="#ff6a2e" stroke="#a3300c" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M12 14 Q20 7 30 8 Q37 9 37 14 Q37 19 30 20 Q20 21 12 14 Z" fill="#ffb347"/>
+  <circle cx="31" cy="14" r="5" fill="#fff3b0"/>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="28" viewBox="0 0 36 28">
+  <!-- A thrown banana peel (Spotter's projectile). -->
+  <g stroke="#8a6a00" stroke-width="2" stroke-linejoin="round">
+    <path d="M18 14 Q6 2 2 8 Q8 10 14 16 Z" fill="#ffe14d"/>
+    <path d="M18 14 Q30 2 34 8 Q28 10 22 16 Z" fill="#ffd23a"/>
+    <path d="M18 14 Q12 26 6 26 Q12 20 15 15 Z" fill="#ffe14d"/>
+    <path d="M18 14 Q24 26 30 26 Q24 20 21 15 Z" fill="#f2c62a"/>
+    <circle cx="18" cy="13" r="4" fill="#6b4423"/>
+  </g>
+</svg>

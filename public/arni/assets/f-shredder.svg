@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Factory hazard (thorns swap): a peel-shredder strip with chunky teeth. Teeth line up across tiles. -->
+  <rect x="0" y="44" width="64" height="20" fill="#5a6680"/>
+  <path d="M0 44 H64" stroke="#c9d3e6" stroke-width="3"/>
+  <g fill="#ff4f7b" stroke="#8a1238" stroke-width="2" stroke-linejoin="round">
+    <path d="M2 44 L10 26 L18 44 Z"/><path d="M18 44 L26 26 L34 44 Z"/><path d="M34 44 L42 26 L50 44 Z"/><path d="M50 44 L58 26 L64 38 V44 Z"/>
+  </g>
+  <g fill="#ffd36a"><rect x="0" y="52" width="10" height="6"/><rect x="20" y="52" width="10" height="6"/><rect x="40" y="52" width="10" height="6"/><rect x="60" y="52" width="4" height="6"/></g>
+</svg>

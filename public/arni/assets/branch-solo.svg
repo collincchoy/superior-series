@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- A short stub branch, tufts at both ends. -->
+  <path d="M14 5 Q32 2 50 5 Q58 8 58 13 Q58 19 50 21 Q32 24 14 21 Q6 19 6 13 Q6 8 14 5 Z" fill="#8a5a2b" stroke="#4d2f12" stroke-width="3"/>
+  <path d="M16 9 Q32 6 48 9" fill="none" stroke="#b07a3f" stroke-width="3"/>
+  <g fill="#45b83f" stroke="#2e7d2a" stroke-width="1.5">
+    <path d="M10 12 q-10 -8 -8 4 q3 5 8 -4 Z"/>
+    <path d="M54 12 q10 -8 8 4 q-3 5 -8 -4 Z"/>
+    <path d="M32 22 q-5 8 0 13 q5 -5 0 -13 Z"/>
+  </g>
+</svg>

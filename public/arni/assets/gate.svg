@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Arena gate block (stacks vertically): carved basalt with glowing Rex-banana runes. -->
+  <rect x="2" y="1" width="60" height="62" rx="4" fill="#4b3e74" stroke="#271f40" stroke-width="3"/>
+  <path d="M8 8 H56 V56 H8 Z" fill="none" stroke="#7d6bb8" stroke-width="2"/>
+  <path d="M26 18 Q20 32 30 46 Q36 48 40 44 Q32 34 34 18 Z" fill="none" stroke="#ffd36a" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M26 18 Q20 32 30 46 Q36 48 40 44 Q32 34 34 18 Z" fill="none" stroke="#ff7a2e" stroke-width="7" opacity="0.3" stroke-linejoin="round"/>
+</svg>

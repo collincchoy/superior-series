@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Factory floor, single-width -->
+  <defs><clipPath id="c"><path d="M2 64 V14 Q2 2 14 2 H50 Q62 2 62 14 V64 Z"/></clipPath></defs>
+  <g clip-path="url(#c)">
+  <rect y="8" width="64" height="56" fill="#3f7fa6"/>
+  <rect y="34" width="64" height="30" fill="#356c8f"/>
+  <path d="M0 34 H64" stroke="#1f3f57" stroke-width="2"/>
+  <path d="M32 8 V64" stroke="#1f3f57" stroke-width="2" opacity="0.6"/>
+  <circle cx="6" cy="14" r="2.2" fill="#a9d6ee"/>
+  <circle cx="6" cy="40" r="2.2" fill="#a9d6ee"/>
+  <circle cx="26" cy="14" r="2.2" fill="#a9d6ee"/>
+  <circle cx="26" cy="40" r="2.2" fill="#a9d6ee"/>
+  <circle cx="38" cy="14" r="2.2" fill="#a9d6ee"/>
+  <circle cx="38" cy="40" r="2.2" fill="#a9d6ee"/>
+  <circle cx="58" cy="14" r="2.2" fill="#a9d6ee"/>
+  <circle cx="58" cy="40" r="2.2" fill="#a9d6ee"/>
+  </g>
+  <path d="M0 64 V14 Q0 2 10 0 H12 V64 Z" fill="#3f7fa6"/>
+  <path d="M2 12 Q2 2 12 1 V10 Q6 10 5 14 Z" fill="#ffd36a"/>
+  <path d="M64 64 V14 Q64 2 54 0 H52 V64 Z" fill="#3f7fa6"/>
+  <path d="M62 12 Q62 2 52 1 V10 Q58 10 59 14 Z" fill="#ffd36a"/>
+  <path d="M10 0 H54 V10 H10 Z" fill="#ffd36a"/>
+  <path d="M10 10 H54" stroke="#e09a2c" stroke-width="3"/>
+  <path d="M10 3 H54" stroke="#fff3c4" stroke-width="2" opacity="0.8"/>
+</svg>

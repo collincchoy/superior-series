@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420">
+  <!-- Factory machinery parallax layer. Left and right edges match so it tiles. -->
+  <!-- giant banana tanks -->
+  <g stroke="#2a4372" stroke-width="6">
+    <rect x="80" y="120" width="140" height="300" rx="60" fill="#5d86c4"/>
+    <rect x="720" y="90" width="160" height="330" rx="70" fill="#5d86c4"/>
+  </g>
+  <g fill="#ffd23a" stroke="#a36b00" stroke-width="4">
+    <path d="M132 200 Q118 250 146 290 Q162 296 172 286 Q146 262 144 204 Z"/>
+    <path d="M780 180 Q764 240 796 284 Q814 292 826 280 Q796 254 794 186 Z"/>
+  </g>
+  <!-- pipes -->
+  <g fill="none" stroke="#3f7fa6" stroke-width="22" stroke-linecap="round">
+    <path d="M0 80 H260 Q300 80 300 120 V200"/>
+    <path d="M880 140 Q960 140 960 220 V300 H1280"/>
+    <path d="M420 0 V120 Q420 160 460 160 H640"/>
+  </g>
+  <g fill="#ffd36a"><circle cx="300" cy="200" r="16"/><circle cx="640" cy="160" r="14"/></g>
+  <!-- conveyor with bananas -->
+  <rect x="300" y="300" width="380" height="26" rx="13" fill="#2a4372"/>
+  <g fill="#a9d6ee"><circle cx="318" cy="313" r="9"/><circle cx="662" cy="313" r="9"/></g>
+  <g fill="#ffe14d" stroke="#a36b00" stroke-width="3">
+    <path d="M360 296 Q356 270 382 262 Q374 280 384 296 Z"/>
+    <path d="M460 296 Q456 270 482 262 Q474 280 484 296 Z"/>
+    <path d="M560 296 Q556 270 582 262 Q574 280 584 296 Z"/>
+  </g>
+  <!-- gears -->
+  <g fill="#7a6bc4" stroke="#2a4372" stroke-width="5">
+    <circle cx="1080" cy="180" r="56"/><circle cx="1170" cy="250" r="34"/>
+  </g>
+  <g fill="#2a4372"><circle cx="1080" cy="180" r="16"/><circle cx="1170" cy="250" r="10"/></g>
+  <!-- floor band -->
+  <path d="M0 380 H1280 V420 H0 Z" fill="#2a4372"/>
+  <path d="M0 380 H1280" stroke="#ffd36a" stroke-width="6" stroke-dasharray="40 30"/>
+</svg>

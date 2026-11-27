@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="160" viewBox="0 0 128 160">
+  <!-- Rex, defeated: peeled and pouty, crown tumbling off. Same frame as rex.svg. -->
+  <g stroke="#7a5200" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="46" cy="153" rx="16" ry="7" fill="#6b4320" stroke="#3d2814"/>
+    <ellipse cx="80" cy="153" rx="16" ry="7" fill="#6b4320" stroke="#3d2814"/>
+    <!-- peel flopped open -->
+    <path d="M64 70 Q30 60 14 96 Q34 86 54 96 Z" fill="#ffe14d"/>
+    <path d="M72 70 Q108 62 118 100 Q96 88 78 96 Z" fill="#ffe14d"/>
+    <path d="M52 66 C40 90 40 130 56 146 C66 152 80 150 88 140 C76 120 76 90 80 66 Z" fill="#fff6d0"/>
+    <path d="M60 66 Q66 56 76 58 L74 66 Z" fill="#6b4423" stroke="#3d2814"/>
+  </g>
+  <g transform="rotate(35 100 30)"><path d="M84 30 L88 12 L96 24 L104 8 L110 24 L120 12 L120 32 Q102 38 84 30 Z" fill="#ffd36a" stroke="#a36b00" stroke-width="3" stroke-linejoin="round"/></g>
+  <g stroke="#4d3600" stroke-width="3" stroke-linecap="round"><path d="M54 92 l8 6 M62 92 l-8 6 M70 92 l8 6 M78 92 l-8 6"/></g>
+  <path d="M58 116 Q66 108 76 116" fill="none" stroke="#4d3600" stroke-width="3" stroke-linecap="round"/>
+</svg>

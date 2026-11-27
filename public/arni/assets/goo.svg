@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="56" height="14" viewBox="0 0 56 14">
+  <!-- Slippery rotten-banana goo puddle. -->
+  <path d="M2 14 Q2 6 12 6 Q16 1 24 4 Q32 0 40 4 Q52 3 54 14 Z" fill="#9fd45a" stroke="#5d8f22" stroke-width="2" stroke-linejoin="round"/>
+  <g fill="#e2ffb8"><ellipse cx="18" cy="8" rx="4" ry="1.5"/><circle cx="38" cy="7" r="1.5"/></g>
+</svg>

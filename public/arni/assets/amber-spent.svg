@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Amber after it's been cracked open: dull and empty. -->
+  <path d="M14 4 H50 L62 18 V48 L48 62 H16 L2 48 V18 Z" fill="#a8743a" stroke="#5c3510" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M14 4 L22 16 H44 L50 4 M22 16 L10 30 M44 16 L56 32" fill="none" stroke="#c4935a" stroke-width="1.8"/>
+  <path d="M24 30 l6 8 l-4 8 M40 28 l-4 10 l6 6" fill="none" stroke="#5c3510" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

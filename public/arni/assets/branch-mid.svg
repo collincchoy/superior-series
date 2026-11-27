@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- One-way tree branch. Top surface at y≈4; edges join at fixed heights. -->
+  <path d="M0 4 Q32 1 64 4 V22 Q32 25 0 22 Z" fill="#8a5a2b" stroke="#4d2f12" stroke-width="3"/>
+  <path d="M0 4 Q32 1 64 4" fill="none" stroke="#b07a3f" stroke-width="3" transform="translate(0 3)"/>
+  <path d="M8 13 q10 -3 20 0 M36 15 q8 -2 18 1" fill="none" stroke="#5e3b1a" stroke-width="2" stroke-linecap="round"/>
+  <!-- hanging leaves -->
+  <g fill="#45b83f" stroke="#2e7d2a" stroke-width="1.5">
+    <path d="M18 22 q-6 10 0 16 q6 -6 0 -16 Z"/>
+    <path d="M46 22 q-5 8 0 13 q5 -5 0 -13 Z"/>
+  </g>
+</svg>

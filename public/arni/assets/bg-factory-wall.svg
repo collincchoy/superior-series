@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <!-- Factory interior: warm lights high up, a big window with Rex's banana logo. -->
+  <defs><linearGradient id="w" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#3a5f9a"/><stop offset="0.6" stop-color="#7a6bc4"/><stop offset="1" stop-color="#ffb37a"/>
+  </linearGradient></defs>
+  <rect width="1280" height="720" fill="url(#w)"/>
+  <g fill="#2a4372" opacity="0.6">
+    <rect x="0" y="0" width="1280" height="40"/>
+    <rect x="160" y="40" width="14" height="680"/><rect x="560" y="40" width="14" height="680"/><rect x="960" y="40" width="14" height="680"/>
+  </g>
+  <g fill="#fff27a"><circle cx="300" cy="70" r="16"/><circle cx="700" cy="70" r="16"/><circle cx="1100" cy="70" r="16"/></g>
+  <g fill="#fff27a" opacity="0.18"><path d="M284 80 L200 360 H400 L316 80 Z"/><path d="M684 80 L600 360 H800 L716 80 Z"/><path d="M1084 80 L1000 360 H1200 L1116 80 Z"/></g>
+  <!-- Rex's logo window -->
+  <circle cx="880" cy="230" r="90" fill="#a9d6ee" stroke="#2a4372" stroke-width="14"/>
+  <path d="M846 186 Q826 234 858 268 Q884 278 904 262 Q870 248 862 190 Z" fill="#ffd23a" stroke="#a36b00" stroke-width="5"/>
+  <path d="M852 176 L856 160 L864 172 L872 156 L878 172 L886 160 L888 180 Q870 186 852 176 Z" fill="#ffd36a" stroke="#a36b00" stroke-width="3"/>
+</svg>

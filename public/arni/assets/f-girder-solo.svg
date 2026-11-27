@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Short girder catwalk -->
+  <path d="M8 4 H56 V22 H8 Z" fill="#ff8a3d" stroke="#8f3f06" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M10 6 H54" stroke="#ffc28a" stroke-width="2.5"/>
+  <path d="M26 19 L34 9 L42 19 Z" fill="#8f3f06" opacity="0.55"/>
+  <rect x="4" y="2" width="8" height="22" rx="2" fill="#a9d6ee" stroke="#1f3f57" stroke-width="2.5"/>
+  <circle cx="8" cy="8" r="1.8" fill="#1f3f57"/><circle cx="8" cy="18" r="1.8" fill="#1f3f57"/>
+  <rect x="52" y="2" width="8" height="22" rx="2" fill="#a9d6ee" stroke="#1f3f57" stroke-width="2.5"/>
+  <circle cx="56" cy="8" r="1.8" fill="#1f3f57"/><circle cx="56" cy="18" r="1.8" fill="#1f3f57"/>
+</svg>

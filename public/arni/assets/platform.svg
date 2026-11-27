@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="28" viewBox="0 0 128 28">
+  <!-- Floating stone slab with glowing rune strip (moving platform). -->
+  <path d="M6 2 H122 Q126 2 126 6 V18 Q126 22 120 24 L104 27 H24 L8 24 Q2 22 2 18 V6 Q2 2 6 2 Z" fill="#7d6bb8" stroke="#271f40" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M6 4 H122" stroke="#a796df" stroke-width="3" stroke-linecap="round"/>
+  <path d="M20 15 H108" stroke="#3ef0d0" stroke-width="3" stroke-linecap="round" stroke-dasharray="10 8"/>
+</svg>

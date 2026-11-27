@@ -31,7 +31,10 @@ self.addEventListener("activate", (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)),
+          // Only our own old caches: other apps on this site (Arni) keep theirs.
+          keys
+            .filter((k) => k.startsWith("catan-") && k !== CACHE_NAME)
+            .map((k) => caches.delete(k)),
         ),
       ),
   );

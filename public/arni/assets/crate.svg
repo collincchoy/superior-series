@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Rex's banana crate (breakable). -->
+  <rect x="2" y="2" width="60" height="60" rx="4" fill="#d9a35a" stroke="#6b4320" stroke-width="3"/>
+  <rect x="8" y="8" width="48" height="48" rx="2" fill="#e8b96c" stroke="#8a5a2b" stroke-width="2"/>
+  <path d="M8 8 L56 56" stroke="#8a5a2b" stroke-width="7" stroke-linecap="round"/>
+  <path d="M8 8 L56 56" stroke="#c48a44" stroke-width="3" stroke-linecap="round"/>
+  <!-- Rex's banana stamp -->
+  <circle cx="40" cy="22" r="12" fill="#fff3c4" stroke="#b8306e" stroke-width="2.5"/>
+  <path d="M35 14 Q30 24 38 31 Q44 33 48 28 Q40 26 38 15 Z" fill="#ffd93a" stroke="#8a6a00" stroke-width="1.6" stroke-linejoin="round"/>
+  <g fill="#6b4320"><circle cx="6" cy="6" r="1.8"/><circle cx="58" cy="6" r="1.8"/><circle cx="6" cy="58" r="1.8"/><circle cx="58" cy="58" r="1.8"/></g>
+</svg>

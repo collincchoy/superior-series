@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <!-- Ground-pound power-up: a heavy stone with a down-arrow and impact lines. -->
+  <circle cx="24" cy="24" r="22" fill="#d6ccff" fill-opacity="0.55" stroke="#ffffff" stroke-width="2.5"/>
+  <path d="M12 30 Q10 18 18 13 Q24 9 31 13 Q38 18 36 30 Z" fill="#8f7cc9" stroke="#271f40" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M24 15 V25 M19 21 L24 26 L29 21" fill="none" stroke="#ffd36a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M8 36 H40 M12 41 l-3 3 M24 40 v4 M36 41 l3 3" stroke="#271f40" stroke-width="2.5" stroke-linecap="round"/>
+</svg>
