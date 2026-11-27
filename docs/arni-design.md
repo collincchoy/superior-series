@@ -84,7 +84,7 @@ All synthesized in code (no audio files), chiptune style:
 
 ## Controls
 - **Keyboard:** Arrows/WASD move, Space/W/Up jump, Down/S crouch, J/X attack, K/C special (fire roar).
-- **Touch:** on-screen D-pad + Jump + Attack buttons (iPad-friendly).
+- **Touch:** big semi-transparent buttons (layout in `src/lib/arni/touch.ts`, tested): ◀ ▶ and ▼ for the left thumb; JUMP (biggest), WHIP, and FIRE (only while the fire roar is active) for the right. Multi-touch (hold ▼ + JUMP for the super jump), and a thumb can slide between ◀ and ▶ without lifting. Shown on touch devices from the start, or after the first real touch. Phones held upright get a "turn your device sideways" screen; the keyboard hint is hidden on touch screens. Pause, menus, the level map and the victory screen are all tappable.
 - Gamepad + local multiplayer: future; input is abstracted per player so this slots in later.
 
 ## Tech

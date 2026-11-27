@@ -3,7 +3,7 @@ import { VIEW_HEIGHT, VIEW_WIDTH } from "./constants.js";
 import { SoundBank } from "./audio/SoundBank.js";
 import { PHYSICS_FPS } from "./frameTiming.js";
 import { BootScene } from "./scenes/BootScene.js";
-import { HudScene } from "./scenes/HudScene.js";
+import { HudScene, TOUCH_MODE_KEY } from "./scenes/HudScene.js";
 import { LevelScene } from "./scenes/LevelScene.js";
 import { LevelSelectScene } from "./scenes/LevelSelectScene.js";
 import { PauseScene } from "./scenes/PauseScene.js";
@@ -40,6 +40,10 @@ export function createGame(parent: HTMLElement, baseUrl: string): Phaser.Game {
     },
     scene: [new BootScene(baseUrl), LevelSelectScene, LevelScene, HudScene, PauseScene, VictoryScene],
   });
+
+  // Touch devices (phones/tablets) get on-screen controls from the start;
+  // anything else switches them on at its first real touch (see HudScene).
+  game.registry.set(TOUCH_MODE_KEY, window.matchMedia?.("(pointer: coarse)").matches ?? false);
 
   // Our own synthesized audio (Phaser's is off). Closed with the game.
   const sounds = new SoundBank(localStorage);

@@ -38,6 +38,7 @@ import { activateCheckpoint, initialProgress, respawnTile, type Progress } from 
 import { COIN_TROPHY, trophies } from "../victory.js";
 import type { VictoryData } from "./VictoryScene.js";
 import { songForLevel } from "../audio/music.js";
+import { mergeInputs } from "../touch.js";
 import { TUNING } from "../tuning.js";
 import { bodyRect, centerX, type LevelContext } from "./context.js";
 import { HUD_EVENTS, HUD_KEYS } from "./HudScene.js";
@@ -96,6 +97,7 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
   /** Shared with the HUD (read every frame), so it's mutated in place. */
   private hudPowers: Record<TimedPower, number> = { fire: 0, pound: 0, sword: 0 };
   private specialHeld = false;
+  private touchInput: PlayerInput = emptyInput();
   private swordView!: Phaser.GameObjects.Image;
   private progress: Progress = initialProgress();
   private score!: Score;
@@ -335,6 +337,8 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     this.registry.set(HUD_KEYS.eggs, 0);
     this.registry.set(HUD_KEYS.eggsTotal, this.score.eggsTotal);
     this.registry.set(HUD_KEYS.powers, this.hudPowers);
+    this.touchInput = emptyInput(); // the HUD writes pressed touch buttons into this each frame
+    this.registry.set(HUD_KEYS.touchInput, this.touchInput);
     this.registry.set(HUD_KEYS.bossHits, -1); // hidden until the fight starts
     this.scene.launch("hud");
   }
@@ -521,8 +525,10 @@ export class LevelScene extends Phaser.Scene implements LevelContext {
     kb.on("keydown-P", () => this.openPause());
   }
 
+  /** Keyboard and on-screen touch buttons combined. */
   private readInput(): PlayerInput {
-    return inputFromPressed((name) => this.keys.get(name)?.isDown ?? false);
+    const keyboard = inputFromPressed((name) => this.keys.get(name)?.isDown ?? false);
+    return mergeInputs(keyboard, this.touchInput);
   }
 
   // ── Arni ──────────────────────────────────────────────────────────

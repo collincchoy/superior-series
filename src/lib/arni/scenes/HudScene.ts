@@ -1,6 +1,8 @@
 import Phaser from "phaser";
 import { VIEW_WIDTH } from "../constants.js";
+import type { PlayerInput } from "../input.js";
 import { POWER, TIMED_POWERS, type TimedPower } from "../powerups.js";
+import { inputFromTouches, TOUCH_BUTTONS, type TouchButton } from "../touch.js";
 
 /** Registry keys the level writes and the HUD reads. */
 export const HUD_KEYS = {
@@ -15,10 +17,19 @@ export const HUD_KEYS = {
   bossHits: "bossHits",
   /** How many hits Rex takes in this level (bar segments). */
   bossMaxHits: "bossMaxHits",
+  /** Buttons currently pressed on the touch controls (shared object, written by the HUD each frame). */
+  touchInput: "touchInput",
 } as const;
 
 /** Game-wide events the HUD emits. */
 export const HUD_EVENTS = { pause: "arni:pause" } as const;
+
+/** Registry flag: show on-screen touch controls (touch device, or a touch seen). */
+export const TOUCH_MODE_KEY = "touchMode";
+
+export function isTouchMode(registry: Phaser.Data.DataManager): boolean {
+  return registry.get(TOUCH_MODE_KEY) === true;
+}
 
 const TEXT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
   fontFamily: "system-ui, sans-serif",
@@ -48,7 +59,9 @@ export class HudScene extends Phaser.Scene {
     this.bossBar = null;
     this.bossPips = [];
     this.bossShown = -1;
+    this.touchButtons = [];
     this.renderHearts();
+    this.createTouchControls();
 
     this.coinIcon = this.add.image(24, 76, "hud-coin").setOrigin(0);
     this.coinText = this.add.text(64, 74, "× 0", TEXT_STYLE).setOrigin(0);
@@ -92,6 +105,63 @@ export class HudScene extends Phaser.Scene {
 
   private powerBadges = new Map<TimedPower, { icon: Phaser.GameObjects.Image; ring: Phaser.GameObjects.Graphics }>();
 
+  // ── Touch controls ────────────────────────────────────────────
+
+  private touchButtons: { def: TouchButton; ring: Phaser.GameObjects.Arc; label: Phaser.GameObjects.Text }[] = [];
+
+  private createTouchControls(): void {
+    // Up to 4 fingers at once (e.g. run + jump + whip).
+    if (this.input.manager.pointersTotal < 5) this.input.addPointer(5 - this.input.manager.pointersTotal);
+    for (const def of TOUCH_BUTTONS) {
+      const ring = this.add.circle(def.x, def.y, def.r, 0xffffff, 0.18).setStrokeStyle(5, 0xffffff, 0.55).setDepth(50);
+      const label = this.add
+        .text(def.x, def.y, def.label, {
+          fontFamily: "system-ui, sans-serif",
+          fontSize: def.label.length > 1 ? "24px" : "44px",
+          fontStyle: "bold",
+          color: "#ffffff",
+          stroke: "#271f40",
+          strokeThickness: 5,
+        })
+        .setOrigin(0.5)
+        .setDepth(51);
+      this.touchButtons.push({ def, ring, label });
+    }
+    this.setTouchVisible(isTouchMode(this.registry));
+    // A real touch anywhere switches the controls on (e.g. a laptop with a touchscreen).
+    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      if (p.wasTouch && !isTouchMode(this.registry)) {
+        this.registry.set(TOUCH_MODE_KEY, true);
+        this.setTouchVisible(true);
+      }
+    });
+  }
+
+  private setTouchVisible(on: boolean): void {
+    for (const b of this.touchButtons) {
+      b.ring.setVisible(on);
+      b.label.setVisible(on);
+    }
+  }
+
+  /** Read every finger on the screen and publish the pressed buttons for the level. */
+  private updateTouch(): void {
+    const shared = this.registry.get(HUD_KEYS.touchInput) as PlayerInput | undefined;
+    if (!shared || !isTouchMode(this.registry)) return;
+    const timers = this.registry.get(HUD_KEYS.powers) as Record<TimedPower, number> | undefined;
+    const fireEnabled = (timers?.fire ?? 0) > 0;
+    const points = this.input.manager.pointers.filter((p) => p.isDown && p.wasTouch).map((p) => ({ x: p.x, y: p.y }));
+    Object.assign(shared, inputFromTouches(points, { fireEnabled }));
+    for (const b of this.touchButtons) {
+      const isFire = b.def.id === "special";
+      b.ring.setVisible(!isFire || fireEnabled);
+      b.label.setVisible(!isFire || fireEnabled);
+      const pressed = shared[b.def.id];
+      b.ring.setFillStyle(isFire ? 0xff7a2e : 0xffffff, pressed ? 0.5 : 0.18);
+      b.ring.setScale(pressed ? 0.92 : 1);
+    }
+  }
+
   // ── Rex's health bar ──────────────────────────────────────────
 
   private bossBar: Phaser.GameObjects.Container | null = null;
@@ -127,6 +197,7 @@ export class HudScene extends Phaser.Scene {
 
   update(): void {
     this.updateBossBar();
+    this.updateTouch();
     const timers = this.registry.get(HUD_KEYS.powers) as Record<TimedPower, number> | undefined;
     if (!timers) return;
     let slot = 0;
